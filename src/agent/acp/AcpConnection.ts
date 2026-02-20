@@ -7,7 +7,10 @@
 import type { AcpBackend, AcpIncomingMessage, AcpMessage, AcpNotification, AcpPermissionRequest, AcpRequest, AcpResponse, AcpSessionUpdate } from '@/types/acpTypes';
 import { ACP_METHODS, JSONRPC_VERSION } from '@/types/acpTypes';
 import type { ChildProcess, SpawnOptions } from 'child_process';
-import { execFileSync, spawn } from 'child_process';
+import { execFile as execFileCb, execFileSync, spawn } from 'child_process';
+import { promisify } from 'util';
+
+const execFile = promisify(execFileCb);
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
@@ -182,7 +185,7 @@ export class AcpConnection {
     if (ACP_PERF_LOG) console.log(`[ACP-PERF] connect: start backend=${backend}`);
 
     if (this.child) {
-      this.disconnect();
+      await this.disconnect();
     }
 
     this.backend = backend;
@@ -904,10 +907,32 @@ export class AcpConnection {
     });
   }
 
-  disconnect(): void {
+  async disconnect(): Promise<void> {
     if (this.child) {
       const pid = this.child.pid;
-      if (this.isDetached && pid) {
+      if (process.platform === 'win32' && pid) {
+        // When shell:true is used on Windows, this.child usually points to
+        // cmd.exe while the actual ACP CLI runs as a descendant process.
+        // taskkill /T ensures the full process tree is terminated.
+        // Step 1: Graceful tree kill (no /F) — gives the CLI a chance to clean up.
+        // Step 2: Force kill if graceful termination failed.
+        // Using async execFile to avoid blocking the Electron main process.
+        try {
+          await execFile('taskkill', ['/PID', String(pid), '/T'], {
+            windowsHide: true,
+            timeout: 2000,
+          });
+        } catch {
+          try {
+            await execFile('taskkill', ['/PID', String(pid), '/T', '/F'], {
+              windowsHide: true,
+              timeout: 2000,
+            });
+          } catch (forceError) {
+            console.warn(`[ACP] taskkill /F failed for PID ${pid}:`, forceError);
+          }
+        }
+      } else if (this.isDetached && pid) {
         // For detached processes (CodeBuddy on non-Windows), kill the entire
         // process group so npx's child CLI also terminates.
         // Negative PID = process group kill (POSIX setsid).
