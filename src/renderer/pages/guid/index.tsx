@@ -45,11 +45,12 @@ import { updateWorkspaceTime } from '@/renderer/utils/workspaceHistory';
 import { isAcpRoutedPresetType, type AcpBackend, type AcpBackendConfig, type PresetAgentType } from '@/types/acpTypes';
 import { Button, ConfigProvider, Dropdown, Input, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { IconClose } from '@arco-design/web-react/icon';
-import { ArrowUp, Down, FolderOpen, Plus, Robot, UploadOne } from '@icon-park/react';
+import { ArrowUp, Down, FolderOpen, LinkOne, Plus, Robot, UploadOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import useSWR, { mutate } from 'swr';
+import OpenClawRemoteModal from '@/renderer/components/OpenClawRemoteModal';
 import styles from './index.module.css';
 
 /**
@@ -348,6 +349,7 @@ const Guid: React.FC = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(true);
   const [typewriterPlaceholder, setTypewriterPlaceholder] = useState('');
   const [_isTyping, setIsTyping] = useState(true);
+  const [openClawRemoteVisible, setOpenClawRemoteVisible] = useState(false);
   const mentionMatchRegex = useMemo(() => /(?:^|\s)@([^\s@]*)$/, []);
 
   /**
@@ -1512,6 +1514,16 @@ const Guid: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* OpenClaw Remote entry — always visible regardless of local CLI detection */}
+          <div className='flex justify-center mb-8px'>
+            <button className='inline-flex items-center gap-6px px-12px py-6px rd-16px cursor-pointer border-none text-14px font-medium transition-opacity duration-200 hover:opacity-80' style={{ backgroundColor: 'var(--fill-2)', color: 'var(--text-primary)' }} onClick={() => setOpenClawRemoteVisible(true)}>
+              <img src={OpenClawLogo} alt='OpenClaw' width={16} height={16} style={{ objectFit: 'contain' }} />
+              <LinkOne theme='outline' size={14} fill='currentColor' />
+              <span>{t('openclaw.remote.buttonLabel')}</span>
+            </button>
+          </div>
+          <OpenClawRemoteModal visible={openClawRemoteVisible} onClose={() => setOpenClawRemoteVisible(false)} workspace={dir || undefined} customWorkspace={!!dir} />
 
           <div
             className={`${styles.guidInputCard} relative p-16px border-3 b bg-dialog-fill-0 b-solid rd-20px flex flex-col ${mentionOpen ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'border-dashed' : ''}`}

@@ -1189,5 +1189,17 @@
       "configureFirst": "먼저 설정에서 에이전트를 구성하세요.",
       "switching": "에이전트 전환 중..."
     }
+  },
+  "openclaw": {
+    "remote": {
+      "title": "원격 OpenClaw 게이트웨이에 연결",
+      "url": "게이트웨이 URL",
+      "urlPlaceholder": "wss://your-server:18789",
+      "token": "인증 토큰",
+      "tokenPlaceholder": "게이트웨이 토큰 입력 (선택 사항)",
+      "connect": "연결",
+      "buttonLabel": "OpenClaw 원격",
+      "urlRequired": "게이트웨이 URL은 필수입니다"
+    }
   }
 }

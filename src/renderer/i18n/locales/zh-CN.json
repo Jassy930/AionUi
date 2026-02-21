@@ -1335,5 +1335,17 @@
       "configureFirst": "请先在设置中配置一个 Agent。",
       "switching": "正在切换 Agent..."
     }
+  },
+  "openclaw": {
+    "remote": {
+      "title": "连接远程 OpenClaw 网关",
+      "url": "网关地址",
+      "urlPlaceholder": "wss://your-server:18789",
+      "token": "认证 Token",
+      "tokenPlaceholder": "输入网关 Token（可选）",
+      "connect": "连接",
+      "buttonLabel": "OpenClaw 远程",
+      "urlRequired": "网关地址不能为空"
+    }
   }
 }

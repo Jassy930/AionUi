@@ -1150,5 +1150,17 @@
       "autoGemini25Desc": "Gemini CLI'nın görev için en iyi modele karar vermesine izin ver: gemini-2.5-pro, gemini-2.5-flash",
       "manualDesc": "Manuel olarak bir model seç"
     }
+  },
+  "openclaw": {
+    "remote": {
+      "title": "Uzak OpenClaw Ağ Geçidine Bağlan",
+      "url": "Ağ Geçidi URL",
+      "urlPlaceholder": "wss://your-server:18789",
+      "token": "Kimlik Doğrulama Jetonu",
+      "tokenPlaceholder": "Ağ geçidi jetonunu girin (isteğe bağlı)",
+      "connect": "Bağlan",
+      "buttonLabel": "OpenClaw Uzak",
+      "urlRequired": "Ağ geçidi URL'si gereklidir"
+    }
   }
 }

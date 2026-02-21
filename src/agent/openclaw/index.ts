@@ -15,7 +15,7 @@ import { AcpErrorType, createAcpError } from '@/types/acpTypes';
 import net from 'node:net';
 import { OpenClawGatewayConnection } from './OpenClawGatewayConnection';
 import { OpenClawGatewayManager } from './OpenClawGatewayManager';
-import { getGatewayPort, resolveGatewayConfigFromFile } from './openclawConfig';
+import { resolveGatewayConfigFromFile } from './openclawConfig';
 import type { ChatEvent, EventFrame, HelloOk, OpenClawGatewayConfig } from './types';
 
 async function isTcpPortOpen(host: string, port: number, timeoutMs = 300): Promise<boolean> {
@@ -93,54 +93,84 @@ export class OpenClawAgent {
   }
 
   /**
+   * Resolve gateway connection params by merging config sources.
+   *
+   * Priority: UI config (conversation.extra.gateway) > file config (~/.openclaw/openclaw.json) > defaults
+   */
+  private resolveGatewayParams(): {
+    mode: 'local' | 'remote';
+    url: string;
+    port: number;
+    token?: string;
+    password?: string;
+    cliPath: string;
+  } {
+    const ui = this.config.gateway;
+    const file = resolveGatewayConfigFromFile();
+    const defaultPort = 18789;
+
+    const port = ui?.port || file.port || defaultPort;
+    const cliPath = ui?.cliPath || 'openclaw';
+    const token = ui?.token ?? file.token;
+    const password = ui?.password ?? file.password;
+
+    // Mode: explicit > file config > infer from url/host presence > default 'local'
+    const host = ui?.host;
+    const isRemoteHost = host != null && host !== 'localhost' && host !== '127.0.0.1';
+    const mode: 'local' | 'remote' = ui?.mode ?? file.mode ?? (ui?.url || isRemoteHost ? 'remote' : 'local');
+
+    if (mode === 'remote') {
+      const url = ui?.url || file.url || (isRemoteHost ? `ws://${host}:${port}` : undefined);
+      if (!url) {
+        throw new Error('Remote mode requires a gateway URL. Set gateway.remote.url in ~/.openclaw/openclaw.json or provide it in the connection dialog.');
+      }
+      return {
+        mode: 'remote',
+        url,
+        port,
+        token,
+        password,
+        cliPath,
+      };
+    }
+
+    return {
+      mode: 'local',
+      url: `ws://localhost:${port}`,
+      port,
+      token,
+      password,
+      cliPath,
+    };
+  }
+
+  /**
    * Start the agent
-   * - Start gateway process (if not using external)
-   * - Connect via WebSocket
+   * - Resolve config → spawn local gateway or connect to remote
+   * - Establish WebSocket connection
    * - Resolve session
    */
   async start(): Promise<void> {
     try {
       this.emitStatusMessage('connecting');
 
-      const gatewayConfig: OpenClawGatewayConfig = this.config.gateway || { port: 18789 };
-      const fileConfig = resolveGatewayConfigFromFile();
-      const port = gatewayConfig.port || fileConfig.port || getGatewayPort();
-      const host = gatewayConfig.host || 'localhost';
+      const params = this.resolveGatewayParams();
 
-      // Determine effective mode: UI passed > config file resolved mode > auto-infer (backward compat)
-      const effectiveMode = gatewayConfig.mode ?? fileConfig.mode;
-
-      // Determine whether to use an external gateway:
-      // explicit flag > mode-driven > auto-infer from url or remote host presence
-      const isRemoteHost = host !== 'localhost' && host !== '127.0.0.1';
-      const useExternal = effectiveMode === 'remote' || !!gatewayConfig.url || isRemoteHost;
-
-      // Resolve WebSocket URL: when external, prefer UI url > file config url > host:port;
-      // when local, always connect to host:port
-      const gatewayUrl = useExternal ? gatewayConfig.url || fileConfig.url || `ws://${host}:${port}` : `ws://${host}:${port}`;
-
-      // Auto-load token/password: UI passed > file config (already resolved by mode)
-      const token = gatewayConfig.token ?? fileConfig.token ?? undefined;
-      const password = gatewayConfig.password ?? fileConfig.password ?? undefined;
-
-      if (token) {
-        console.log('[OpenClawAgent] Using gateway auth token from config');
-      } else if (password) {
-        console.log('[OpenClawAgent] Using gateway auth password from config');
+      if (params.token) {
+        console.log('[OpenClawAgent] Using gateway auth token');
+      } else if (params.password) {
+        console.log('[OpenClawAgent] Using gateway auth password');
       }
 
-      // Start gateway process if not using external
-      if (!useExternal) {
-        // If a gateway is already listening on the target port, don't try to spawn another one.
-        // This avoids failures like "port already in use" when the user runs the Gateway service via launchd/systemd.
-        const probeHost = host === 'localhost' ? '127.0.0.1' : host;
-        const alreadyListening = await isTcpPortOpen(probeHost, port);
+      // Local mode: spawn gateway process if not already running
+      if (params.mode === 'local') {
+        const alreadyListening = await isTcpPortOpen('127.0.0.1', params.port);
         if (alreadyListening) {
-          console.log(`[OpenClawAgent] Gateway already listening on ${probeHost}:${port}, skip spawning`);
+          console.log(`[OpenClawAgent] Gateway already listening on 127.0.0.1:${params.port}, skip spawning`);
         } else {
           this.gatewayManager = new OpenClawGatewayManager({
-            cliPath: gatewayConfig.cliPath || 'openclaw',
-            port,
+            cliPath: params.cliPath,
+            port: params.port,
           });
 
           try {
@@ -151,14 +181,14 @@ export class OpenClawAgent {
           }
         }
       } else {
-        console.log(`[OpenClawAgent] Using external gateway at ${gatewayUrl}`);
+        console.log(`[OpenClawAgent] Connecting to remote gateway at ${params.url}`);
       }
 
-      // Create and configure connection
+      // Establish WebSocket connection
       this.connection = new OpenClawGatewayConnection({
-        url: gatewayUrl,
-        token,
-        password,
+        url: params.url,
+        token: params.token,
+        password: params.password,
         onEvent: (evt) => this.handleEvent(evt),
         onHelloOk: (hello) => this.handleHelloOk(hello),
         onConnectError: (err) => this.handleConnectError(err),
@@ -166,14 +196,10 @@ export class OpenClawAgent {
         onPairingRequired: (requestId) => this.handlePairingRequired(requestId),
       });
 
-      // Start connection
       this.connection.start();
-
-      // Wait for connection to be established
       await this.waitForConnection();
       this.emitStatusMessage('connected');
 
-      // Resolve session
       await this.resolveSession();
       this.emitStatusMessage('session_active');
     } catch (error) {

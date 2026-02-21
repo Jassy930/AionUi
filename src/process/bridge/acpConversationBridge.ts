@@ -7,6 +7,7 @@
 import { acpDetector } from '@/agent/acp/AcpDetector';
 import { AcpConnection } from '@/agent/acp/AcpConnection';
 import { CodexConnection } from '@/agent/codex/connection/CodexConnection';
+import { readOpenClawConfig } from '@/agent/openclaw/openclawConfig';
 import WorkerManage from '@/process/WorkerManage';
 import AcpAgentManager from '@/process/task/AcpAgentManager';
 import CodexAgentManager from '@/process/task/CodexAgentManager';
@@ -181,6 +182,26 @@ export function initAcpConversationBridge(): void {
         msg: `${backend} health check failed: ${errorMsg}`,
         data: { available: false, error: errorMsg },
       };
+    }
+  });
+
+  // Read OpenClaw remote gateway config from ~/.openclaw/openclaw.json
+  ipcBridge.openclawConversation.getRemoteConfig.provider(() => {
+    try {
+      const config = readOpenClawConfig();
+      const remote = config?.gateway?.remote;
+      return Promise.resolve({
+        success: true,
+        data: {
+          url: remote?.url || undefined,
+          token: remote?.token || undefined,
+        },
+      });
+    } catch (error) {
+      return Promise.resolve({
+        success: false,
+        msg: error instanceof Error ? error.message : 'Failed to read OpenClaw config',
+      });
     }
   });
 

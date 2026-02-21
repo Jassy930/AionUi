@@ -1134,5 +1134,17 @@
       "configureFirst": "まず設定でエージェントを設定してください。",
       "switching": "エージェントを切り替え中..."
     }
+  },
+  "openclaw": {
+    "remote": {
+      "title": "リモート OpenClaw ゲートウェイに接続",
+      "url": "ゲートウェイ URL",
+      "urlPlaceholder": "wss://your-server:18789",
+      "token": "認証トークン",
+      "tokenPlaceholder": "ゲートウェイトークンを入力（任意）",
+      "connect": "接続",
+      "buttonLabel": "OpenClaw リモート",
+      "urlRequired": "ゲートウェイ URL は必須です"
+    }
   }
 }

@@ -217,6 +217,7 @@ export const codexConversation = {
 export const openclawConversation = {
   sendMessage: conversation.sendMessage,
   responseStream: bridge.buildEmitter<IResponseMessage>('openclaw.response.stream'),
+  getRemoteConfig: bridge.buildProvider<IBridgeResponse<{ url?: string; token?: string }>, void>('openclaw.get-remote-config'),
   getRuntime: bridge.buildProvider<
     IBridgeResponse<{
       conversationId: string;
