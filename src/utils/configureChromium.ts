@@ -33,10 +33,10 @@ if (process.platform === 'linux') {
 
 const isLinuxWayland = process.platform === 'linux' && !!process.env.WAYLAND_DISPLAY;
 
-// No usable display in two cases:
-// 1. Neither DISPLAY nor WAYLAND_DISPLAY is set (headless server)
-// 2. Wayland present but X not connectable (e.g. xrdp + Wayland: XWayland auth mismatch)
-export const isLinuxNoDisplay = (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) || (isLinuxWayland && !isXDisplayConnectable());
+// No usable display if DISPLAY is absent or X connection fails (auth error, broken socket, etc.)
+// Covers: headless server (no DISPLAY), xrdp with broken XWayland auth (DISPLAY set but xcb fails),
+// and xrdp+Wayland sessions that don't expose WAYLAND_DISPLAY to the xrdp client.
+export const isLinuxNoDisplay = process.platform === 'linux' && (!process.env.DISPLAY || !isXDisplayConnectable());
 
 // Linux no-display: enable headless mode to prevent segfault when no display server is present
 // Linux 无显示时启用 headless 防止段错误崩溃
