@@ -40,6 +40,8 @@ const isLinuxWayland = process.platform === 'linux' && !!process.env.WAYLAND_DIS
 
 if (isLinuxWayland) {
   app.commandLine.appendSwitch('ozone-platform', 'x11');
+  // disable hardware GPU as remote Wayland sessions (e.g. xrdp) lack hardware EGL support
+  app.commandLine.appendSwitch('disable-gpu');
 }
 
 // For WebUI and --resetpass modes: disable sandbox for root user
