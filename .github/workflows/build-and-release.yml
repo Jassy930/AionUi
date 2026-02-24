@@ -253,6 +253,8 @@ jobs:
           Write-Host "=========================================="
           Write-Host "✅ All critical native modules verified"
           Write-Host "=========================================="
+          # Reset exit code so the step succeeds when verification passes
+          exit 0
         env:
           npm_config_runtime: electron
           npm_config_arch: ${{ matrix.arch }}
