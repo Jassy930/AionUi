@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import './utils/configureChromium';
+import { isLinuxNoDisplay } from './utils/configureChromium';
 import { app, BrowserWindow, nativeImage, powerMonitor, screen } from 'electron';
 import fixPath from 'fix-path';
 import * as fs from 'fs';
@@ -169,7 +169,6 @@ const resolveRemoteAccess = (config: WebUIUserConfig): boolean => {
 const isWebUIMode = hasSwitch('webui');
 const isRemoteMode = hasSwitch('remote');
 const isResetPasswordMode = hasCommand('--resetpass');
-const isLinuxNoDisplay = process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
 
 let mainWindow: BrowserWindow;
 

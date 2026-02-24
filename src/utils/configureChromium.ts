@@ -5,16 +5,21 @@
  */
 
 import { app } from 'electron';
+import { spawnSync } from 'child_process';
 
 // Configure Chromium command-line flags for WebUI and CLI modes
 // 为 WebUI 和 CLI 模式配置 Chromium 命令行参数
 
-const isWebUI = process.argv.some((arg) => arg === '--webui');
-const isResetPassword = process.argv.includes('--resetpass');
-
-// Detect Linux without any display server (X11 or Wayland)
-// 检测无显示服务器的 Linux 环境（X11 或 Wayland）
-const isLinuxNoDisplay = process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY;
+// Check if X display is actually connectable (auth + socket test via xdpyinfo).
+// Returns true if X is usable; if xdpyinfo is not installed, assumes accessible.
+// This catches xrdp + Wayland sessions where DISPLAY points to XWayland but
+// the auth cookie (MIT-MAGIC-COOKIE) is inaccessible from the xrdp session.
+function isXDisplayConnectable(): boolean {
+  if (!process.env.DISPLAY) return false;
+  const result = spawnSync('xdpyinfo', { timeout: 2000, stdio: 'pipe', env: process.env });
+  if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') return true;
+  return result.status === 0;
+}
 
 // All Linux: prevent GPU sandbox init failure (error_code=1002) on VMs, containers, and
 // systems with restricted namespaces — applies regardless of display server availability
@@ -26,6 +31,13 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('no-zygote');
 }
 
+const isLinuxWayland = process.platform === 'linux' && !!process.env.WAYLAND_DISPLAY;
+
+// No usable display in two cases:
+// 1. Neither DISPLAY nor WAYLAND_DISPLAY is set (headless server)
+// 2. Wayland present but X not connectable (e.g. xrdp + Wayland: XWayland auth mismatch)
+export const isLinuxNoDisplay = (process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) || (isLinuxWayland && !isXDisplayConnectable());
+
 // Linux no-display: enable headless mode to prevent segfault when no display server is present
 // Linux 无显示时启用 headless 防止段错误崩溃
 if (isLinuxNoDisplay) {
@@ -34,11 +46,9 @@ if (isLinuxNoDisplay) {
   app.commandLine.appendSwitch('disable-software-rasterizer');
 }
 
-// Detect Linux with Wayland display server
+// Linux Wayland (local desktop only, skip when going headless):
 // Force X11/XWayland to avoid Electron-Wayland compatibility issues on GNOME + Wayland
-const isLinuxWayland = process.platform === 'linux' && !!process.env.WAYLAND_DISPLAY;
-
-if (isLinuxWayland) {
+if (isLinuxWayland && !isLinuxNoDisplay) {
   app.commandLine.appendSwitch('ozone-platform', 'x11');
   // disable hardware GPU as remote Wayland sessions (e.g. xrdp) lack hardware EGL support
   app.commandLine.appendSwitch('disable-gpu');
@@ -46,6 +56,8 @@ if (isLinuxWayland) {
 
 // For WebUI and --resetpass modes: disable sandbox for root user
 // 仅 WebUI 和重置密码模式：root 用户禁用沙箱
+const isWebUI = process.argv.some((arg) => arg === '--webui');
+const isResetPassword = process.argv.includes('--resetpass');
 if (isWebUI || isResetPassword) {
   if (typeof process.getuid === 'function' && process.getuid() === 0) {
     app.commandLine.appendSwitch('no-sandbox');
