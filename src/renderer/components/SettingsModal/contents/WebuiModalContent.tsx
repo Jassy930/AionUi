@@ -548,18 +548,20 @@ const WebuiModalContent: React.FC = () => {
         </div>
 
         {/* Messaging 强引导入口 / Messaging primary entry */}
-        <div className='rd-12px border border-line bg-2 px-12px py-10px flex items-center justify-between gap-10px'>
-          <div className='min-w-0 flex items-center gap-8px'>
-            <Communication theme='outline' size='18' className='text-[rgb(var(--primary-6))] shrink-0' />
-            <div className='min-w-0'>
-              <div className='text-13px text-t-primary font-500'>{t('settings.webui.featureChannelsTitle')}</div>
-              <div className='text-12px text-t-secondary truncate'>{t('settings.webui.featureChannelsDesc')}</div>
+        {false && (
+          <div className='rd-12px border border-line bg-2 px-12px py-10px flex items-center justify-between gap-10px'>
+            <div className='min-w-0 flex items-center gap-8px'>
+              <Communication theme='outline' size='18' className='text-[rgb(var(--primary-6))] shrink-0' />
+              <div className='min-w-0'>
+                <div className='text-13px text-t-primary font-500'>{t('settings.webui.featureChannelsTitle')}</div>
+                <div className='text-12px text-t-secondary truncate'>{t('settings.webui.featureChannelsDesc')}</div>
+              </div>
             </div>
+            <Button type='primary' size='small' className='rd-100px' onClick={() => setActiveTab('channels')}>
+              {t('settings.webui.goToChannels')}
+            </Button>
           </div>
-          <Button type='primary' size='small' className='rd-100px' onClick={() => setActiveTab('channels')}>
-            {t('settings.webui.goToChannels')}
-          </Button>
-        </div>
+        )}
 
         {/* WebUI 服务卡片 / WebUI Service Card */}
         <div className='px-[12px] md:px-[28px] py-14px bg-2 rd-16px'>
@@ -570,7 +572,7 @@ const WebuiModalContent: React.FC = () => {
           </div>
 
           {/* 启用 WebUI / Enable WebUI */}
-          <PreferenceRow label={t('settings.webui.enable')} extra={startLoading ? <span className='text-12px text-warning'>{t('settings.webui.starting')}</span> : status?.running ? <span className='text-12px text-green-500'>✓ {t('settings.webui.running')}</span> : null}>
+          <PreferenceRow label={t('settings.webui.enable')} extra={startLoading ? <span className='text-12px text-warning'>{t('settings.webui.starting')}</span> : status?.running ? <span className='text-12px text-success'>✓ {t('settings.webui.running')}</span> : null}>
             <Switch checked={status?.running || startLoading} loading={startLoading} onChange={handleToggle} />
           </PreferenceRow>
 
@@ -594,13 +596,13 @@ const WebuiModalContent: React.FC = () => {
           <PreferenceRow
             label={t('settings.webui.allowRemote')}
             description={
-              <>
+              <span className='text-t-secondary'>
                 {t('settings.webui.allowRemoteDesc')}
                 {'  '}
                 <button className='text-primary hover:underline cursor-pointer bg-transparent border-none p-0 text-12px' onClick={() => shell.openExternal.invoke('https://github.com/iOfficeAI/AionUi/wiki/Remote-Internet-Access-Guide').catch(console.error)}>
                   {t('settings.webui.viewGuide')}
                 </button>
-              </>
+              </span>
             }
           >
             <Switch checked={allowRemote} onChange={handleAllowRemoteChange} />
@@ -646,13 +648,15 @@ const WebuiModalContent: React.FC = () => {
 
               <div className='flex flex-col items-center gap-12px'>
                 {/* 二维码显示区域 / QR Code display area */}
-                <div className='p-12px bg-white rd-10px'>
+                <div className='p-12px bg-fill-1 border border-line rd-10px'>
                   {qrLoading ? (
                     <div className='w-140px h-140px flex items-center justify-center'>
                       <span className='text-14px text-t-tertiary'>{t('common.loading')}</span>
                     </div>
                   ) : qrUrl ? (
-                    <QRCodeSVG value={qrUrl} size={140} level='M' />
+                    <div className='p-8px bg-white rd-8px'>
+                      <QRCodeSVG value={qrUrl} size={140} level='M' />
+                    </div>
                   ) : (
                     <div className='w-140px h-140px flex items-center justify-center'>
                       <span className='text-14px text-t-tertiary'>{t('settings.webui.qrGenerateFailed')}</span>
@@ -679,11 +683,11 @@ const WebuiModalContent: React.FC = () => {
 
   return (
     <div className='flex flex-col h-full w-full'>
-      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab((key as 'webui' | 'channels') || 'webui')} type='line' className='mb-12px'>
+      <Tabs activeTab={activeTab} onChange={(key) => setActiveTab((key as 'webui' | 'channels') || 'webui')} type='line' className='mb-12px settings-remote-tabs'>
         <Tabs.TabPane
           key='webui'
           title={
-            <span className='inline-flex items-center gap-6px'>
+            <span className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'webui' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
               <Earth theme='outline' size='15' />
               <span>WebUI</span>
             </span>
@@ -692,7 +696,7 @@ const WebuiModalContent: React.FC = () => {
         <Tabs.TabPane
           key='channels'
           title={
-            <span className='inline-flex items-center gap-6px'>
+            <span className={`inline-flex items-center gap-6px transition-colors ${activeTab === 'channels' ? 'text-t-primary font-600' : 'text-t-secondary'}`}>
               <Communication theme='outline' size='15' />
               <span>Channels</span>
               <span className='inline-flex items-center gap-4px ml-2px'>

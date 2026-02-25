@@ -370,14 +370,14 @@ const ChannelModalContent: React.FC = () => {
     if (channelId === 'dingtalk') return handleToggleDingtalkPlugin;
     return undefined;
   };
-  const channelGuideText = t('settings.channels.guide', { defaultValue: 'Connect your chat apps to control your AI agent anytime.' });
+  const channelGuideText = t('settings.webui.featureChannelsDesc', { defaultValue: 'Connect Telegram, Lark, and DingTalk to interact with AionUi from IM apps.' });
   const channelSetupSteps = [t('settings.channels.selectFirst', { defaultValue: 'Select a channel and configure credentials.' }), t('settings.channels.enableAfterConfig', { defaultValue: 'Enable it and start chatting with your AI agent.' })];
 
   return (
     <AionScrollArea className={isPageMode ? 'h-full' : ''}>
-      <div className='flex flex-col gap-12px px-[12px] md:px-[28px]'>
+      <div className='px-[12px] md:px-[28px]'>
         <h2 className='text-20px font-500 text-t-primary m-0'>{t('settings.channels.title', 'Channels')}</h2>
-        <div className='space-y-6px'>
+        <div className='space-y-8px mt-10px'>
           <div className='text-13px text-t-secondary leading-relaxed'>{channelGuideText}</div>
           <div className='flex flex-wrap gap-x-12px gap-y-6px'>
             {channelSetupSteps.map((stepLabel, idx) => (
@@ -390,9 +390,11 @@ const ChannelModalContent: React.FC = () => {
           </div>
         </div>
 
-        {channels.map((channelConfig) => (
-          <ChannelItem key={channelConfig.id} channel={channelConfig} isCollapsed={collapseKeys[channelConfig.id] || false} onToggleCollapse={() => handleToggleCollapse(channelConfig.id)} onToggleEnabled={getToggleHandler(channelConfig.id)} />
-        ))}
+        <div className='space-y-12px mt-12px'>
+          {channels.map((channelConfig) => (
+            <ChannelItem key={channelConfig.id} channel={channelConfig} isCollapsed={collapseKeys[channelConfig.id] || false} onToggleCollapse={() => handleToggleCollapse(channelConfig.id)} onToggleEnabled={getToggleHandler(channelConfig.id)} />
+          ))}
+        </div>
       </div>
     </AionScrollArea>
   );
