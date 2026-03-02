@@ -6,6 +6,7 @@
 
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { getScrollTopForActiveItem, useSlashCommandController } from '@/renderer/hooks/useSlashCommandController';
+import { useLayoutContext } from '@/renderer/context/LayoutContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/preview';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/focus';
 import { Button, Input, Message, Tag } from '@arco-design/web-react';
@@ -41,15 +42,11 @@ const SendBox: React.FC<{
   defaultMultiLine?: boolean;
   lockMultiLine?: boolean;
   sendButtonPrefix?: React.ReactNode;
-<<<<<<< HEAD
-}> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix }) => {
-  const layout = useLayoutContext();
-  const isMobile = layout?.isMobile ?? false;
-=======
   slashCommands?: SlashCommandItem[];
   onSlashBuiltinCommand?: (name: string) => void;
 }> = ({ onSend, onStop, prefix, className, loading, tools, disabled, placeholder, value: input = '', onChange: setInput = constVoid, onFilesAdded, supportedExts = allSupportedExts, defaultMultiLine = false, lockMultiLine = false, sendButtonPrefix, slashCommands = [], onSlashBuiltinCommand }) => {
->>>>>>> 9b9106e6 (feat(slash): implement slash commands with WebUI dev-mode proxy)
+  const layout = useLayoutContext();
+  const isMobile = layout?.isMobile ?? false;
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isSingleLine, setIsSingleLine] = useState(!defaultMultiLine);

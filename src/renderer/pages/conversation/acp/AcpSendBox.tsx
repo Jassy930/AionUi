@@ -317,10 +317,10 @@ const AcpSendBox: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
 }> = ({ conversation_id, backend, sessionMode }) => {
-  const { thought, running, aiProcessing, setAiProcessing, resetState } = useAcpMessage(conversation_id);
+  const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState } = useAcpMessage(conversation_id);
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
-  const slashCommands = useSlashCommands(conversation_id);
+  const slashCommands = useSlashCommands(conversation_id, { agentStatus: acpStatus });
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
   const { setSendBoxHandler } = usePreviewContext();
 

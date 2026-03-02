@@ -759,18 +759,17 @@ export class AcpAgent {
     try {
       if (data.update?.sessionUpdate === 'available_commands_update') {
         const commandUpdate = data as AvailableCommandsUpdate;
-        const commands = (commandUpdate.update?.availableCommands || [])
-          .map((command) => ({
-            name: command.name?.trim(),
-            description: (command.description || command.name || '').trim(),
+        const commands: AcpAvailableCommand[] = [];
+        for (const command of commandUpdate.update?.availableCommands || []) {
+          const name = command.name?.trim();
+          if (!name) continue;
+          const description = (command.description || command.name || '').trim();
+          commands.push({
+            name,
+            description: description || name,
             hint: command.input?.hint?.trim(),
-          }))
-          .filter((command): command is AcpAvailableCommand => Boolean(command.name))
-          .map((command) => ({
-            name: command.name,
-            description: command.description || command.name,
-            hint: command.hint,
-          }));
+          });
+        }
         this.onAvailableCommandsUpdate?.(commands);
       }
 

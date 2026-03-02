@@ -51,10 +51,13 @@ export function useSlashCommandController(options: UseSlashCommandControllerOpti
   const [activeIndex, setActiveIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
 
+  // Reset state only when query changes, not when commands array updates.
+  // This prevents dropdown from reopening when ACP dynamically adds commands
+  // while the user is typing.
   useEffect(() => {
     setActiveIndex(0);
     setDismissed(false);
-  }, [query, commands.length]);
+  }, [query]);
 
   const filteredCommands = useMemo(() => {
     if (query === null) {

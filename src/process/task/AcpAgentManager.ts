@@ -493,14 +493,23 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   }
 
   async loadAcpSlashCommands(timeoutMs: number = 6000): Promise<SlashCommandItem[]> {
+    // Return cached commands immediately if available
     if (this.acpAvailableSlashCommands.length > 0) {
       return this.getAcpSlashCommands();
     }
 
+    // Don't start agent process just to load slash commands.
+    // The frontend (useSlashCommands) re-fetches when agentStatus changes,
+    // so commands will be loaded once the agent is naturally initialized.
+    if (!this.bootstrap) {
+      return [];
+    }
+
+    // Wait for ongoing initialization to complete
     try {
-      await this.initAgent(this.options);
+      await this.bootstrap;
     } catch (error) {
-      console.warn('[AcpAgentManager] Failed to initialize agent while loading ACP slash commands:', error);
+      console.warn('[AcpAgentManager] Agent initialization failed while loading ACP slash commands:', error);
       return this.getAcpSlashCommands();
     }
 
