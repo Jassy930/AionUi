@@ -123,7 +123,14 @@ function registerProductionStaticRoutes(expressApp: Express, staticRoot: string,
   expressApp.get('/', pageRateLimiter, serveApplication);
 
   expressApp.get('/favicon.ico', (_req: Request, res: Response) => {
-    res.status(204).end();
+    const icoPath = path.join(app.getAppPath(), 'resources', 'app.ico');
+    if (fs.existsSync(icoPath)) {
+      res.setHeader('Content-Type', 'image/x-icon');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(fs.readFileSync(icoPath));
+    } else {
+      res.status(204).end();
+    }
   });
 
   // SPA sub-routes (React Router)
