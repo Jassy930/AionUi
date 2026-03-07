@@ -65,6 +65,13 @@
     "deleteSuccess": "刪除成功",
     "deleteFailed": "刪除失敗"
   },
+  "dropdown": {
+    "cliAgents": "CLI Agents",
+    "presetAssistants": "預設助手"
+  },
+  "noAgentsAvailable": "沒有可用的 Agent",
+  "noModelConfigured": "未設定模型，請前往設定頁面設定。",
+  "createFailed": "建立對話失敗",
   "tabs": {
     "closeAll": "全部關閉",
     "closeLeft": "關閉左側",

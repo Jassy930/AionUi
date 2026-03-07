@@ -71,6 +71,13 @@
     "closeRight": "关闭右侧",
     "closeOthers": "关闭其他"
   },
+  "dropdown": {
+    "cliAgents": "CLI Agents",
+    "presetAssistants": "预设助手"
+  },
+  "noAgentsAvailable": "没有可用的 Agent",
+  "noModelConfigured": "未配置模型，请前往设置页面配置。",
+  "createFailed": "创建会话失败",
   "workspace": {
     "title": "工作空间",
     "pasteConfirm_title": "粘贴文件",
