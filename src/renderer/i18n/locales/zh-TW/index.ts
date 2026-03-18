@@ -19,6 +19,7 @@ import guid from './guid.json';
 import agent from './agent.json';
 import task from './task.json';
 import viewMode from './viewMode.json';
+import project from './project.json';
 
 export default {
   common,
@@ -41,4 +42,5 @@ export default {
   agent,
   task,
   viewMode,
+  project,
 };

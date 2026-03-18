@@ -1004,13 +1004,157 @@ const migration_v16: IMigration = {
 };
 
 /**
+ * Migration v16 -> v17: Restructure tasks to projects + tasks
+ *
+ * Conceptual shift:
+ * - Old "tasks" table becomes "projects" (top-level work container)
+ * - New "tasks" table holds work items within a project
+ * - conversations.task_id now references the new tasks table
+ * - Project status: brainstorming / todo / progressing / done
+ * - Task status: pending / in_progress / done
+ */
+const migration_v17: IMigration = {
+  version: 17,
+  name: 'Restructure tasks to projects + tasks hierarchy',
+  up: (db) => {
+    // Step 1: Create projects table with new status values
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'brainstorming'
+          CHECK(status IN ('brainstorming', 'todo', 'progressing', 'done')),
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+      CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+      CREATE INDEX IF NOT EXISTS idx_projects_user_status ON projects(user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
+    `);
+
+    // Step 2: Migrate data from old tasks → projects (map status values)
+    db.exec(`
+      INSERT INTO projects (id, name, description, status, user_id, created_at, updated_at)
+      SELECT id, name, description,
+        CASE status
+          WHEN 'pending' THEN 'todo'
+          WHEN 'in_progress' THEN 'progressing'
+          WHEN 'done' THEN 'done'
+          ELSE 'todo'
+        END,
+        user_id, created_at, updated_at
+      FROM tasks;
+    `);
+
+    // Step 3: Move old conversations.task_id (which referenced old tasks = now projects)
+    // to a temporary holding, then clear task_id so it can reference new tasks table
+    // We store the project association in the conversation's extra JSON for now.
+    // First, record which conversations had a task_id (= project_id).
+    const convWithTask = db.prepare(`SELECT id, task_id FROM conversations WHERE task_id IS NOT NULL`).all() as Array<{
+      id: string;
+      task_id: string;
+    }>;
+
+    // Clear all task_id references (they pointed to old tasks table)
+    db.exec(`UPDATE conversations SET task_id = NULL`);
+
+    // Step 4: Drop old tasks table (now replaced by projects)
+    db.exec(`DROP TABLE IF EXISTS tasks`);
+
+    // Step 5: Drop old indexes that referenced tasks
+    db.exec(`
+      DROP INDEX IF EXISTS idx_tasks_user_id;
+      DROP INDEX IF EXISTS idx_tasks_status;
+      DROP INDEX IF EXISTS idx_tasks_user_status;
+      DROP INDEX IF EXISTS idx_tasks_updated_at;
+    `);
+
+    // Step 6: Create new tasks table (work items within projects)
+    db.exec(`
+      CREATE TABLE tasks (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK(status IN ('pending', 'in_progress', 'done')),
+        sort_order INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(project_id, sort_order);
+    `);
+
+    // Step 7: Log migrated project associations for reference
+    if (convWithTask.length > 0) {
+      console.log(
+        `[Migration v17] Migrated ${convWithTask.length} conversation-project associations. ` +
+          `Old task_id values (now project IDs) have been cleared from conversations.`
+      );
+    }
+
+    console.log('[Migration v17] Restructured: tasks → projects + new tasks table');
+  },
+  down: (db) => {
+    // Drop new tasks table
+    db.exec(`DROP TABLE IF EXISTS tasks`);
+
+    // Recreate old tasks table from projects
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'in_progress', 'done')),
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO tasks (id, name, description, status, user_id, created_at, updated_at)
+      SELECT id, name, description,
+        CASE status
+          WHEN 'brainstorming' THEN 'pending'
+          WHEN 'todo' THEN 'pending'
+          WHEN 'progressing' THEN 'in_progress'
+          WHEN 'done' THEN 'done'
+          ELSE 'pending'
+        END,
+        user_id, created_at, updated_at
+      FROM projects;
+
+      CREATE INDEX IF NOT EXISTS idx_tasks_user_id ON tasks(user_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks(user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_updated_at ON tasks(updated_at DESC);
+    `);
+
+    // Drop projects table
+    db.exec(`DROP TABLE IF EXISTS projects`);
+
+    console.log('[Migration v17] Rolled back: Restored old tasks table from projects');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15, migration_v16,
+  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17,
 ];
 
 /**

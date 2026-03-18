@@ -4,6 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import TaskBoard from './TaskBoard';
+import ProjectList from './ProjectList';
 
-export default TaskBoard;
+export default ProjectList;

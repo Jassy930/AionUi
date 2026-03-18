@@ -1,0 +1,24 @@
+{
+  "listTitle": "Projeler",
+  "create": "Yeni Proje",
+  "edit": "Projeyi Duzenle",
+  "name": "Proje Adi",
+  "namePlaceholder": "Proje adini girin...",
+  "nameRequired": "Proje adi gereklidir",
+  "description": "Aciklama",
+  "descriptionPlaceholder": "Aciklama girin (istege bagli)...",
+  "statusLabel": "Durum",
+  "created": "Proje olusturuldu",
+  "createFailed": "Proje olusturulamadi",
+  "deleted": "Proje silindi",
+  "deleteFailed": "Proje silinemedi",
+  "updateFailed": "Proje guncellenemedi",
+  "noProjects": "Henuz proje yok",
+  "tasks": "gorev",
+  "status": {
+    "brainstorming": "Beyin Firtinasi",
+    "todo": "Yapilacak",
+    "progressing": "Devam Ediyor",
+    "done": "Tamamlandi"
+  }
+}

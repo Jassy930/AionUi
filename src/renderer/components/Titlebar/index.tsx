@@ -83,7 +83,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const backToChatTooltip = t('common.back', { defaultValue: 'Back to Chat' });
   const viewModeTooltip =
     viewMode === 'thread'
-      ? t('viewMode.switchToTask', { defaultValue: 'Switch to Task view' })
+      ? t('viewMode.switchToTask', { defaultValue: 'Switch to Project view' })
       : t('viewMode.switchToThread', { defaultValue: 'Switch to Thread view' });
   const isSettingsRoute = location.pathname.startsWith('/settings');
   const iconSize = layout?.isMobile ? 24 : 18;

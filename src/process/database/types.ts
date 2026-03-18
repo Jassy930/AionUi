@@ -8,8 +8,14 @@
 import type { ConversationSource, TChatConversation, IConfigStorageRefer } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
 
-// Re-export task types
+// Re-export project and task types
 export type {
+  TProject,
+  IProjectRow,
+  ProjectStatus,
+  ICreateProjectParams,
+  IUpdateProjectParams,
+  TProjectWithCount,
   TTask,
   ITaskRow,
   TaskStatus,
@@ -17,7 +23,7 @@ export type {
   IUpdateTaskParams,
   TTaskWithCount,
 } from '@/common/types/task';
-export { taskToRow, rowToTask } from '@/common/types/task';
+export { projectToRow, rowToProject, taskToRow, rowToTask } from '@/common/types/task';
 
 /**
  * ======================

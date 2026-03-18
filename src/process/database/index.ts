@@ -19,11 +19,23 @@ import type {
   IUser,
   TChatConversation,
   TMessage,
+  TProject,
+  IProjectRow,
+  TProjectWithCount,
   TTask,
   ITaskRow,
   TTaskWithCount,
 } from './types';
-import { conversationToRow, messageToRow, rowToConversation, rowToMessage, taskToRow, rowToTask } from './types';
+import {
+  conversationToRow,
+  messageToRow,
+  rowToConversation,
+  rowToMessage,
+  projectToRow,
+  rowToProject,
+  taskToRow,
+  rowToTask,
+} from './types';
 import type { IMessageSearchItem, IMessageSearchResponse } from '@/common/types/database';
 import type {
   IChannelPluginConfig,
@@ -1391,23 +1403,153 @@ export class AionUIDatabase {
 
   /**
    * ==================
-   * Task operations
-   * Task 操作
+   * ==================
+   * Project operations
+   * Project 操作
    * ==================
    */
 
   /**
-   * Create a new task
-   * 创建新任务
+   * Create a new project
+   */
+  createProject(project: TProject): IQueryResult<TProject> {
+    try {
+      const row = projectToRow(project);
+      const stmt = this.db.prepare(`
+        INSERT INTO projects (id, name, description, status, user_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(row.id, row.name, row.description, row.status, row.user_id, row.created_at, row.updated_at);
+      return { success: true, data: project };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get project by ID
+   */
+  getProject(projectId: string): IQueryResult<TProject> {
+    try {
+      const row = this.db.prepare('SELECT * FROM projects WHERE id = ?').get(projectId) as IProjectRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Project not found' };
+      }
+      return { success: true, data: rowToProject(row) };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get all projects for a user with task count
+   */
+  getUserProjects(userId?: string): IQueryResult<TProjectWithCount[]> {
+    try {
+      const finalUserId = userId || this.defaultUserId;
+      const rows = this.db
+        .prepare(
+          `
+          SELECT p.*, COUNT(t.id) as task_count
+          FROM projects p
+          LEFT JOIN tasks t ON t.project_id = p.id
+          WHERE p.user_id = ?
+          GROUP BY p.id
+          ORDER BY p.updated_at DESC
+        `
+        )
+        .all(finalUserId) as Array<IProjectRow & { task_count: number }>;
+
+      const projects: TProjectWithCount[] = rows.map((row) => ({
+        ...rowToProject(row),
+        task_count: row.task_count,
+      }));
+
+      return { success: true, data: projects };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  /**
+   * Update project
+   */
+  updateProject(
+    projectId: string,
+    updates: Partial<Pick<TProject, 'name' | 'description' | 'status'>>
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getProject(projectId);
+      if (!existing.success || !existing.data) {
+        return { success: false, error: 'Project not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const params: (string | number | null)[] = [now];
+
+      if (updates.name !== undefined) {
+        setClauses.push('name = ?');
+        params.push(updates.name);
+      }
+      if (updates.description !== undefined) {
+        setClauses.push('description = ?');
+        params.push(updates.description ?? null);
+      }
+      if (updates.status !== undefined) {
+        setClauses.push('status = ?');
+        params.push(updates.status);
+      }
+
+      params.push(projectId);
+      const stmt = this.db.prepare(`UPDATE projects SET ${setClauses.join(', ')} WHERE id = ?`);
+      stmt.run(...params);
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Delete project (cascades to tasks, conversations get task_id cleared)
+   */
+  deleteProject(projectId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * ==================
+   * Task operations
+   * Task 操作 (work items within a Project)
+   * ==================
+   */
+
+  /**
+   * Create a new task within a project
    */
   createTask(task: TTask): IQueryResult<TTask> {
     try {
       const row = taskToRow(task);
       const stmt = this.db.prepare(`
-        INSERT INTO tasks (id, name, description, status, user_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tasks (id, project_id, name, description, status, sort_order, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(row.id, row.name, row.description, row.status, row.user_id, row.created_at, row.updated_at);
+      stmt.run(
+        row.id,
+        row.project_id,
+        row.name,
+        row.description,
+        row.status,
+        row.sort_order,
+        row.created_at,
+        row.updated_at
+      );
       return { success: true, data: task };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -1416,7 +1558,6 @@ export class AionUIDatabase {
 
   /**
    * Get task by ID
-   * 通过 ID 获取任务
    */
   getTask(taskId: string): IQueryResult<TTask> {
     try {
@@ -1431,55 +1572,22 @@ export class AionUIDatabase {
   }
 
   /**
-   * Get all tasks for a user with conversation count
-   * 获取用户的所有任务（包含关联的会话数量）
+   * Get all tasks for a project with conversation count
    */
-  getUserTasks(userId?: string): IQueryResult<TTaskWithCount[]> {
+  getProjectTasks(projectId: string): IQueryResult<TTaskWithCount[]> {
     try {
-      const finalUserId = userId || this.defaultUserId;
       const rows = this.db
         .prepare(
           `
           SELECT t.*, COUNT(c.id) as conversation_count
           FROM tasks t
           LEFT JOIN conversations c ON c.task_id = t.id
-          WHERE t.user_id = ?
+          WHERE t.project_id = ?
           GROUP BY t.id
-          ORDER BY t.updated_at DESC
+          ORDER BY t.sort_order ASC, t.updated_at DESC
         `
         )
-        .all(finalUserId) as Array<ITaskRow & { conversation_count: number }>;
-
-      const tasks: TTaskWithCount[] = rows.map((row) => ({
-        ...rowToTask(row),
-        conversation_count: row.conversation_count,
-      }));
-
-      return { success: true, data: tasks };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
-    }
-  }
-
-  /**
-   * Get tasks by status
-   * 按状态获取任务
-   */
-  getTasksByStatus(status: TTask['status'], userId?: string): IQueryResult<TTaskWithCount[]> {
-    try {
-      const finalUserId = userId || this.defaultUserId;
-      const rows = this.db
-        .prepare(
-          `
-          SELECT t.*, COUNT(c.id) as conversation_count
-          FROM tasks t
-          LEFT JOIN conversations c ON c.task_id = t.id
-          WHERE t.user_id = ? AND t.status = ?
-          GROUP BY t.id
-          ORDER BY t.updated_at DESC
-        `
-        )
-        .all(finalUserId, status) as Array<ITaskRow & { conversation_count: number }>;
+        .all(projectId) as Array<ITaskRow & { conversation_count: number }>;
 
       const tasks: TTaskWithCount[] = rows.map((row) => ({
         ...rowToTask(row),
@@ -1494,9 +1602,11 @@ export class AionUIDatabase {
 
   /**
    * Update task
-   * 更新任务
    */
-  updateTask(taskId: string, updates: Partial<Pick<TTask, 'name' | 'description' | 'status'>>): IQueryResult<boolean> {
+  updateTask(
+    taskId: string,
+    updates: Partial<Pick<TTask, 'name' | 'description' | 'status' | 'sort_order'>>
+  ): IQueryResult<boolean> {
     try {
       const existing = this.getTask(taskId);
       if (!existing.success || !existing.data) {
@@ -1519,6 +1629,10 @@ export class AionUIDatabase {
         setClauses.push('status = ?');
         params.push(updates.status);
       }
+      if (updates.sort_order !== undefined) {
+        setClauses.push('sort_order = ?');
+        params.push(updates.sort_order);
+      }
 
       params.push(taskId);
       const stmt = this.db.prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = ?`);
@@ -1531,8 +1645,7 @@ export class AionUIDatabase {
   }
 
   /**
-   * Delete task
-   * 删除任务（关联的会话会解除关联，不会被删除）
+   * Delete task (conversations get task_id cleared via ON DELETE SET NULL)
    */
   deleteTask(taskId: string): IQueryResult<boolean> {
     try {
@@ -1545,7 +1658,6 @@ export class AionUIDatabase {
 
   /**
    * Get conversations by task ID
-   * 获取任务下的所有会话
    */
   getTaskConversations(taskId: string): IQueryResult<TChatConversation[]> {
     try {
@@ -1560,7 +1672,6 @@ export class AionUIDatabase {
 
   /**
    * Associate conversation with task
-   * 将会话关联到任务
    */
   associateConversationWithTask(conversationId: string, taskId: string | null): IQueryResult<boolean> {
     try {

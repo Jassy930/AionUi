@@ -992,21 +992,54 @@ export const channel = {
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
 
-// ==================== Work Task API ====================
-// Task-centric work execution system (not to be confused with `task` namespace for running task management)
+// ==================== Project & Task API ====================
+// Project-Task hierarchy: Project (top-level container) → Task (work items) → Thread (conversations)
 
-import type { TTask, TTaskWithCount, TaskStatus, ICreateTaskParams, IUpdateTaskParams } from '@/common/types/task';
+import type {
+  TProject,
+  TProjectWithCount,
+  ProjectStatus,
+  ICreateProjectParams,
+  IUpdateProjectParams,
+  TTask,
+  TTaskWithCount,
+  TaskStatus,
+  ICreateTaskParams,
+  IUpdateTaskParams,
+} from '@/common/types/task';
 
-export type { TTask, TTaskWithCount, TaskStatus, ICreateTaskParams, IUpdateTaskParams };
+export type {
+  TProject,
+  TProjectWithCount,
+  ProjectStatus,
+  ICreateProjectParams,
+  IUpdateProjectParams,
+  TTask,
+  TTaskWithCount,
+  TaskStatus,
+  ICreateTaskParams,
+  IUpdateTaskParams,
+};
+
+export const project = {
+  // CRUD
+  create: bridge.buildProvider<IBridgeResponse<TProject>, ICreateProjectParams>('project.create'),
+  get: bridge.buildProvider<IBridgeResponse<TProject>, { id: string }>('project.get'),
+  list: bridge.buildProvider<IBridgeResponse<TProjectWithCount[]>, void>('project.list'),
+  update: bridge.buildProvider<IBridgeResponse<boolean>, IUpdateProjectParams>('project.update'),
+  delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('project.delete'),
+
+  // Events
+  created: bridge.buildEmitter<TProject>('project.created'),
+  updated: bridge.buildEmitter<TProject>('project.updated'),
+  deleted: bridge.buildEmitter<{ id: string }>('project.deleted'),
+};
 
 export const workTask = {
   // CRUD
   create: bridge.buildProvider<IBridgeResponse<TTask>, ICreateTaskParams>('workTask.create'),
   get: bridge.buildProvider<IBridgeResponse<TTask>, { id: string }>('workTask.get'),
-  list: bridge.buildProvider<IBridgeResponse<TTaskWithCount[]>, void>('workTask.list'),
-  listByStatus: bridge.buildProvider<IBridgeResponse<TTaskWithCount[]>, { status: TaskStatus }>(
-    'workTask.list-by-status'
-  ),
+  list: bridge.buildProvider<IBridgeResponse<TTaskWithCount[]>, { projectId: string }>('workTask.list'),
   update: bridge.buildProvider<IBridgeResponse<boolean>, IUpdateTaskParams>('workTask.update'),
   delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('workTask.delete'),
 

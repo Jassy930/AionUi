@@ -5,6 +5,7 @@ import { useAuth } from './context/AuthContext';
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
 const Tasks = React.lazy(() => import('./pages/tasks'));
+const ProjectDetail = React.lazy(() => import('./pages/tasks/ProjectDetail'));
 const About = React.lazy(() => import('./pages/settings/About'));
 const AgentSettings = React.lazy(() => import('./pages/settings/AgentSettings'));
 const SkillsHubSettings = React.lazy(() => import('./pages/settings/SkillsHubSettings'));
@@ -52,6 +53,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route index element={<Navigate to='/guid' replace />} />
           <Route path='/guid' element={withRouteFallback(Guid)} />
           <Route path='/tasks' element={withRouteFallback(Tasks)} />
+          <Route path='/tasks/:projectId' element={withRouteFallback(ProjectDetail)} />
           <Route path='/conversation/:id' element={withRouteFallback(Conversation)} />
           <Route path='/settings/gemini' element={withRouteFallback(GeminiSettings)} />
           <Route path='/settings/model' element={withRouteFallback(ModeSettings)} />

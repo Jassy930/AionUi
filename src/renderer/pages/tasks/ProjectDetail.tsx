@@ -6,13 +6,20 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Input, Modal, Message, Empty } from '@arco-design/web-react';
-import { Plus, Delete, Edit, Time, CheckOne } from '@icon-park/react';
+import { Plus, Delete, Edit, Time, CheckOne, Left } from '@icon-park/react';
 import classNames from 'classnames';
 import { ipcBridge } from '@/common';
-import type { TTaskWithCount, TaskStatus } from '@/common/types/task';
+import type { TProject, ProjectStatus, TTaskWithCount, TaskStatus } from '@/common/types/task';
 import './TaskBoard.css';
+
+const STATUS_COLORS: Record<ProjectStatus, string> = {
+  brainstorming: 'var(--color-purple-6, #722ed1)',
+  todo: 'var(--color-warning-6)',
+  progressing: 'var(--color-primary-6)',
+  done: 'var(--color-success-6)',
+};
 
 type TaskColumn = {
   status: TaskStatus;
@@ -20,21 +27,37 @@ type TaskColumn = {
   tasks: TTaskWithCount[];
 };
 
-const TaskBoard: React.FC = () => {
+const ProjectDetail: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { projectId } = useParams<{ projectId: string }>();
+
+  const [project, setProject] = useState<TProject | null>(null);
   const [tasks, setTasks] = useState<TTaskWithCount[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
-  const [newTaskDescription, setNewTaskDescription] = useState('');
+  const [newTaskDesc, setNewTaskDesc] = useState('');
   const [editingTask, setEditingTask] = useState<TTaskWithCount | null>(null);
 
-  // Load tasks
+  const loadProject = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const result = await ipcBridge.project.get.invoke({ id: projectId });
+      if (result.success && result.data) {
+        setProject(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load project:', error);
+    }
+  }, [projectId]);
+
   const loadTasks = useCallback(async () => {
+    if (!projectId) return;
     try {
       setLoading(true);
-      const result = await ipcBridge.workTask.list.invoke();
+      const result = await ipcBridge.workTask.list.invoke({ projectId });
       if (result.success && result.data) {
         setTasks(result.data);
       }
@@ -43,48 +66,39 @@ const TaskBoard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
+    void loadProject();
     void loadTasks();
-  }, [loadTasks]);
+  }, [loadProject, loadTasks]);
 
-  // Subscribe to task events
   useEffect(() => {
-    const unsubCreated = ipcBridge.workTask.created.on(() => {
-      void loadTasks();
-    });
-    const unsubUpdated = ipcBridge.workTask.updated.on(() => {
-      void loadTasks();
-    });
-    const unsubDeleted = ipcBridge.workTask.deleted.on(() => {
-      void loadTasks();
-    });
+    const unsubs = [
+      ipcBridge.workTask.created.on(() => void loadTasks()),
+      ipcBridge.workTask.updated.on(() => void loadTasks()),
+      ipcBridge.workTask.deleted.on(() => void loadTasks()),
+      ipcBridge.project.updated.on(() => void loadProject()),
+    ];
+    return () => unsubs.forEach((fn) => fn());
+  }, [loadTasks, loadProject]);
 
-    return () => {
-      unsubCreated();
-      unsubUpdated();
-      unsubDeleted();
-    };
-  }, [loadTasks]);
-
-  // Create task
   const handleCreateTask = async () => {
-    if (!newTaskName.trim()) {
+    if (!newTaskName.trim() || !projectId) {
       Message.warning(t('task.nameRequired', { defaultValue: 'Task name is required' }));
       return;
     }
-
     try {
       const result = await ipcBridge.workTask.create.invoke({
+        project_id: projectId,
         name: newTaskName.trim(),
-        description: newTaskDescription.trim() || undefined,
+        description: newTaskDesc.trim() || undefined,
       });
       if (result.success) {
         Message.success(t('task.created', { defaultValue: 'Task created' }));
         setCreateModalVisible(false);
         setNewTaskName('');
-        setNewTaskDescription('');
+        setNewTaskDesc('');
       } else {
         Message.error(result.msg || t('task.createFailed', { defaultValue: 'Failed to create task' }));
       }
@@ -94,7 +108,6 @@ const TaskBoard: React.FC = () => {
     }
   };
 
-  // Update task status
   const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
     try {
       const result = await ipcBridge.workTask.update.invoke({
@@ -106,11 +119,9 @@ const TaskBoard: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to update task status:', error);
-      Message.error(t('task.updateFailed', { defaultValue: 'Failed to update task' }));
     }
   };
 
-  // Delete task
   const handleDeleteTask = async (taskId: string) => {
     try {
       const result = await ipcBridge.workTask.delete.invoke({ id: taskId });
@@ -121,108 +132,102 @@ const TaskBoard: React.FC = () => {
       }
     } catch (error) {
       console.error('Failed to delete task:', error);
-      Message.error(t('task.deleteFailed', { defaultValue: 'Failed to delete task' }));
     }
   };
 
-  // Open task (navigate to task detail or create conversation)
   const handleOpenTask = (task: TTaskWithCount) => {
-    // For now, just navigate to guid page with task context
-    // In the future, this could open a task detail view
     void navigate(`/guid?taskId=${task.id}`);
   };
 
-  // Organize tasks into columns
   const columns: TaskColumn[] = [
-    {
-      status: 'pending',
-      titleKey: 'task.status.pending',
-      tasks: tasks.filter((t) => t.status === 'pending'),
-    },
+    { status: 'pending', titleKey: 'task.status.pending', tasks: tasks.filter((t) => t.status === 'pending') },
     {
       status: 'in_progress',
       titleKey: 'task.status.inProgress',
       tasks: tasks.filter((t) => t.status === 'in_progress'),
     },
-    {
-      status: 'done',
-      titleKey: 'task.status.done',
-      tasks: tasks.filter((t) => t.status === 'done'),
-    },
+    { status: 'done', titleKey: 'task.status.done', tasks: tasks.filter((t) => t.status === 'done') },
   ];
 
-  const renderTaskCard = (task: TTaskWithCount) => {
-    const statusLabels: Record<TaskStatus, string> = {
-      pending: t('task.status.pending', { defaultValue: 'Pending' }),
-      in_progress: t('task.status.inProgress', { defaultValue: 'In Progress' }),
-      done: t('task.status.done', { defaultValue: 'Done' }),
-    };
-
-    return (
-      <div
-        key={task.id}
-        className='task-board__card'
-        onClick={() => handleOpenTask(task)}
-        role='button'
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && handleOpenTask(task)}
-      >
-        <div className='task-board__card-header'>
-          <h4 className='task-board__card-title'>{task.name}</h4>
-          <div className='task-board__card-actions' onClick={(e) => e.stopPropagation()}>
-            <button
-              className='task-board__card-action'
-              onClick={() => setEditingTask(task)}
-              title={t('common.edit', { defaultValue: 'Edit' })}
-            >
-              <Edit theme='outline' size={14} />
-            </button>
-            <button
-              className='task-board__card-action task-board__card-action--danger'
-              onClick={() => handleDeleteTask(task.id)}
-              title={t('common.delete', { defaultValue: 'Delete' })}
-            >
-              <Delete theme='outline' size={14} />
-            </button>
-          </div>
+  const renderTaskCard = (task: TTaskWithCount) => (
+    <div
+      key={task.id}
+      className='task-board__card'
+      onClick={() => handleOpenTask(task)}
+      role='button'
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && handleOpenTask(task)}
+    >
+      <div className='task-board__card-header'>
+        <h4 className='task-board__card-title'>{task.name}</h4>
+        <div className='task-board__card-actions' onClick={(e) => e.stopPropagation()}>
+          <button
+            className='task-board__card-action'
+            onClick={() => setEditingTask(task)}
+            title={t('common.edit', { defaultValue: 'Edit' })}
+          >
+            <Edit theme='outline' size={14} />
+          </button>
+          <button
+            className='task-board__card-action task-board__card-action--danger'
+            onClick={() => void handleDeleteTask(task.id)}
+            title={t('common.delete', { defaultValue: 'Delete' })}
+          >
+            <Delete theme='outline' size={14} />
+          </button>
         </div>
-        {task.description && <p className='task-board__card-description'>{task.description}</p>}
-        <div className='task-board__card-meta'>
-          <span className='task-board__card-conversations'>
-            {task.conversation_count} {t('task.conversations', { defaultValue: 'conversations' })}
-          </span>
-          <span className='task-board__card-time'>
-            <Time theme='outline' size={12} />
-            {new Date(task.updated_at).toLocaleDateString()}
-          </span>
-        </div>
-        {task.status !== 'done' && (
-          <div className='task-board__card-status-actions' onClick={(e) => e.stopPropagation()}>
-            {task.status === 'pending' && (
-              <Button size='mini' type='outline' onClick={() => handleUpdateStatus(task.id, 'in_progress')}>
-                {t('task.action.start', { defaultValue: 'Start' })}
-              </Button>
-            )}
-            {task.status === 'in_progress' && (
-              <Button
-                size='mini'
-                type='primary'
-                icon={<CheckOne theme='outline' size={12} />}
-                onClick={() => handleUpdateStatus(task.id, 'done')}
-              >
-                {t('task.action.complete', { defaultValue: 'Complete' })}
-              </Button>
-            )}
-          </div>
-        )}
       </div>
-    );
-  };
+      {task.description && <p className='task-board__card-description'>{task.description}</p>}
+      <div className='task-board__card-meta'>
+        <span className='task-board__card-conversations'>
+          {task.conversation_count} {t('task.conversations', { defaultValue: 'conversations' })}
+        </span>
+        <span className='task-board__card-time'>
+          <Time theme='outline' size={12} />
+          {new Date(task.updated_at).toLocaleDateString()}
+        </span>
+      </div>
+      {task.status !== 'done' && (
+        <div className='task-board__card-status-actions' onClick={(e) => e.stopPropagation()}>
+          {task.status === 'pending' && (
+            <Button size='mini' type='outline' onClick={() => void handleUpdateStatus(task.id, 'in_progress')}>
+              {t('task.action.start', { defaultValue: 'Start' })}
+            </Button>
+          )}
+          {task.status === 'in_progress' && (
+            <Button
+              size='mini'
+              type='primary'
+              icon={<CheckOne theme='outline' size={12} />}
+              onClick={() => void handleUpdateStatus(task.id, 'done')}
+            >
+              {t('task.action.complete', { defaultValue: 'Complete' })}
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const statusColor = project ? STATUS_COLORS[project.status] : undefined;
 
   return (
     <div className='task-board'>
       <div className='task-board__header'>
-        <h1 className='task-board__title'>{t('task.board.title', { defaultValue: 'Task Board' })}</h1>
+        <div className='project-detail__title-area'>
+          <Button
+            type='text'
+            icon={<Left theme='outline' size={18} />}
+            onClick={() => void navigate('/tasks')}
+            className='project-detail__back-btn'
+          />
+          <h1 className='task-board__title'>{project?.name || '...'}</h1>
+          {project && (
+            <span className='project-card__status-badge' style={{ color: statusColor, borderColor: statusColor }}>
+              {t(`project.status.${project.status}`, { defaultValue: project.status })}
+            </span>
+          )}
+        </div>
         <Button type='primary' icon={<Plus theme='outline' />} onClick={() => setCreateModalVisible(true)}>
           {t('task.create', { defaultValue: 'New Task' })}
         </Button>
@@ -256,7 +261,7 @@ const TaskBoard: React.FC = () => {
         onCancel={() => {
           setCreateModalVisible(false);
           setNewTaskName('');
-          setNewTaskDescription('');
+          setNewTaskDesc('');
         }}
         okText={t('common.create', { defaultValue: 'Create' })}
         cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
@@ -274,8 +279,8 @@ const TaskBoard: React.FC = () => {
           <div className='task-board__modal-field'>
             <label>{t('task.description', { defaultValue: 'Description' })}</label>
             <Input.TextArea
-              value={newTaskDescription}
-              onChange={setNewTaskDescription}
+              value={newTaskDesc}
+              onChange={setNewTaskDesc}
               placeholder={t('task.descriptionPlaceholder', { defaultValue: 'Enter task description (optional)...' })}
               rows={3}
             />
@@ -292,10 +297,7 @@ const TaskBoard: React.FC = () => {
             try {
               await ipcBridge.workTask.update.invoke({
                 id: editingTask.id,
-                updates: {
-                  name: editingTask.name,
-                  description: editingTask.description,
-                },
+                updates: { name: editingTask.name, description: editingTask.description },
               });
               setEditingTask(null);
             } catch (error) {
@@ -329,4 +331,4 @@ const TaskBoard: React.FC = () => {
   );
 };
 
-export default TaskBoard;
+export default ProjectDetail;

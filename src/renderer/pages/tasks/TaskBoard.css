@@ -234,4 +234,57 @@
   .task-board__column {
     max-height: 300px;
   }
+
+  .project-list__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==================== Project List ==================== */
+
+.project-list__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  flex: 1;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.project-list__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.project-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.project-card__status-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border: 1px solid;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ==================== Project Detail ==================== */
+
+.project-detail__title-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.project-detail__back-btn {
+  flex-shrink: 0;
 }

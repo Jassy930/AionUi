@@ -1,0 +1,24 @@
+{
+  "listTitle": "Projects",
+  "create": "New Project",
+  "edit": "Edit Project",
+  "name": "Project Name",
+  "namePlaceholder": "Enter project name...",
+  "nameRequired": "Project name is required",
+  "description": "Description",
+  "descriptionPlaceholder": "Enter description (optional)...",
+  "statusLabel": "Status",
+  "created": "Project created",
+  "createFailed": "Failed to create project",
+  "deleted": "Project deleted",
+  "deleteFailed": "Failed to delete project",
+  "updateFailed": "Failed to update project",
+  "noProjects": "No projects yet",
+  "tasks": "tasks",
+  "status": {
+    "brainstorming": "Brainstorming",
+    "todo": "Todo",
+    "progressing": "Progressing",
+    "done": "Done"
+  }
+}
