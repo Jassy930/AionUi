@@ -31,6 +31,7 @@ import { initSystemSettingsBridge } from './systemSettingsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
 import { initNotificationBridge } from './notificationBridge';
 import { initExtensionsBridge } from './extensionsBridge';
+import { initWorkTaskBridge } from './workTaskBridge';
 
 /**
  * 初始化所有IPC桥接模块
@@ -63,6 +64,7 @@ export function initAllBridges(): void {
   initTaskBridge();
   initExtensionsBridge();
   initStarOfficeBridge();
+  initWorkTaskBridge();
 }
 
 /**
@@ -104,6 +106,7 @@ export {
   initUpdateBridge,
   initWebuiBridge,
   initWindowControlsBridge,
+  initWorkTaskBridge,
 };
 export { setMainWindow } from './notificationBridge';
 

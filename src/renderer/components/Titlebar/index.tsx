@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
-import { ArrowCircleLeft, ExpandLeft, ExpandRight, MenuFold, MenuUnfold, Plus } from '@icon-park/react';
+import {
+  ArrowCircleLeft,
+  ExpandLeft,
+  ExpandRight,
+  MenuFold,
+  MenuUnfold,
+  Plus,
+  ListView,
+  Checklist,
+} from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -9,6 +18,7 @@ import WindowControls from '../WindowControls';
 import { WORKSPACE_STATE_EVENT, dispatchWorkspaceToggleEvent } from '@renderer/utils/workspaceEvents';
 import type { WorkspaceStateDetail } from '@renderer/utils/workspaceEvents';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
+import { useViewModeContext } from '@/renderer/context/ViewModeContext';
 import { isElectronDesktop, isMacOS } from '@/renderer/utils/platform';
 import './titlebar.css';
 
@@ -34,6 +44,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
   const [mobileCenterTitle, setMobileCenterTitle] = useState(appTitle);
   const [mobileCenterOffset, setMobileCenterOffset] = useState(0);
   const layout = useLayoutContext();
+  const { viewMode, setViewMode } = useViewModeContext();
   const location = useLocation();
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -70,6 +81,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
     : t('common.collapse', { defaultValue: 'Collapse workspace' });
   const newConversationTooltip = t('conversation.workspace.createNewConversation');
   const backToChatTooltip = t('common.back', { defaultValue: 'Back to Chat' });
+  const viewModeTooltip =
+    viewMode === 'thread'
+      ? t('viewMode.switchToTask', { defaultValue: 'Switch to Task view' })
+      : t('viewMode.switchToThread', { defaultValue: 'Switch to Thread view' });
   const isSettingsRoute = location.pathname.startsWith('/settings');
   const iconSize = layout?.isMobile ? 24 : 18;
   // 统一在标题栏左侧展示主侧栏开关 / Always expose sidebar toggle on titlebar left side
@@ -94,6 +109,17 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
 
   const handleCreateConversation = () => {
     void navigate('/guid');
+  };
+
+  const handleViewModeToggle = () => {
+    const newMode = viewMode === 'thread' ? 'task' : 'thread';
+    void setViewMode(newMode);
+    // Navigate to the appropriate home page based on the new mode
+    if (newMode === 'task') {
+      void navigate('/tasks');
+    } else {
+      void navigate('/guid');
+    }
   };
 
   const handleBackToChat = () => {
@@ -251,6 +277,21 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
         )}
       </div>
       <div ref={toolbarRef} className='app-titlebar__toolbar'>
+        {!layout?.isMobile && (
+          <button
+            type='button'
+            className='app-titlebar__button app-titlebar__button--view-mode'
+            onClick={handleViewModeToggle}
+            aria-label={viewModeTooltip}
+            title={viewModeTooltip}
+          >
+            {viewMode === 'thread' ? (
+              <Checklist theme='outline' size={iconSize} fill='currentColor' />
+            ) : (
+              <ListView theme='outline' size={iconSize} fill='currentColor' />
+            )}
+          </button>
+        )}
         {showNewConversationButton && (
           <button
             type='button'

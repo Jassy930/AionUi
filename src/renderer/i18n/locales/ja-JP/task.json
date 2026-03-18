@@ -1,0 +1,28 @@
+{
+  "board": {
+    "title": "タスクボード"
+  },
+  "create": "新規タスク",
+  "edit": "タスクを編集",
+  "name": "タスク名",
+  "namePlaceholder": "タスク名を入力...",
+  "nameRequired": "タスク名は必須です",
+  "description": "説明",
+  "descriptionPlaceholder": "タスクの説明を入力（任意）...",
+  "created": "タスクを作成しました",
+  "createFailed": "タスクの作成に失敗しました",
+  "deleted": "タスクを削除しました",
+  "deleteFailed": "タスクの削除に失敗しました",
+  "updateFailed": "タスクの更新に失敗しました",
+  "noTasks": "タスクがありません",
+  "conversations": "件の会話",
+  "status": {
+    "pending": "未着手",
+    "inProgress": "進行中",
+    "done": "完了"
+  },
+  "action": {
+    "start": "開始",
+    "complete": "完了"
+  }
+}

@@ -8,6 +8,17 @@
 import type { ConversationSource, TChatConversation, IConfigStorageRefer } from '@/common/storage';
 import type { TMessage } from '@/common/chatLib';
 
+// Re-export task types
+export type {
+  TTask,
+  ITaskRow,
+  TaskStatus,
+  ICreateTaskParams,
+  IUpdateTaskParams,
+  TTaskWithCount,
+} from '@/common/types/task';
+export { taskToRow, rowToTask } from '@/common/types/task';
+
 /**
  * ======================
  * 数据库专属类型 (新增功能)

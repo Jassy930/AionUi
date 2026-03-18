@@ -1,0 +1,28 @@
+{
+  "board": {
+    "title": "Gorev Panosu"
+  },
+  "create": "Yeni Gorev",
+  "edit": "Gorevi Duzenle",
+  "name": "Gorev Adi",
+  "namePlaceholder": "Gorev adini girin...",
+  "nameRequired": "Gorev adi gereklidir",
+  "description": "Aciklama",
+  "descriptionPlaceholder": "Gorev aciklamasini girin (istege bagli)...",
+  "created": "Gorev olusturuldu",
+  "createFailed": "Gorev olusturulamadi",
+  "deleted": "Gorev silindi",
+  "deleteFailed": "Gorev silinemedi",
+  "updateFailed": "Gorev guncellenemedi",
+  "noTasks": "Gorev yok",
+  "conversations": "konusma",
+  "status": {
+    "pending": "Beklemede",
+    "inProgress": "Devam Ediyor",
+    "done": "Tamamlandi"
+  },
+  "action": {
+    "start": "Basla",
+    "complete": "Tamamla"
+  }
+}

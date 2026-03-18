@@ -19,8 +19,11 @@ import type {
   IUser,
   TChatConversation,
   TMessage,
+  TTask,
+  ITaskRow,
+  TTaskWithCount,
 } from './types';
-import { conversationToRow, messageToRow, rowToConversation, rowToMessage } from './types';
+import { conversationToRow, messageToRow, rowToConversation, rowToMessage, taskToRow, rowToTask } from './types';
 import type { IMessageSearchItem, IMessageSearchResponse } from '@/common/types/database';
 import type {
   IChannelPluginConfig,
@@ -1383,6 +1386,191 @@ export class AionUIDatabase {
       return { success: true, data: result.changes };
     } catch (error: any) {
       return { success: false, error: error.message, data: 0 };
+    }
+  }
+
+  /**
+   * ==================
+   * Task operations
+   * Task 操作
+   * ==================
+   */
+
+  /**
+   * Create a new task
+   * 创建新任务
+   */
+  createTask(task: TTask): IQueryResult<TTask> {
+    try {
+      const row = taskToRow(task);
+      const stmt = this.db.prepare(`
+        INSERT INTO tasks (id, name, description, status, user_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      stmt.run(row.id, row.name, row.description, row.status, row.user_id, row.created_at, row.updated_at);
+      return { success: true, data: task };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get task by ID
+   * 通过 ID 获取任务
+   */
+  getTask(taskId: string): IQueryResult<TTask> {
+    try {
+      const row = this.db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as ITaskRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Task not found' };
+      }
+      return { success: true, data: rowToTask(row) };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get all tasks for a user with conversation count
+   * 获取用户的所有任务（包含关联的会话数量）
+   */
+  getUserTasks(userId?: string): IQueryResult<TTaskWithCount[]> {
+    try {
+      const finalUserId = userId || this.defaultUserId;
+      const rows = this.db
+        .prepare(
+          `
+          SELECT t.*, COUNT(c.id) as conversation_count
+          FROM tasks t
+          LEFT JOIN conversations c ON c.task_id = t.id
+          WHERE t.user_id = ?
+          GROUP BY t.id
+          ORDER BY t.updated_at DESC
+        `
+        )
+        .all(finalUserId) as Array<ITaskRow & { conversation_count: number }>;
+
+      const tasks: TTaskWithCount[] = rows.map((row) => ({
+        ...rowToTask(row),
+        conversation_count: row.conversation_count,
+      }));
+
+      return { success: true, data: tasks };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  /**
+   * Get tasks by status
+   * 按状态获取任务
+   */
+  getTasksByStatus(status: TTask['status'], userId?: string): IQueryResult<TTaskWithCount[]> {
+    try {
+      const finalUserId = userId || this.defaultUserId;
+      const rows = this.db
+        .prepare(
+          `
+          SELECT t.*, COUNT(c.id) as conversation_count
+          FROM tasks t
+          LEFT JOIN conversations c ON c.task_id = t.id
+          WHERE t.user_id = ? AND t.status = ?
+          GROUP BY t.id
+          ORDER BY t.updated_at DESC
+        `
+        )
+        .all(finalUserId, status) as Array<ITaskRow & { conversation_count: number }>;
+
+      const tasks: TTaskWithCount[] = rows.map((row) => ({
+        ...rowToTask(row),
+        conversation_count: row.conversation_count,
+      }));
+
+      return { success: true, data: tasks };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  /**
+   * Update task
+   * 更新任务
+   */
+  updateTask(taskId: string, updates: Partial<Pick<TTask, 'name' | 'description' | 'status'>>): IQueryResult<boolean> {
+    try {
+      const existing = this.getTask(taskId);
+      if (!existing.success || !existing.data) {
+        return { success: false, error: 'Task not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const params: (string | number | null)[] = [now];
+
+      if (updates.name !== undefined) {
+        setClauses.push('name = ?');
+        params.push(updates.name);
+      }
+      if (updates.description !== undefined) {
+        setClauses.push('description = ?');
+        params.push(updates.description ?? null);
+      }
+      if (updates.status !== undefined) {
+        setClauses.push('status = ?');
+        params.push(updates.status);
+      }
+
+      params.push(taskId);
+      const stmt = this.db.prepare(`UPDATE tasks SET ${setClauses.join(', ')} WHERE id = ?`);
+      stmt.run(...params);
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Delete task
+   * 删除任务（关联的会话会解除关联，不会被删除）
+   */
+  deleteTask(taskId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM tasks WHERE id = ?').run(taskId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get conversations by task ID
+   * 获取任务下的所有会话
+   */
+  getTaskConversations(taskId: string): IQueryResult<TChatConversation[]> {
+    try {
+      const rows = this.db
+        .prepare('SELECT * FROM conversations WHERE task_id = ? ORDER BY updated_at DESC')
+        .all(taskId) as IConversationRow[];
+      return { success: true, data: rows.map(rowToConversation) };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  /**
+   * Associate conversation with task
+   * 将会话关联到任务
+   */
+  associateConversationWithTask(conversationId: string, taskId: string | null): IQueryResult<boolean> {
+    try {
+      const now = Date.now();
+      this.db
+        .prepare('UPDATE conversations SET task_id = ?, updated_at = ? WHERE id = ?')
+        .run(taskId, now, conversationId);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   }
 

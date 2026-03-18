@@ -1,0 +1,28 @@
+{
+  "board": {
+    "title": "Task Board"
+  },
+  "create": "New Task",
+  "edit": "Edit Task",
+  "name": "Task Name",
+  "namePlaceholder": "Enter task name...",
+  "nameRequired": "Task name is required",
+  "description": "Description",
+  "descriptionPlaceholder": "Enter task description (optional)...",
+  "created": "Task created",
+  "createFailed": "Failed to create task",
+  "deleted": "Task deleted",
+  "deleteFailed": "Failed to delete task",
+  "updateFailed": "Failed to update task",
+  "noTasks": "No tasks",
+  "conversations": "conversations",
+  "status": {
+    "pending": "Pending",
+    "inProgress": "In Progress",
+    "done": "Done"
+  },
+  "action": {
+    "start": "Start",
+    "complete": "Complete"
+  }
+}

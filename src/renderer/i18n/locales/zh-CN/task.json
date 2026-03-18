@@ -1,0 +1,28 @@
+{
+  "board": {
+    "title": "任务看板"
+  },
+  "create": "新建任务",
+  "edit": "编辑任务",
+  "name": "任务名称",
+  "namePlaceholder": "请输入任务名称...",
+  "nameRequired": "任务名称不能为空",
+  "description": "描述",
+  "descriptionPlaceholder": "请输入任务描述（可选）...",
+  "created": "任务已创建",
+  "createFailed": "创建任务失败",
+  "deleted": "任务已删除",
+  "deleteFailed": "删除任务失败",
+  "updateFailed": "更新任务失败",
+  "noTasks": "暂无任务",
+  "conversations": "个会话",
+  "status": {
+    "pending": "待处理",
+    "inProgress": "进行中",
+    "done": "已完成"
+  },
+  "action": {
+    "start": "开始",
+    "complete": "完成"
+  }
+}

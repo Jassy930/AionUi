@@ -1,0 +1,28 @@
+{
+  "board": {
+    "title": "任務看板"
+  },
+  "create": "新建任務",
+  "edit": "編輯任務",
+  "name": "任務名稱",
+  "namePlaceholder": "請輸入任務名稱...",
+  "nameRequired": "任務名稱不能為空",
+  "description": "描述",
+  "descriptionPlaceholder": "請輸入任務描述（可選）...",
+  "created": "任務已建立",
+  "createFailed": "建立任務失敗",
+  "deleted": "任務已刪除",
+  "deleteFailed": "刪除任務失敗",
+  "updateFailed": "更新任務失敗",
+  "noTasks": "暫無任務",
+  "conversations": "個對話",
+  "status": {
+    "pending": "待處理",
+    "inProgress": "進行中",
+    "done": "已完成"
+  },
+  "action": {
+    "start": "開始",
+    "complete": "完成"
+  }
+}

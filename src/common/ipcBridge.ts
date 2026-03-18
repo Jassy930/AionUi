@@ -989,3 +989,36 @@ export const channel = {
   ),
   userAuthorized: bridge.buildEmitter<IChannelUser>('channel.user-authorized'),
 };
+
+// ==================== Work Task API ====================
+// Task-centric work execution system (not to be confused with `task` namespace for running task management)
+
+import type { TTask, TTaskWithCount, TaskStatus, ICreateTaskParams, IUpdateTaskParams } from '@/common/types/task';
+
+export type { TTask, TTaskWithCount, TaskStatus, ICreateTaskParams, IUpdateTaskParams };
+
+export const workTask = {
+  // CRUD
+  create: bridge.buildProvider<IBridgeResponse<TTask>, ICreateTaskParams>('workTask.create'),
+  get: bridge.buildProvider<IBridgeResponse<TTask>, { id: string }>('workTask.get'),
+  list: bridge.buildProvider<IBridgeResponse<TTaskWithCount[]>, void>('workTask.list'),
+  listByStatus: bridge.buildProvider<IBridgeResponse<TTaskWithCount[]>, { status: TaskStatus }>(
+    'workTask.list-by-status'
+  ),
+  update: bridge.buildProvider<IBridgeResponse<boolean>, IUpdateTaskParams>('workTask.update'),
+  delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('workTask.delete'),
+
+  // Task-Conversation association
+  getConversations: bridge.buildProvider<IBridgeResponse<TChatConversation[]>, { taskId: string }>(
+    'workTask.get-conversations'
+  ),
+  associateConversation: bridge.buildProvider<
+    IBridgeResponse<boolean>,
+    { conversationId: string; taskId: string | null }
+  >('workTask.associate-conversation'),
+
+  // Events
+  created: bridge.buildEmitter<TTask>('workTask.created'),
+  updated: bridge.buildEmitter<TTask>('workTask.updated'),
+  deleted: bridge.buildEmitter<{ id: string }>('workTask.deleted'),
+};

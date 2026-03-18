@@ -127,6 +127,8 @@ export interface IConfigStorageRefer {
   };
   // Skills Market: whether the aionui-skills builtin skill is enabled
   'skillsMarket.enabled'?: boolean;
+  // View mode: thread (conversation-centric) or task (task-centric work execution)
+  viewMode?: 'thread' | 'task';
 }
 
 export interface IEnvStorageRefer {
