@@ -737,6 +737,8 @@ export interface ICreateConversationParams {
   id?: string;
   name?: string;
   model: TProviderWithModel;
+  /** Task ID to associate this conversation with (Task-centric mode) */
+  taskId?: string;
   extra: {
     workspace?: string;
     customWorkspace?: boolean;

@@ -26,6 +26,10 @@ export type GuidSendDeps = {
   setDir: React.Dispatch<React.SetStateAction<string>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
 
+  // Task state (Task-centric mode)
+  taskId: string | null;
+  setTaskId: (taskId: string | null) => void;
+
   // Agent state
   selectedAgent: AcpBackend | 'custom';
   selectedAgentKey: string;
@@ -80,6 +84,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     dir,
     setDir,
     setLoading,
+    taskId,
+    setTaskId,
     selectedAgent,
     selectedAgentKey,
     selectedAgentInfo,
@@ -149,6 +155,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           type: 'gemini',
           name: input,
           model: placeholderModel,
+          taskId: taskId || undefined,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -202,6 +209,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           type: 'openclaw-gateway',
           name: input,
           model: currentModel!,
+          taskId: taskId || undefined,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -259,6 +267,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           type: 'nanobot',
           name: input,
           model: currentModel!,
+          taskId: taskId || undefined,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -322,6 +331,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           type: 'acp',
           name: input,
           model: currentModel!,
+          taskId: taskId || undefined,
           extra: {
             defaultFiles: files,
             workspace: finalWorkspace,
@@ -367,6 +377,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     input,
     files,
     dir,
+    taskId,
     selectedAgent,
     selectedAgentKey,
     selectedAgentInfo,

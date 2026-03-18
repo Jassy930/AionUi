@@ -3,6 +3,7 @@
     "title": "任務看板"
   },
   "create": "新建任務",
+  "createNew": "建立新任務",
   "edit": "編輯任務",
   "name": "任務名稱",
   "namePlaceholder": "請輸入任務名稱...",
@@ -16,6 +17,7 @@
   "updateFailed": "更新任務失敗",
   "noTasks": "暫無任務",
   "conversations": "個對話",
+  "selectOrCreate": "關聯任務...",
   "status": {
     "pending": "待處理",
     "inProgress": "進行中",

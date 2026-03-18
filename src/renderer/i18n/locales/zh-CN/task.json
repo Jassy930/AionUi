@@ -3,6 +3,7 @@
     "title": "任务看板"
   },
   "create": "新建任务",
+  "createNew": "创建新任务",
   "edit": "编辑任务",
   "name": "任务名称",
   "namePlaceholder": "请输入任务名称...",
@@ -16,6 +17,7 @@
   "updateFailed": "更新任务失败",
   "noTasks": "暂无任务",
   "conversations": "个会话",
+  "selectOrCreate": "关联任务...",
   "status": {
     "pending": "待处理",
     "inProgress": "进行中",

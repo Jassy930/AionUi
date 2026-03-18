@@ -3,6 +3,7 @@
     "title": "Gorev Panosu"
   },
   "create": "Yeni Gorev",
+  "createNew": "Yeni gorev olustur",
   "edit": "Gorevi Duzenle",
   "name": "Gorev Adi",
   "namePlaceholder": "Gorev adini girin...",
@@ -16,6 +17,7 @@
   "updateFailed": "Gorev guncellenemedi",
   "noTasks": "Gorev yok",
   "conversations": "konusma",
+  "selectOrCreate": "Goreve bagla...",
   "status": {
     "pending": "Beklemede",
     "inProgress": "Devam Ediyor",

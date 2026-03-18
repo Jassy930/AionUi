@@ -210,6 +210,16 @@ export class ConversationService {
         return { success: false, error: result.error };
       }
 
+      // Associate with Task if taskId is provided
+      if (params.taskId) {
+        const assocResult = db.associateConversationWithTask(conversation.id, params.taskId);
+        if (!assocResult.success) {
+          console.warn('[ConversationService] Failed to associate conversation with task:', assocResult.error);
+        } else {
+          console.log(`[ConversationService] Associated conversation ${conversation.id} with task ${params.taskId}`);
+        }
+      }
+
       // Register with WorkerManage after DB save so early emitted messages can be persisted reliably.
       // Note: Don't call initAgent() here - let it be lazy initialized when sendMessage() is called.
       WorkerManage.buildConversation(conversation);

@@ -65,15 +65,29 @@ AionUi is evolving from a conversation-centric tool to a **work execution system
 - `src/renderer/i18n/locales/*/task.json` - Translations
 - `src/renderer/i18n/locales/*/viewMode.json` - Translations
 
-### Phase 2: Task-Conversation Binding
+### Phase 2: Task-Conversation Binding (In Progress)
 
 **Goal**: Connect Tasks with Conversations as Runs.
 
-**Planned Work**:
-- [ ] Task selector in Guid page when creating new conversation
+**Completed Work**:
+- [x] Task selector in Guid page when creating new conversation
+- [x] `useGuidTask` hook with URL parameter sync (`?taskId=xxx`)
+- [x] `taskId` passed to all conversation creation paths
+- [x] i18n strings for task selector (`selectOrCreate`, `createNew`)
+
+**Files Created/Modified**:
+- `src/renderer/pages/guid/components/TaskSelector.tsx` - Task selection dropdown
+- `src/renderer/pages/guid/hooks/useGuidTask.ts` - Task state management
+- `src/renderer/pages/guid/hooks/useGuidSend.ts` - taskId in conversation creation
+- `src/renderer/pages/guid/GuidPage.tsx` - TaskSelector integration
+- `src/renderer/pages/guid/components/GuidActionRow.tsx` - taskSelectorNode prop
+- `src/common/ipcBridge.ts` - `taskId` in ICreateConversationParams
+- `src/process/services/conversationService.ts` - Task association on creation
+
+**Remaining Work**:
 - [ ] Task context indicator in conversation view
 - [ ] Task detail page showing associated conversations
-- [ ] "Create conversation under Task" flow
+- [ ] "Create conversation under Task" flow from Task board
 - [ ] Quick-add Task from conversation
 
 ### Phase 3: Run Abstraction
@@ -153,4 +167,4 @@ All Task-related IPC calls use the `workTask` namespace (separate from `task` wh
 ---
 
 *Document created: 2026-03-18*
-*Last updated: 2026-03-18*
+*Last updated: 2026-03-18 (Phase 2 in progress)*

@@ -129,7 +129,7 @@ const TaskBoard: React.FC = () => {
   const handleOpenTask = (task: TTaskWithCount) => {
     // For now, just navigate to guid page with task context
     // In the future, this could open a task detail view
-    navigate(`/guid?taskId=${task.id}`);
+    void navigate(`/guid?taskId=${task.id}`);
   };
 
   // Organize tasks into columns

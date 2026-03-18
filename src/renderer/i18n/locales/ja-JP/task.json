@@ -3,6 +3,7 @@
     "title": "タスクボード"
   },
   "create": "新規タスク",
+  "createNew": "新しいタスクを作成",
   "edit": "タスクを編集",
   "name": "タスク名",
   "namePlaceholder": "タスク名を入力...",
@@ -16,6 +17,7 @@
   "updateFailed": "タスクの更新に失敗しました",
   "noTasks": "タスクがありません",
   "conversations": "件の会話",
+  "selectOrCreate": "タスクにリンク...",
   "status": {
     "pending": "未着手",
     "inProgress": "進行中",

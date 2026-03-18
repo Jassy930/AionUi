@@ -3,6 +3,7 @@
     "title": "Task Board"
   },
   "create": "New Task",
+  "createNew": "Create new task",
   "edit": "Edit Task",
   "name": "Task Name",
   "namePlaceholder": "Enter task name...",
@@ -16,6 +17,7 @@
   "updateFailed": "Failed to update task",
   "noTasks": "No tasks",
   "conversations": "conversations",
+  "selectOrCreate": "Link to Task...",
   "status": {
     "pending": "Pending",
     "inProgress": "In Progress",

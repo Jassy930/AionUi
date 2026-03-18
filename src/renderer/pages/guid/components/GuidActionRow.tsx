@@ -28,6 +28,9 @@ type GuidActionRowProps = {
   // Model selector node (rendered by parent)
   modelSelectorNode: React.ReactNode;
 
+  // Task selector node (rendered by parent, only in task mode)
+  taskSelectorNode?: React.ReactNode;
+
   // Agent mode
   selectedAgent: AcpBackend | 'custom';
   effectiveModeAgent?: string;
@@ -52,6 +55,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   onFilesUploaded,
   onSelectWorkspace,
   modelSelectorNode,
+  taskSelectorNode,
   selectedAgent,
   effectiveModeAgent,
   selectedMode,
@@ -73,7 +77,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   const modeOptions = getAgentModes(modeBackend);
   const currentModeOption = modeOptions.find((mode) => mode.value === selectedMode);
   const showModeSwitch = supportsModeSwitch(modeBackend);
-  const configOptionCount = (modelSelectorNode ? 1 : 0) + (showModeSwitch ? 1 : 0);
+  const configOptionCount = (modelSelectorNode ? 1 : 0) + (showModeSwitch ? 1 : 0) + (taskSelectorNode ? 1 : 0);
 
   // Browser file picker ref (WebUI only)
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -217,6 +221,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         <div
           className={`${styles.actionConfigGroup} ${configOptionCount > 1 ? styles.actionConfigGroupWithDivider : ''}`}
         >
+          {taskSelectorNode}
+
           {modelSelectorNode}
 
           {showModeSwitch && (

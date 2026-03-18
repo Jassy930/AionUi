@@ -3,6 +3,7 @@
     "title": "작업 보드"
   },
   "create": "새 작업",
+  "createNew": "새 작업 만들기",
   "edit": "작업 수정",
   "name": "작업 이름",
   "namePlaceholder": "작업 이름을 입력하세요...",
@@ -16,6 +17,7 @@
   "updateFailed": "작업 업데이트에 실패했습니다",
   "noTasks": "작업이 없습니다",
   "conversations": "개의 대화",
+  "selectOrCreate": "작업에 연결...",
   "status": {
     "pending": "대기 중",
     "inProgress": "진행 중",

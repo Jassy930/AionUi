@@ -5,6 +5,7 @@
  */
 
 import { resolveLocaleKey } from '@/common/utils';
+import { useViewModeContext } from '@/renderer/context/ViewModeContext';
 import { useInputFocusRing } from '@/renderer/hooks/useInputFocusRing';
 import { openExternalUrl } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/context/ConversationTabsContext';
@@ -18,11 +19,13 @@ import MentionDropdown from './components/MentionDropdown';
 import MentionSelectorBadge from './components/MentionSelectorBadge';
 import QuickActionButtons from './components/QuickActionButtons';
 import SkillsMarketBanner from './components/SkillsMarketBanner';
+import TaskSelector from './components/TaskSelector';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
 import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
+import { useGuidTask } from './hooks/useGuidTask';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { ConfigProvider } from '@arco-design/web-react';
 import React, { useCallback, useRef } from 'react';
@@ -49,6 +52,8 @@ const GuidPage: React.FC = () => {
   }, []);
 
   // --- Hooks ---
+  const { isTaskMode } = useViewModeContext();
+  const guidTask = useGuidTask();
   const modelSelection = useGuidModelSelection();
 
   const agentSelection = useGuidAgentSelection({
@@ -79,6 +84,10 @@ const GuidPage: React.FC = () => {
     dir: guidInput.dir,
     setDir: guidInput.setDir,
     setLoading: guidInput.setLoading,
+
+    // Task state
+    taskId: guidTask.taskId,
+    setTaskId: guidTask.setTaskId,
 
     // Agent state
     selectedAgent: agentSelection.selectedAgent,
@@ -272,6 +281,11 @@ const GuidPage: React.FC = () => {
     />
   );
 
+  // Build task selector node (only shown in task mode)
+  const taskSelectorNode = isTaskMode ? (
+    <TaskSelector selectedTaskId={guidTask.taskId} onTaskChange={guidTask.setTaskId} />
+  ) : null;
+
   // Build the action row
   const actionRowNode = (
     <GuidActionRow
@@ -279,6 +293,7 @@ const GuidPage: React.FC = () => {
       onFilesUploaded={guidInput.handleFilesUploaded}
       onSelectWorkspace={(dir) => guidInput.setDir(dir)}
       modelSelectorNode={modelSelectorNode}
+      taskSelectorNode={taskSelectorNode}
       selectedAgent={agentSelection.selectedAgent}
       effectiveModeAgent={agentSelection.currentEffectiveAgentInfo.agentType}
       selectedMode={agentSelection.selectedMode}
