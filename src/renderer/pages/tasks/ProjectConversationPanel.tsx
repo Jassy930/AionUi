@@ -7,10 +7,10 @@
 /**
  * Project Conversation Panel
  *
- * An inline panel that embeds the project-level AI conversation.
- * - First open: shows agent picker to create the conversation.
- * - After creation: embeds the full chat view (AcpChat).
- * - Conversation persists in project.conversation_id.
+ * An inline panel that embeds an ephemeral project-level AI conversation.
+ * - Each visit shows the agent picker; context continuity is provided by
+ *   the `.aionui/` directory files, NOT by conversation history.
+ * - The conversation is deleted on unmount and hidden from the sidebar list.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -36,62 +36,26 @@ const AcpChat = React.lazy(() => import('@/renderer/pages/conversation/acp/AcpCh
 
 type ProjectConversationPanelProps = {
   project: TProject | null;
-  onProjectUpdate?: () => void;
 };
 
-const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ project, onProjectUpdate }) => {
+const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ project }) => {
   const { t, i18n } = useTranslation();
   const { cliAgents, presetAssistants, isLoading: isAgentsLoading } = useConversationAgents();
 
   const [conversation, setConversation] = useState<TChatConversation | null>(null);
-  const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Track which conversation_id has been loaded so the effect doesn't re-fetch
-  // when project.updated events cause a parent re-render with the same id.
-  const loadedConvIdRef = useRef<string | null>(null);
+  // Keep a ref so the unmount cleanup always sees the latest conversation id
+  const convIdRef = useRef<string | null>(null);
 
-  // Load existing conversation when project.conversation_id changes.
+  // Clean up ephemeral conversation on unmount
   useEffect(() => {
-    if (!project?.conversation_id) {
-      if (loadedConvIdRef.current !== null) {
-        loadedConvIdRef.current = null;
-        setConversation(null);
-      }
-      return;
-    }
-
-    // Already loaded this conversation — skip
-    if (loadedConvIdRef.current === project.conversation_id) return;
-
-    let cancelled = false;
-    setLoading(true);
-    ipcBridge.conversation.get
-      .invoke({ id: project.conversation_id })
-      .then((conv) => {
-        if (cancelled) return;
-        if (conv?.id) {
-          loadedConvIdRef.current = conv.id;
-          setConversation(conv);
-        } else {
-          loadedConvIdRef.current = null;
-          setConversation(null);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          loadedConvIdRef.current = null;
-          setConversation(null);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
     return () => {
-      cancelled = true;
+      if (convIdRef.current) {
+        void ipcBridge.conversation.remove.invoke({ id: convIdRef.current });
+      }
     };
-  }, [project?.conversation_id]);
+  }, []);
 
   // Initialize .aionui context
   useEffect(() => {
@@ -112,13 +76,30 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
           params = await buildCliAgentParams(agent, project.workspace);
         }
 
-        // Sync project context
-        const syncResult = await ipcBridge.project.syncContext.invoke({ projectId: project.id });
+        // Sync project context and fetch system prompt in parallel
+        const [syncResult, promptResult] = await Promise.all([
+          ipcBridge.project.syncContext.invoke({ projectId: project.id }),
+          ipcBridge.project.getSystemPrompt.invoke({ projectId: project.id }),
+        ]);
         if (!syncResult.success) {
           console.warn('[ProjectConversation] Failed to sync context');
         }
 
-        params.extra = { ...params.extra, workspace: project.workspace, customWorkspace: true };
+        // Inject project manager system prompt
+        const systemPrompt = promptResult.success && promptResult.data ? promptResult.data : '';
+        if (systemPrompt) {
+          const existing = params.extra.presetContext || params.extra.presetRules || '';
+          const merged = existing ? `${systemPrompt}\n\n${existing}` : systemPrompt;
+          params.extra = { ...params.extra, presetContext: merged, presetRules: merged };
+        }
+
+        // Mark as ephemeral project conversation (filtered out from sidebar list)
+        params.extra = {
+          ...params.extra,
+          workspace: project.workspace,
+          customWorkspace: true,
+          isProjectConversation: true,
+        };
 
         const conv = await ipcBridge.conversation.create.invoke({
           ...params,
@@ -130,14 +111,8 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
           return;
         }
 
-        await ipcBridge.project.update.invoke({
-          id: project.id,
-          updates: { conversation_id: conv.id },
-        });
-
-        loadedConvIdRef.current = conv.id;
+        convIdRef.current = conv.id;
         setConversation(conv);
-        onProjectUpdate?.();
       } catch (error) {
         console.error('[ProjectConversation] Failed to create conversation:', error);
         Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
@@ -145,35 +120,19 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
         setCreating(false);
       }
     },
-    [project, creating, i18n.language, t, onProjectUpdate]
+    [project, creating, i18n.language, t]
   );
 
-  const handleResetConversation = useCallback(async () => {
-    if (!project || !conversation) return;
-
+  const handleSwitchAgent = useCallback(async () => {
+    if (!conversation) return;
     try {
       await ipcBridge.conversation.remove.invoke({ id: conversation.id });
-      await ipcBridge.project.update.invoke({
-        id: project.id,
-        updates: { conversation_id: undefined },
-      });
-      loadedConvIdRef.current = null;
-      setConversation(null);
-      onProjectUpdate?.();
     } catch (error) {
-      console.error('[ProjectConversation] Failed to reset conversation:', error);
+      console.error('[ProjectConversation] Failed to remove conversation:', error);
     }
-  }, [project, conversation, onProjectUpdate]);
-
-  if (loading) {
-    return (
-      <div className='project-conv-panel'>
-        <div className='project-conv-panel__loading'>
-          <Spin />
-        </div>
-      </div>
-    );
-  }
+    convIdRef.current = null;
+    setConversation(null);
+  }, [conversation]);
 
   // Agent picker when no conversation exists
   if (!conversation) {
@@ -261,7 +220,7 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
         </span>
         <button
           className='project-conv-panel__reset-btn'
-          onClick={() => void handleResetConversation()}
+          onClick={() => void handleSwitchAgent()}
           title={t('task.resetConversation', { defaultValue: 'Switch agent' })}
         >
           <RefreshOne theme='outline' size={14} />

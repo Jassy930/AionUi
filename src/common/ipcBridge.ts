@@ -781,6 +781,8 @@ export interface ICreateConversationParams {
     };
     /** Explicit marker for temporary health-check conversations */
     isHealthCheck?: boolean;
+    /** Marker for ephemeral project-level conversations (hidden from sidebar list) */
+    isProjectConversation?: boolean;
   };
 }
 interface IResetConversationParams {
@@ -1030,6 +1032,7 @@ export const project = {
   // Project-level AI conversation
   initContext: bridge.buildProvider<IBridgeResponse<boolean>, { projectId: string }>('project.init-context'),
   syncContext: bridge.buildProvider<IBridgeResponse<boolean>, { projectId: string }>('project.sync-context'),
+  getSystemPrompt: bridge.buildProvider<IBridgeResponse<string>, { projectId: string }>('project.get-system-prompt'),
 
   // Events
   created: bridge.buildEmitter<TProject>('project.created'),

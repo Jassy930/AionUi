@@ -618,7 +618,7 @@ const ProjectDetail: React.FC = () => {
 
       {/* Right: AI Conversation (always visible) */}
       <div className='project-detail__conversation'>
-        <ProjectConversationPanel project={project} onProjectUpdate={() => void loadProject()} />
+        <ProjectConversationPanel project={project} />
       </div>
 
       {/* Create Task Modal */}

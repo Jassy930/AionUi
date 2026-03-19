@@ -44,9 +44,10 @@ export const useConversations = () => {
         .then((data) => {
           if (data && Array.isArray(data)) {
             // 只过滤显式标记的健康检测临时会话，避免误伤用户自定义同名前缀会话
-            const filteredData = data.filter(
-              (conv) => (conv.extra as { isHealthCheck?: boolean } | undefined)?.isHealthCheck !== true
-            );
+            const filteredData = data.filter((conv) => {
+              const ex = conv.extra as { isHealthCheck?: boolean; isProjectConversation?: boolean } | undefined;
+              return ex?.isHealthCheck !== true && ex?.isProjectConversation !== true;
+            });
             setConversations(filteredData);
           } else {
             setConversations([]);

@@ -16,7 +16,7 @@ import type { TProject, TTask } from '@/common/types/task';
 import { getDatabase } from '../database';
 import { getSystemDir } from '../initStorage';
 import { nanoid } from 'nanoid';
-import { initProjectContext, syncProjectContext } from '../services/projectContextService';
+import { initProjectContext, syncProjectContext, generateProjectSystemPrompt } from '../services/projectContextService';
 import { startProjectWatcher, stopProjectWatcher } from '../services/projectOpsWatcher';
 
 export function initWorkTaskBridge(): void {
@@ -143,6 +143,16 @@ export function initWorkTaskBridge(): void {
       return { success: true, data: true };
     } catch (error: any) {
       console.error('[Project] Failed to sync context:', error);
+      return { success: false, msg: error.message };
+    }
+  });
+
+  ipcBridge.project.getSystemPrompt.provider(async ({ projectId }) => {
+    try {
+      const prompt = generateProjectSystemPrompt(projectId);
+      return { success: true, data: prompt };
+    } catch (error: any) {
+      console.error('[Project] Failed to generate system prompt:', error);
       return { success: false, msg: error.message };
     }
   });
