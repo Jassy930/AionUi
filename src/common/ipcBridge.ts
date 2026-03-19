@@ -1061,4 +1061,6 @@ export const workTask = {
   created: bridge.buildEmitter<TTask>('workTask.created'),
   updated: bridge.buildEmitter<TTask>('workTask.updated'),
   deleted: bridge.buildEmitter<{ id: string }>('workTask.deleted'),
+  /** Fired when a task's sub-conversations change (created, status change, etc.) */
+  conversationsChanged: bridge.buildEmitter<{ taskId: string }>('workTask.conversations-changed'),
 };

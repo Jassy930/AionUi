@@ -7,10 +7,10 @@
 /**
  * Project Conversation Panel
  *
- * An inline panel that embeds an ephemeral project-level AI conversation.
- * - Each visit shows the agent picker; context continuity is provided by
- *   the `.aionui/` directory files, NOT by conversation history.
- * - The conversation is deleted on unmount and hidden from the sidebar list.
+ * An inline panel that embeds the project-level AI conversation.
+ * - The conversation persists across visits (saved via project.conversation_id)
+ *   but is hidden from the sidebar conversation list.
+ * - Context continuity is supplemented by `.aionui/` directory files.
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -36,32 +36,71 @@ const AcpChat = React.lazy(() => import('@/renderer/pages/conversation/acp/AcpCh
 
 type ProjectConversationPanelProps = {
   project: TProject | null;
+  onProjectUpdate?: () => void;
 };
 
-const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ project }) => {
+const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ project, onProjectUpdate }) => {
   const { t, i18n } = useTranslation();
   const { cliAgents, presetAssistants, isLoading: isAgentsLoading } = useConversationAgents();
 
   const [conversation, setConversation] = useState<TChatConversation | null>(null);
+  const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Keep a ref so the unmount cleanup always sees the latest conversation id
-  const convIdRef = useRef<string | null>(null);
-
-  // Clean up ephemeral conversation on unmount
-  useEffect(() => {
-    return () => {
-      if (convIdRef.current) {
-        void ipcBridge.conversation.remove.invoke({ id: convIdRef.current });
-      }
-    };
-  }, []);
+  // Track which conversation_id has been loaded to avoid redundant fetches
+  const loadedConvIdRef = useRef<string | null>(null);
 
   // Initialize .aionui context
   useEffect(() => {
     if (!project?.id || !project?.workspace) return;
     void ipcBridge.project.initContext.invoke({ projectId: project.id });
   }, [project?.id, project?.workspace]);
+
+  // Load existing conversation when project.conversation_id is set
+  useEffect(() => {
+    if (!project?.conversation_id) {
+      if (loadedConvIdRef.current !== null) {
+        loadedConvIdRef.current = null;
+        setConversation(null);
+      }
+      return;
+    }
+
+    if (loadedConvIdRef.current === project.conversation_id) return;
+
+    let cancelled = false;
+    setLoading(true);
+    ipcBridge.conversation.get
+      .invoke({ id: project.conversation_id })
+      .then((conv) => {
+        if (cancelled) return;
+        if (conv?.id) {
+          loadedConvIdRef.current = conv.id;
+          setConversation(conv);
+        } else {
+          // Conversation was deleted externally — clear reference
+          loadedConvIdRef.current = null;
+          setConversation(null);
+          void ipcBridge.project.update.invoke({
+            id: project.id,
+            updates: { conversation_id: undefined },
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          loadedConvIdRef.current = null;
+          setConversation(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [project?.conversation_id, project?.id]);
 
   const handleSelectAgent = useCallback(
     async (agent: AvailableAgent, isPreset: boolean) => {
@@ -85,7 +124,7 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
           console.warn('[ProjectConversation] Failed to sync context');
         }
 
-        // Inject project manager system prompt
+        // Inject project director system prompt
         const systemPrompt = promptResult.success && promptResult.data ? promptResult.data : '';
         if (systemPrompt) {
           const existing = params.extra.presetContext || params.extra.presetRules || '';
@@ -93,7 +132,7 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
           params.extra = { ...params.extra, presetContext: merged, presetRules: merged };
         }
 
-        // Mark as ephemeral project conversation (filtered out from sidebar list)
+        // Mark as project conversation (hidden from sidebar list)
         params.extra = {
           ...params.extra,
           workspace: project.workspace,
@@ -103,7 +142,7 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
 
         const conv = await ipcBridge.conversation.create.invoke({
           ...params,
-          name: `${project.name} - AI Manager`,
+          name: `${project.name} - AI Director`,
         });
 
         if (!conv?.id) {
@@ -111,8 +150,15 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
           return;
         }
 
-        convIdRef.current = conv.id;
+        // Persist conversation_id on the project
+        await ipcBridge.project.update.invoke({
+          id: project.id,
+          updates: { conversation_id: conv.id },
+        });
+
+        loadedConvIdRef.current = conv.id;
         setConversation(conv);
+        onProjectUpdate?.();
       } catch (error) {
         console.error('[ProjectConversation] Failed to create conversation:', error);
         Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
@@ -120,22 +166,27 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
         setCreating(false);
       }
     },
-    [project, creating, i18n.language, t]
+    [project, creating, i18n.language, t, onProjectUpdate]
   );
 
   const handleSwitchAgent = useCallback(async () => {
-    if (!conversation) return;
+    if (!project || !conversation) return;
     try {
       await ipcBridge.conversation.remove.invoke({ id: conversation.id });
+      await ipcBridge.project.update.invoke({
+        id: project.id,
+        updates: { conversation_id: undefined },
+      });
     } catch (error) {
       console.error('[ProjectConversation] Failed to remove conversation:', error);
     }
-    convIdRef.current = null;
+    loadedConvIdRef.current = null;
     setConversation(null);
-  }, [conversation]);
+    onProjectUpdate?.();
+  }, [project, conversation, onProjectUpdate]);
 
   // Agent picker when no conversation exists
-  if (!conversation) {
+  if (!conversation && !loading) {
     return (
       <div className='project-conv-panel'>
         <div className='project-conv-panel__header'>
@@ -208,8 +259,23 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
     );
   }
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className='project-conv-panel'>
+        <div className='project-conv-panel__header'>
+          <Robot theme='outline' size={16} />
+          <span>{t('task.projectAI', { defaultValue: 'Project AI' })}</span>
+        </div>
+        <div className='project-conv-panel__loading'>
+          <Spin />
+        </div>
+      </div>
+    );
+  }
+
   // Conversation view
-  const extra = conversation.extra as Record<string, unknown>;
+  const extra = conversation!.extra as Record<string, unknown>;
 
   return (
     <div className='project-conv-panel'>
@@ -227,11 +293,11 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
         </button>
       </div>
       <div className='project-conv-panel__chat'>
-        {conversation.type === 'acp' ? (
+        {conversation!.type === 'acp' ? (
           <React.Suspense fallback={<Spin className='m-auto' />}>
             <AcpChat
-              key={conversation.id}
-              conversation_id={conversation.id}
+              key={conversation!.id}
+              conversation_id={conversation!.id}
               workspace={extra?.workspace as string}
               backend={((extra?.backend as string) || 'claude') as AcpBackend}
               sessionMode={extra?.sessionMode as string}

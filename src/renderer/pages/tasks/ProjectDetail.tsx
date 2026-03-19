@@ -215,9 +215,11 @@ const ProjectDetail: React.FC = () => {
       ipcBridge.workTask.updated.on(() => void loadTasks()),
       ipcBridge.workTask.deleted.on(() => void loadTasks()),
       ipcBridge.project.updated.on(() => void loadProject()),
+      // Sub-agent: refresh a task's conversation list when it changes
+      ipcBridge.workTask.conversationsChanged.on(({ taskId }) => void loadTaskConversations(taskId)),
     ];
     return () => unsubs.forEach((fn) => fn());
-  }, [loadTasks, loadProject]);
+  }, [loadTasks, loadProject, loadTaskConversations]);
 
   const handleCreateTask = async () => {
     if (!newTaskName.trim() || !projectId) {
@@ -618,7 +620,7 @@ const ProjectDetail: React.FC = () => {
 
       {/* Right: AI Conversation (always visible) */}
       <div className='project-detail__conversation'>
-        <ProjectConversationPanel project={project} />
+        <ProjectConversationPanel project={project} onProjectUpdate={() => void loadProject()} />
       </div>
 
       {/* Create Task Modal */}

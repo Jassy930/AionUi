@@ -213,6 +213,9 @@ async function handleCreateConversation(
       };
     }
 
+    // Notify UI so the task card updates its conversation list
+    ipcBridge.workTask.conversationsChanged.emit({ taskId });
+
     return {
       success: true,
       operation: 'create_conversation',
@@ -267,6 +270,11 @@ async function handleSendMessage(params: Record<string, unknown>): Promise<Opera
 
   const timeoutMs = (params.timeout as number) || SUBAGENT_TIMEOUT_MS;
 
+  // Look up associated task for UI notifications
+  const db = getDatabase();
+  const convResult = db.getConversation(conversationId);
+  const taskId = (convResult?.data?.extra as Record<string, unknown> | undefined)?.taskId as string | undefined;
+
   try {
     // Build/get the agent task
     const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
@@ -276,6 +284,9 @@ async function handleSendMessage(params: Record<string, unknown>): Promise<Opera
 
     const msgId = uuid();
 
+    // Notify UI that sub-agent is now active
+    if (taskId) ipcBridge.workTask.conversationsChanged.emit({ taskId });
+
     // Send the message
     const sendResult = await (task as any).sendMessage({
       content: message,
@@ -283,6 +294,7 @@ async function handleSendMessage(params: Record<string, unknown>): Promise<Opera
     });
 
     if (sendResult && !sendResult.success) {
+      if (taskId) ipcBridge.workTask.conversationsChanged.emit({ taskId });
       return {
         success: false,
         operation: 'send_message',
@@ -305,6 +317,9 @@ async function handleSendMessage(params: Record<string, unknown>): Promise<Opera
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
     return { success: false, operation: 'send_message', message: `Error: ${msg}` };
+  } finally {
+    // Notify UI that sub-agent turn is done (status may have changed)
+    if (taskId) ipcBridge.workTask.conversationsChanged.emit({ taskId });
   }
 }
 
