@@ -22,6 +22,7 @@
   "unnamedConversation": "未命名",
   "newConversation": "新建会话",
   "createConversationFailed": "创建会话失败",
+  "noWorkspace": "项目未设置工作空间",
   "selectOrCreate": "关联任务...",
   "status": {
     "brainstorming": "头脑风暴",

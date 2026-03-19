@@ -7,12 +7,20 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Input, Modal, Message, Empty, Select, Spin } from '@arco-design/web-react';
-import { Plus, Delete, Edit, Time, Left, FolderOpen, MessageOne } from '@icon-park/react';
+import { Button, Dropdown, Input, Menu, Modal, Message, Empty, Select, Spin } from '@arco-design/web-react';
+import { Plus, Delete, Edit, Left, FolderOpen, MessageOne, Robot } from '@icon-park/react';
 import classNames from 'classnames';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
 import type { TProject, TTaskWithCount, TaskStatus } from '@/common/types/task';
+import { useConversationAgents } from '@/renderer/pages/conversation/hooks/useConversationAgents';
+import {
+  buildCliAgentParams,
+  buildPresetAssistantParams,
+} from '@/renderer/pages/conversation/utils/createConversationParams';
+import { applyDefaultConversationName } from '@/renderer/pages/conversation/utils/newConversationName';
+import { getAgentLogo } from '@/renderer/utils/agentLogo';
+import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
 import './TaskBoard.css';
 
 type TaskColumn = {
@@ -24,7 +32,7 @@ type TaskColumn = {
 const ALL_STATUSES: TaskStatus[] = ['brainstorming', 'todo', 'progress', 'review', 'done'];
 
 const ProjectDetail: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
 
@@ -34,6 +42,9 @@ const ProjectDetail: React.FC = () => {
   // Task conversations map: taskId -> conversations[]
   const [taskConversations, setTaskConversations] = useState<Record<string, TChatConversation[]>>({});
   const [loadingConversations, setLoadingConversations] = useState<Record<string, boolean>>({});
+
+  const { cliAgents, presetAssistants, isLoading: isAgentsLoading } = useConversationAgents();
+  const defaultConversationName = t('conversation.welcome.newConversation');
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
@@ -171,39 +182,117 @@ const ProjectDetail: React.FC = () => {
     void navigate(`/conversation/${conversationId}`);
   };
 
-  const handleNewConversation = async (taskId: string) => {
-    try {
-      const workspace = project?.workspace || '';
-      const conversation = await ipcBridge.conversation.create.invoke({
-        type: 'gemini',
-        taskId,
-        model: {
-          id: 'gemini-placeholder',
-          name: 'Gemini',
-          useModel: 'default',
-          platform: 'gemini-with-google-auth' as const,
-          baseUrl: '',
-          apiKey: '',
-        },
-        extra: {
-          workspace,
-          customWorkspace: !!project?.workspace,
-        },
-      });
+  const handleNewConversation = useCallback(
+    async (taskId: string, agentKey: string) => {
+      try {
+        const workspace = project?.workspace;
 
-      if (!conversation?.id) {
+        // Validate workspace exists
+        if (!workspace) {
+          Message.warning(t('task.noWorkspace', { defaultValue: 'Project workspace is not set' }));
+          return;
+        }
+
+        let params;
+
+        if (agentKey.startsWith('cli:')) {
+          const backend = agentKey.slice(4);
+          const agent = cliAgents.find((a) => a.backend === backend);
+          if (!agent) {
+            Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
+            return;
+          }
+          params = await buildCliAgentParams(agent, workspace);
+        } else if (agentKey.startsWith('preset:')) {
+          const assistantId = agentKey.slice(7);
+          const agent = presetAssistants.find((a) => a.customAgentId === assistantId);
+          if (!agent) {
+            Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
+            return;
+          }
+          params = await buildPresetAssistantParams(agent, workspace, i18n.language);
+        } else {
+          return;
+        }
+
+        // Apply taskId to extra params - workspace is validated above
+        params.extra = { ...params.extra, workspace, customWorkspace: true };
+        params.taskId = taskId;
+
+        const conversation = await ipcBridge.conversation.create.invoke(
+          applyDefaultConversationName(params, defaultConversationName)
+        );
+
+        if (!conversation?.id) {
+          Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
+          return;
+        }
+
+        // Refresh conversation list for this task
+        void loadTaskConversations(taskId);
+        void navigate(`/conversation/${conversation.id}`);
+      } catch (error) {
+        console.error('Failed to create conversation:', error);
         Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
-        return;
       }
+    },
+    [project, cliAgents, presetAssistants, i18n.language, t, defaultConversationName, loadTaskConversations, navigate]
+  );
 
-      // Refresh conversation list for this task
-      void loadTaskConversations(taskId);
-      void navigate(`/conversation/${conversation.id}`);
-    } catch (error) {
-      console.error('Failed to create conversation:', error);
-      Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
-    }
-  };
+  const renderAgentDropdownMenu = useCallback(
+    (taskId: string) => {
+      return (
+        <Menu onClickMenuItem={(key) => void handleNewConversation(taskId, key)}>
+          {cliAgents.length > 0 && (
+            <Menu.ItemGroup title={t('conversation.dropdown.cliAgents')}>
+              {cliAgents.map((agent) => {
+                const logo = getAgentLogo(agent.backend);
+                return (
+                  <Menu.Item key={`cli:${agent.backend}`}>
+                    <div className='flex items-center gap-8px'>
+                      {logo ? (
+                        <img src={logo} alt={agent.name} style={{ width: 16, height: 16, objectFit: 'contain' }} />
+                      ) : (
+                        <Robot size='16' />
+                      )}
+                      <span>{agent.name}</span>
+                    </div>
+                  </Menu.Item>
+                );
+              })}
+            </Menu.ItemGroup>
+          )}
+          {presetAssistants.length > 0 && (
+            <Menu.ItemGroup title={t('conversation.dropdown.presetAssistants')}>
+              {presetAssistants.map((agent) => {
+                const avatarImage = agent.avatar ? CUSTOM_AVATAR_IMAGE_MAP[agent.avatar] : undefined;
+                const isEmoji = agent.avatar && !avatarImage && !agent.avatar.endsWith('.svg');
+                return (
+                  <Menu.Item key={`preset:${agent.customAgentId}`}>
+                    <div className='flex items-center gap-8px'>
+                      {avatarImage ? (
+                        <img
+                          src={avatarImage}
+                          alt={agent.name}
+                          style={{ width: 16, height: 16, objectFit: 'contain' }}
+                        />
+                      ) : isEmoji ? (
+                        <span style={{ fontSize: 14, lineHeight: '16px' }}>{agent.avatar}</span>
+                      ) : (
+                        <Robot size='16' />
+                      )}
+                      <span>{agent.name}</span>
+                    </div>
+                  </Menu.Item>
+                );
+              })}
+            </Menu.ItemGroup>
+          )}
+        </Menu>
+      );
+    },
+    [cliAgents, presetAssistants, handleNewConversation, t]
+  );
 
   const statusLabel = (status: TaskStatus) => t(`task.status.${status}`, { defaultValue: status });
 
@@ -294,14 +383,21 @@ const ProjectDetail: React.FC = () => {
 
         {/* Footer with actions */}
         <div className='task-card__footer'>
-          <Button
-            size='mini'
-            type='text'
-            icon={<Plus theme='outline' size={12} />}
-            onClick={() => handleNewConversation(task.id)}
+          <Dropdown
+            droplist={renderAgentDropdownMenu(task.id)}
+            trigger='click'
+            position='bl'
+            disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
           >
-            {t('task.newConversation', { defaultValue: 'New Conversation' })}
-          </Button>
+            <Button
+              size='mini'
+              type='text'
+              icon={<Plus theme='outline' size={12} />}
+              disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
+            >
+              {t('task.newConversation', { defaultValue: 'New Conversation' })}
+            </Button>
+          </Dropdown>
 
           {nextStatus[task.status] && (
             <Button

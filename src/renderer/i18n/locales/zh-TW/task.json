@@ -22,6 +22,7 @@
   "unnamedConversation": "未命名",
   "newConversation": "新建對話",
   "createConversationFailed": "建立對話失敗",
+  "noWorkspace": "專案未設定工作空間",
   "selectOrCreate": "關聯任務...",
   "status": {
     "brainstorming": "腦力激盪",

@@ -22,6 +22,7 @@
   "unnamedConversation": "Adsiz",
   "newConversation": "Yeni Konusma",
   "createConversationFailed": "Konusma olusturulamadi",
+  "noWorkspace": "Proje calisma alani ayarlanmamis",
   "selectOrCreate": "Goreve bagla...",
   "status": {
     "brainstorming": "Beyin Firtinasi",

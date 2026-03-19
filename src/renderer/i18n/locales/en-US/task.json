@@ -22,6 +22,7 @@
   "unnamedConversation": "Untitled",
   "newConversation": "New Conversation",
   "createConversationFailed": "Failed to create conversation",
+  "noWorkspace": "Project workspace is not set",
   "selectOrCreate": "Link to Task...",
   "status": {
     "brainstorming": "Brainstorming",

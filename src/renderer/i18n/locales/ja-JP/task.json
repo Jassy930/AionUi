@@ -22,6 +22,7 @@
   "unnamedConversation": "無題",
   "newConversation": "新規会話",
   "createConversationFailed": "会話の作成に失敗しました",
+  "noWorkspace": "プロジェクトのワークスペースが設定されていません",
   "selectOrCreate": "タスクにリンク...",
   "status": {
     "brainstorming": "ブレスト",
