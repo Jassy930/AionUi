@@ -21,6 +21,7 @@
   "noConversations": "No conversations",
   "unnamedConversation": "Untitled",
   "newConversation": "New Conversation",
+  "createConversationFailed": "Failed to create conversation",
   "selectOrCreate": "Link to Task...",
   "status": {
     "brainstorming": "Brainstorming",

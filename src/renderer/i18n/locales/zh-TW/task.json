@@ -21,6 +21,7 @@
   "noConversations": "暫無對話",
   "unnamedConversation": "未命名",
   "newConversation": "新建對話",
+  "createConversationFailed": "建立對話失敗",
   "selectOrCreate": "關聯任務...",
   "status": {
     "brainstorming": "腦力激盪",

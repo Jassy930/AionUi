@@ -171,13 +171,38 @@ const ProjectDetail: React.FC = () => {
     void navigate(`/conversation/${conversationId}`);
   };
 
-  const handleNewConversation = (taskId: string) => {
-    // Navigate to guid with taskId and project workspace
-    const params = new URLSearchParams({ taskId });
-    if (project?.workspace) {
-      params.set('workspace', project.workspace);
+  const handleNewConversation = async (taskId: string) => {
+    try {
+      const workspace = project?.workspace || '';
+      const conversation = await ipcBridge.conversation.create.invoke({
+        type: 'gemini',
+        taskId,
+        model: {
+          id: 'gemini-placeholder',
+          name: 'Gemini',
+          useModel: 'default',
+          platform: 'gemini-with-google-auth' as const,
+          baseUrl: '',
+          apiKey: '',
+        },
+        extra: {
+          workspace,
+          customWorkspace: !!project?.workspace,
+        },
+      });
+
+      if (!conversation?.id) {
+        Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
+        return;
+      }
+
+      // Refresh conversation list for this task
+      void loadTaskConversations(taskId);
+      void navigate(`/conversation/${conversation.id}`);
+    } catch (error) {
+      console.error('Failed to create conversation:', error);
+      Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
     }
-    void navigate(`/guid?${params.toString()}`);
   };
 
   const statusLabel = (status: TaskStatus) => t(`task.status.${status}`, { defaultValue: status });

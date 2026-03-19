@@ -21,6 +21,7 @@
   "noConversations": "暂无会话",
   "unnamedConversation": "未命名",
   "newConversation": "新建会话",
+  "createConversationFailed": "创建会话失败",
   "selectOrCreate": "关联任务...",
   "status": {
     "brainstorming": "头脑风暴",

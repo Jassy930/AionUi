@@ -21,6 +21,7 @@
   "noConversations": "Konusma yok",
   "unnamedConversation": "Adsiz",
   "newConversation": "Yeni Konusma",
+  "createConversationFailed": "Konusma olusturulamadi",
   "selectOrCreate": "Goreve bagla...",
   "status": {
     "brainstorming": "Beyin Firtinasi",
