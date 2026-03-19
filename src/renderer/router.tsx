@@ -2,7 +2,6 @@ import React, { Suspense } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
-import { useViewModeContext } from './context/ViewModeContext';
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
 const Tasks = React.lazy(() => import('./pages/tasks'));
@@ -31,8 +30,7 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
  * 根据 viewMode 重定向到对应首页
  */
 const HomeRedirect: React.FC = () => {
-  const { viewMode } = useViewModeContext();
-  return <Navigate to={viewMode === 'task' ? '/tasks' : '/guid'} replace />;
+  return <Navigate to='/guid' replace />;
 };
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
