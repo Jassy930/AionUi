@@ -2,6 +2,7 @@ import React, { Suspense } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
 import { useAuth } from './context/AuthContext';
+import { useViewModeContext } from './context/ViewModeContext';
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
 const Tasks = React.lazy(() => import('./pages/tasks'));
@@ -25,6 +26,15 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
   </Suspense>
 );
 
+/**
+ * Home redirect component that respects viewMode
+ * 根据 viewMode 重定向到对应首页
+ */
+const HomeRedirect: React.FC = () => {
+  const { viewMode } = useViewModeContext();
+  return <Navigate to={viewMode === 'task' ? '/tasks' : '/guid'} replace />;
+};
+
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
 
@@ -45,12 +55,9 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   return (
     <HashRouter>
       <Routes>
-        <Route
-          path='/login'
-          element={status === 'authenticated' ? <Navigate to='/guid' replace /> : withRouteFallback(LoginPage)}
-        />
+        <Route path='/login' element={status === 'authenticated' ? <HomeRedirect /> : withRouteFallback(LoginPage)} />
         <Route element={<ProtectedLayout layout={layout} />}>
-          <Route index element={<Navigate to='/guid' replace />} />
+          <Route index element={<HomeRedirect />} />
           <Route path='/guid' element={withRouteFallback(Guid)} />
           <Route path='/tasks' element={withRouteFallback(Tasks)} />
           <Route path='/tasks/:projectId' element={withRouteFallback(ProjectDetail)} />
@@ -68,7 +75,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings' element={<Navigate to='/settings/gemini' replace />} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
         </Route>
-        <Route path='*' element={<Navigate to={status === 'authenticated' ? '/guid' : '/login'} replace />} />
+        <Route path='*' element={status === 'authenticated' ? <HomeRedirect /> : <Navigate to='/login' replace />} />
       </Routes>
     </HashRouter>
   );
