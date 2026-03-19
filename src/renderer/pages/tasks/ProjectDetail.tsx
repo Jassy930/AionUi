@@ -9,6 +9,16 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Dropdown, Input, Menu, Modal, Message, Empty, Select, Spin } from '@arco-design/web-react';
 import { Plus, Delete, Edit, Left, FolderOpen, MessageOne, Robot } from '@icon-park/react';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+} from '@dnd-kit/core';
+import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import classNames from 'classnames';
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/storage';
@@ -31,6 +41,56 @@ type TaskColumn = {
 
 const ALL_STATUSES: TaskStatus[] = ['brainstorming', 'todo', 'progress', 'review', 'done'];
 
+// Droppable column component
+const DroppableColumn: React.FC<{ status: TaskStatus; children: React.ReactNode }> = ({ status, children }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `column-${status}`,
+    data: { status },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={classNames('task-board__column-content', {
+        'task-board__column-content--drag-over': isOver,
+      })}
+    >
+      {children}
+    </div>
+  );
+};
+
+// Draggable task card wrapper
+type DraggableTaskCardProps = {
+  task: TTaskWithCount;
+  children: React.ReactNode;
+};
+
+const DraggableTaskCard: React.FC<DraggableTaskCardProps> = ({ task, children }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+    data: { task },
+  });
+
+  const style: React.CSSProperties = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+      }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={classNames('task-board__card-draggable', { 'task-board__card--dragging': isDragging })}
+      {...listeners}
+      {...attributes}
+    >
+      {children}
+    </div>
+  );
+};
+
 const ProjectDetail: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -51,6 +111,18 @@ const ProjectDetail: React.FC = () => {
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>('brainstorming');
   const [editingTask, setEditingTask] = useState<TTaskWithCount | null>(null);
+
+  // Drag and drop state
+  const [activeTask, setActiveTask] = useState<TTaskWithCount | null>(null);
+
+  // Configure sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before starting drag
+      },
+    })
+  );
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
@@ -164,6 +236,43 @@ const ProjectDetail: React.FC = () => {
       console.error('Failed to update task status:', error);
     }
   };
+
+  // Drag and drop handlers
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      const { active } = event;
+      const task = tasks.find((t) => t.id === active.id);
+      setActiveTask(task || null);
+    },
+    [tasks]
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      setActiveTask(null);
+
+      if (!over) return;
+
+      // Extract target status from droppable id (format: "column-{status}")
+      const overId = String(over.id);
+      if (!overId.startsWith('column-')) return;
+
+      const targetStatus = overId.replace('column-', '') as TaskStatus;
+      const taskId = String(active.id);
+      const task = tasks.find((t) => t.id === taskId);
+
+      // Only update if status actually changed
+      if (task && task.status !== targetStatus) {
+        void handleUpdateStatus(taskId, targetStatus);
+      }
+    },
+    [tasks, handleUpdateStatus]
+  );
+
+  const handleDragCancel = useCallback(() => {
+    setActiveTask(null);
+  }, []);
 
   const handleDeleteTask = async (taskId: string) => {
     try {
@@ -302,14 +411,6 @@ const ProjectDetail: React.FC = () => {
     tasks: tasks.filter((tsk) => tsk.status === status),
   }));
 
-  // Next status mapping for quick-advance buttons
-  const nextStatus: Partial<Record<TaskStatus, TaskStatus>> = {
-    brainstorming: 'todo',
-    todo: 'progress',
-    progress: 'review',
-    review: 'done',
-  };
-
   const getConversationStatusColor = (status?: string) => {
     switch (status) {
       case 'running':
@@ -326,7 +427,7 @@ const ProjectDetail: React.FC = () => {
     const isLoadingConvs = loadingConversations[task.id];
 
     return (
-      <div key={task.id} className='task-board__card task-board__card--expanded'>
+      <div className='task-board__card task-board__card--expanded'>
         <div className='task-board__card-header'>
           <h4 className='task-board__card-title'>{task.name}</h4>
           <div className='task-board__card-actions'>
@@ -398,18 +499,6 @@ const ProjectDetail: React.FC = () => {
               {t('task.newConversation', { defaultValue: 'New Conversation' })}
             </Button>
           </Dropdown>
-
-          {nextStatus[task.status] && (
-            <Button
-              size='mini'
-              type='outline'
-              onClick={() => void handleUpdateStatus(task.id, nextStatus[task.status]!)}
-            >
-              {t(`task.action.moveTo.${nextStatus[task.status]}`, {
-                defaultValue: statusLabel(nextStatus[task.status]!),
-              })}
-            </Button>
-          )}
         </div>
       </div>
     );
@@ -443,25 +532,44 @@ const ProjectDetail: React.FC = () => {
         </div>
       )}
 
-      <div className='task-board__columns task-board__columns--5'>
-        {columns.map((column) => (
-          <div key={column.status} className={classNames('task-board__column', `task-board__column--${column.status}`)}>
-            <div className='task-board__column-header'>
-              <h3 className='task-board__column-title'>{t(column.titleKey, { defaultValue: column.status })}</h3>
-              <span className='task-board__column-count'>{column.tasks.length}</span>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <div className='task-board__columns task-board__columns--5'>
+          {columns.map((column) => (
+            <div
+              key={column.status}
+              className={classNames('task-board__column', `task-board__column--${column.status}`)}
+            >
+              <div className='task-board__column-header'>
+                <h3 className='task-board__column-title'>{t(column.titleKey, { defaultValue: column.status })}</h3>
+                <span className='task-board__column-count'>{column.tasks.length}</span>
+              </div>
+              <DroppableColumn status={column.status}>
+                {column.tasks.length === 0 ? (
+                  <div className='task-board__column-empty'>
+                    <Empty description={t('task.noTasks', { defaultValue: 'No tasks' })} />
+                  </div>
+                ) : (
+                  column.tasks.map((task) => (
+                    <DraggableTaskCard key={task.id} task={task}>
+                      {renderTaskCard(task)}
+                    </DraggableTaskCard>
+                  ))
+                )}
+              </DroppableColumn>
             </div>
-            <div className='task-board__column-content'>
-              {column.tasks.length === 0 ? (
-                <div className='task-board__column-empty'>
-                  <Empty description={t('task.noTasks', { defaultValue: 'No tasks' })} />
-                </div>
-              ) : (
-                column.tasks.map(renderTaskCard)
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+
+        {/* Drag Overlay - shows the dragged item */}
+        <DragOverlay>
+          {activeTask ? <div className='task-board__card task-board__card--overlay'>{activeTask.name}</div> : null}
+        </DragOverlay>
+      </DndContext>
 
       {/* Create Task Modal */}
       <Modal
