@@ -15,6 +15,7 @@ export type TProject = {
   name: string;
   description?: string;
   workspace: string;
+  conversation_id?: string;
   user_id: string;
   created_at: number;
   updated_at: number;
@@ -28,6 +29,7 @@ export type IProjectRow = {
   name: string;
   description: string | null;
   workspace: string;
+  conversation_id: string | null;
   user_id: string;
   created_at: number;
   updated_at: number;
@@ -42,6 +44,7 @@ export function projectToRow(project: TProject): IProjectRow {
     name: project.name,
     description: project.description ?? null,
     workspace: project.workspace,
+    conversation_id: project.conversation_id ?? null,
     user_id: project.user_id,
     created_at: project.created_at,
     updated_at: project.updated_at,
@@ -57,6 +60,7 @@ export function rowToProject(row: IProjectRow): TProject {
     name: row.name,
     description: row.description ?? undefined,
     workspace: row.workspace,
+    conversation_id: row.conversation_id ?? undefined,
     user_id: row.user_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -77,7 +81,7 @@ export type ICreateProjectParams = {
  */
 export type IUpdateProjectParams = {
   id: string;
-  updates: Partial<Pick<TProject, 'name' | 'description' | 'workspace'>>;
+  updates: Partial<Pick<TProject, 'name' | 'description' | 'workspace' | 'conversation_id'>>;
 };
 
 /**

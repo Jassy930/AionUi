@@ -1,0 +1,162 @@
+/**
+ * @license
+ * Copyright 2025 AionUi (aionui.com)
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* ==================== Project Conversation Panel (Inline) ==================== */
+
+.project-conv-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg-1);
+}
+
+.project-conv-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-1);
+  flex-shrink: 0;
+}
+
+.project-conv-panel__header-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-conv-panel__reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-3);
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.project-conv-panel__reset-btn:hover {
+  background: var(--color-fill-2);
+  color: var(--color-text-1);
+}
+
+.project-conv-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.project-conv-panel__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 200px;
+}
+
+/* ==================== Agent Picker ==================== */
+
+.project-conv-panel__agent-picker {
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.project-conv-panel__agent-hint {
+  font-size: 13px;
+  color: var(--color-text-3);
+  margin: 0;
+}
+
+.project-conv-panel__agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.project-conv-panel__agent-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.project-conv-panel__agent-card:hover {
+  border-color: var(--color-primary-light-4);
+  background: var(--color-fill-1);
+}
+
+.project-conv-panel__agent-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.project-conv-panel__agent-logo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.project-conv-panel__agent-emoji {
+  font-size: 24px;
+  line-height: 28px;
+}
+
+.project-conv-panel__agent-name {
+  font-size: 11px;
+  color: var(--color-text-2);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.project-conv-panel__creating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--color-text-3);
+}
+
+/* ==================== Embedded Chat ==================== */
+
+.project-conv-panel__chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.project-conv-panel__unsupported {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 24px;
+  color: var(--color-text-3);
+  font-size: 13px;
+}

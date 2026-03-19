@@ -24,6 +24,11 @@
   "createConversationFailed": "Failed to create conversation",
   "noWorkspace": "Project workspace is not set",
   "selectOrCreate": "Link to Task...",
+  "projectAI": "Project AI",
+  "selectProjectAgent": "Select an agent for the project AI manager",
+  "creatingConversation": "Creating conversation...",
+  "resetConversation": "Switch agent",
+  "unsupportedAgentType": "This agent type is not yet supported in project mode",
   "status": {
     "brainstorming": "Brainstorming",
     "todo": "Todo",

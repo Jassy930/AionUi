@@ -24,6 +24,11 @@
   "createConversationFailed": "대화 생성에 실패했습니다",
   "noWorkspace": "프로젝트 작업 공간이 설정되지 않았습니다",
   "selectOrCreate": "작업에 연결...",
+  "projectAI": "프로젝트 AI",
+  "selectProjectAgent": "프로젝트 AI 관리자의 에이전트를 선택하세요",
+  "creatingConversation": "대화 생성 중...",
+  "resetConversation": "에이전트 전환",
+  "unsupportedAgentType": "이 에이전트 유형은 아직 프로젝트 모드에서 지원되지 않습니다",
   "status": {
     "brainstorming": "브레인스토밍",
     "todo": "할 일",

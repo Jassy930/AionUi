@@ -4,11 +4,34 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/* ==================== Split Layout ==================== */
+
+.project-detail__split {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.project-detail__tasks {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.project-detail__conversation {
+  width: 420px;
+  min-width: 320px;
+  flex-shrink: 0;
+}
+
+/* ==================== Task Board ==================== */
+
 .task-board {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 24px;
+  padding: 20px;
   background: var(--color-bg-1);
   overflow: hidden;
 }

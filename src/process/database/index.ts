@@ -1416,10 +1416,19 @@ export class AionUIDatabase {
     try {
       const row = projectToRow(project);
       const stmt = this.db.prepare(`
-        INSERT INTO projects (id, name, description, workspace, user_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO projects (id, name, description, workspace, conversation_id, user_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(row.id, row.name, row.description, row.workspace, row.user_id, row.created_at, row.updated_at);
+      stmt.run(
+        row.id,
+        row.name,
+        row.description,
+        row.workspace,
+        row.conversation_id,
+        row.user_id,
+        row.created_at,
+        row.updated_at
+      );
       return { success: true, data: project };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -1476,7 +1485,7 @@ export class AionUIDatabase {
    */
   updateProject(
     projectId: string,
-    updates: Partial<Pick<TProject, 'name' | 'description' | 'workspace'>>
+    updates: Partial<Pick<TProject, 'name' | 'description' | 'workspace' | 'conversation_id'>>
   ): IQueryResult<boolean> {
     try {
       const existing = this.getProject(projectId);
@@ -1499,6 +1508,10 @@ export class AionUIDatabase {
       if (updates.workspace !== undefined) {
         setClauses.push('workspace = ?');
         params.push(updates.workspace);
+      }
+      if (updates.conversation_id !== undefined) {
+        setClauses.push('conversation_id = ?');
+        params.push(updates.conversation_id ?? null);
       }
 
       params.push(projectId);

@@ -1322,6 +1322,42 @@ const migration_v19: IMigration = {
 };
 
 /**
+ * Migration v19 -> v20: Add conversation_id column to projects
+ *
+ * Each project can have a single top-level AI conversation for managing tasks.
+ */
+const migration_v20: IMigration = {
+  version: 20,
+  name: 'Add conversation_id column to projects',
+  up: (db) => {
+    db.exec(`ALTER TABLE projects ADD COLUMN conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_projects_conversation_id ON projects(conversation_id)`);
+    console.log('[Migration v20] Added conversation_id column to projects');
+  },
+  down: (db) => {
+    db.exec(`
+      CREATE TABLE projects_backup (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        workspace TEXT NOT NULL DEFAULT '',
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      INSERT INTO projects_backup (id, name, description, workspace, user_id, created_at, updated_at)
+      SELECT id, name, description, workspace, user_id, created_at, updated_at FROM projects;
+      DROP TABLE projects;
+      ALTER TABLE projects_backup RENAME TO projects;
+      CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+      CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
+    `);
+    console.log('[Migration v20] Rolled back: Removed conversation_id column from projects');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1329,7 +1365,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19,
+  migration_v19, migration_v20,
 ];
 
 /**

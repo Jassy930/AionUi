@@ -24,6 +24,11 @@
   "createConversationFailed": "Konusma olusturulamadi",
   "noWorkspace": "Proje calisma alani ayarlanmamis",
   "selectOrCreate": "Goreve bagla...",
+  "projectAI": "Proje AI",
+  "selectProjectAgent": "Proje AI yöneticisi için bir ajan seçin",
+  "creatingConversation": "Konuşma oluşturuluyor...",
+  "resetConversation": "Ajan değiştir",
+  "unsupportedAgentType": "Bu ajan türü henüz proje modunda desteklenmiyor",
   "status": {
     "brainstorming": "Beyin Firtinasi",
     "todo": "Yapilacak",

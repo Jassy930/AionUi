@@ -32,6 +32,8 @@ import { applyDefaultConversationName } from '@/renderer/pages/conversation/util
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
 import { useProjectMode } from '@/renderer/context/ProjectModeContext';
+import { useLayoutContext } from '@/renderer/context/LayoutContext';
+import ProjectConversationPanel from './ProjectConversationPanel';
 import './TaskBoard.css';
 
 type TaskColumn = {
@@ -116,6 +118,24 @@ const ProjectDetail: React.FC = () => {
 
   // Drag and drop state
   const [activeTask, setActiveTask] = useState<TTaskWithCount | null>(null);
+
+  // Auto-collapse app sider when entering project page, restore on leave
+  const layout = useLayoutContext();
+  const prevSiderRef = React.useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!layout) return;
+    if (prevSiderRef.current === null) {
+      prevSiderRef.current = layout.siderCollapsed;
+      if (!layout.siderCollapsed) {
+        layout.setSiderCollapsed(true);
+      }
+    }
+    return () => {
+      if (prevSiderRef.current === false && layout) {
+        layout.setSiderCollapsed(false);
+      }
+    };
+  }, [layout]);
 
   // Configure sensors for drag and drop
   const sensors = useSensors(
@@ -520,71 +540,85 @@ const ProjectDetail: React.FC = () => {
   };
 
   return (
-    <div className='task-board'>
-      <div className='task-board__header'>
-        <div className='project-detail__title-area'>
-          <Button
-            type='text'
-            icon={<Left theme='outline' size={18} />}
-            onClick={() => void navigate('/tasks')}
-            className='project-detail__back-btn'
-          />
-          <h1 className='task-board__title'>{project?.name || '...'}</h1>
+    <div className='project-detail__split'>
+      {/* Left: Task Kanban */}
+      <div className='project-detail__tasks'>
+        <div className='task-board'>
+          <div className='task-board__header'>
+            <div className='project-detail__title-area'>
+              <Button
+                type='text'
+                icon={<Left theme='outline' size={18} />}
+                onClick={() => void navigate('/tasks')}
+                className='project-detail__back-btn'
+              />
+              <h1 className='task-board__title'>{project?.name || '...'}</h1>
+            </div>
+            <Button
+              type='primary'
+              size='small'
+              icon={<Plus theme='outline' />}
+              onClick={() => setCreateModalVisible(true)}
+            >
+              {t('task.create', { defaultValue: 'New Task' })}
+            </Button>
+          </div>
+
+          {project?.workspace && (
+            <div
+              className='project-detail__workspace-bar'
+              title={project.workspace}
+              onClick={() => void ipcBridge.shell.showItemInFolder.invoke(project.workspace)}
+            >
+              <FolderOpen theme='outline' size={14} />
+              <span className='project-detail__workspace-path'>{project.workspace}</span>
+            </div>
+          )}
+
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <div className='task-board__columns task-board__columns--5'>
+              {columns.map((column) => (
+                <div
+                  key={column.status}
+                  className={classNames('task-board__column', `task-board__column--${column.status}`)}
+                >
+                  <div className='task-board__column-header'>
+                    <h3 className='task-board__column-title'>{t(column.titleKey, { defaultValue: column.status })}</h3>
+                    <span className='task-board__column-count'>{column.tasks.length}</span>
+                  </div>
+                  <DroppableColumn status={column.status}>
+                    {column.tasks.length === 0 ? (
+                      <div className='task-board__column-empty'>
+                        <Empty description={t('task.noTasks', { defaultValue: 'No tasks' })} />
+                      </div>
+                    ) : (
+                      column.tasks.map((task) => (
+                        <DraggableTaskCard key={task.id} task={task}>
+                          {renderTaskCard(task)}
+                        </DraggableTaskCard>
+                      ))
+                    )}
+                  </DroppableColumn>
+                </div>
+              ))}
+            </div>
+
+            <DragOverlay>
+              {activeTask ? <div className='task-board__card task-board__card--overlay'>{activeTask.name}</div> : null}
+            </DragOverlay>
+          </DndContext>
         </div>
-        <Button type='primary' icon={<Plus theme='outline' />} onClick={() => setCreateModalVisible(true)}>
-          {t('task.create', { defaultValue: 'New Task' })}
-        </Button>
       </div>
 
-      {project?.workspace && (
-        <div
-          className='project-detail__workspace-bar'
-          title={project.workspace}
-          onClick={() => void ipcBridge.shell.showItemInFolder.invoke(project.workspace)}
-        >
-          <FolderOpen theme='outline' size={14} />
-          <span className='project-detail__workspace-path'>{project.workspace}</span>
-        </div>
-      )}
-
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div className='task-board__columns task-board__columns--5'>
-          {columns.map((column) => (
-            <div
-              key={column.status}
-              className={classNames('task-board__column', `task-board__column--${column.status}`)}
-            >
-              <div className='task-board__column-header'>
-                <h3 className='task-board__column-title'>{t(column.titleKey, { defaultValue: column.status })}</h3>
-                <span className='task-board__column-count'>{column.tasks.length}</span>
-              </div>
-              <DroppableColumn status={column.status}>
-                {column.tasks.length === 0 ? (
-                  <div className='task-board__column-empty'>
-                    <Empty description={t('task.noTasks', { defaultValue: 'No tasks' })} />
-                  </div>
-                ) : (
-                  column.tasks.map((task) => (
-                    <DraggableTaskCard key={task.id} task={task}>
-                      {renderTaskCard(task)}
-                    </DraggableTaskCard>
-                  ))
-                )}
-              </DroppableColumn>
-            </div>
-          ))}
-        </div>
-
-        {/* Drag Overlay - shows the dragged item */}
-        <DragOverlay>
-          {activeTask ? <div className='task-board__card task-board__card--overlay'>{activeTask.name}</div> : null}
-        </DragOverlay>
-      </DndContext>
+      {/* Right: AI Conversation (always visible) */}
+      <div className='project-detail__conversation'>
+        <ProjectConversationPanel project={project} onProjectUpdate={() => void loadProject()} />
+      </div>
 
       {/* Create Task Modal */}
       <Modal

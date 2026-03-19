@@ -24,6 +24,11 @@
   "createConversationFailed": "建立對話失敗",
   "noWorkspace": "專案未設定工作空間",
   "selectOrCreate": "關聯任務...",
+  "projectAI": "專案 AI",
+  "selectProjectAgent": "選擇專案 AI 管理器的代理",
+  "creatingConversation": "正在建立對話...",
+  "resetConversation": "切換代理",
+  "unsupportedAgentType": "該代理類型暫不支援專案模式",
   "status": {
     "brainstorming": "腦力激盪",
     "todo": "待辦",

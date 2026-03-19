@@ -1027,6 +1027,10 @@ export const project = {
   update: bridge.buildProvider<IBridgeResponse<boolean>, IUpdateProjectParams>('project.update'),
   delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('project.delete'),
 
+  // Project-level AI conversation
+  initContext: bridge.buildProvider<IBridgeResponse<boolean>, { projectId: string }>('project.init-context'),
+  syncContext: bridge.buildProvider<IBridgeResponse<boolean>, { projectId: string }>('project.sync-context'),
+
   // Events
   created: bridge.buildEmitter<TProject>('project.created'),
   updated: bridge.buildEmitter<TProject>('project.updated'),

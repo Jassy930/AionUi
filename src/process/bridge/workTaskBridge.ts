@@ -16,6 +16,8 @@ import type { TProject, TTask } from '@/common/types/task';
 import { getDatabase } from '../database';
 import { getSystemDir } from '../initStorage';
 import { nanoid } from 'nanoid';
+import { initProjectContext, syncProjectContext } from '../services/projectContextService';
+import { startProjectWatcher, stopProjectWatcher } from '../services/projectOpsWatcher';
 
 export function initWorkTaskBridge(): void {
   const db = getDatabase();
@@ -97,6 +99,7 @@ export function initWorkTaskBridge(): void {
 
   ipcBridge.project.delete.provider(async ({ id }) => {
     try {
+      stopProjectWatcher(id);
       const result = db.deleteProject(id);
       if (!result.success) {
         return { success: false, msg: result.error };
@@ -106,6 +109,40 @@ export function initWorkTaskBridge(): void {
       return { success: true, data: true };
     } catch (error: any) {
       console.error('[Project] Failed to delete project:', error);
+      return { success: false, msg: error.message };
+    }
+  });
+
+  // ==================== Project Context ====================
+
+  ipcBridge.project.initContext.provider(async ({ projectId }) => {
+    try {
+      const projResult = db.getProject(projectId);
+      if (!projResult.success || !projResult.data) {
+        return { success: false, msg: 'Project not found' };
+      }
+      const project = projResult.data;
+      if (!project.workspace) {
+        return { success: false, msg: 'Project has no workspace' };
+      }
+
+      initProjectContext(project);
+      syncProjectContext(projectId);
+      startProjectWatcher(projectId, project.workspace);
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      console.error('[Project] Failed to init context:', error);
+      return { success: false, msg: error.message };
+    }
+  });
+
+  ipcBridge.project.syncContext.provider(async ({ projectId }) => {
+    try {
+      syncProjectContext(projectId);
+      return { success: true, data: true };
+    } catch (error: any) {
+      console.error('[Project] Failed to sync context:', error);
       return { success: false, msg: error.message };
     }
   });

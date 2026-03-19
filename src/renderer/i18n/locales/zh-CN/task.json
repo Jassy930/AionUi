@@ -24,6 +24,11 @@
   "createConversationFailed": "创建会话失败",
   "noWorkspace": "项目未设置工作空间",
   "selectOrCreate": "关联任务...",
+  "projectAI": "项目 AI",
+  "selectProjectAgent": "选择项目 AI 管理器的代理",
+  "creatingConversation": "正在创建会话...",
+  "resetConversation": "切换代理",
+  "unsupportedAgentType": "该代理类型暂不支持项目模式",
   "status": {
     "brainstorming": "头脑风暴",
     "todo": "待办",
