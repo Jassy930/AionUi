@@ -177,6 +177,11 @@
   color: var(--color-danger-6);
 }
 
+.task-board__card-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .task-board__card-description {
   font-size: 12px;
   color: var(--color-text-3);
@@ -430,42 +435,7 @@
 }
 
 .task-card__footer {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--color-border);
-  gap: 4px;
-}
-
-.task-card__footer-action {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: var(--color-fill-2);
-  color: var(--color-text-3);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.task-card__footer-action:hover {
-  background: var(--color-fill-3);
-  color: var(--color-text-1);
-}
-
-.task-card__footer-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-
-.task-card__footer-action--danger:hover {
-  background: var(--color-danger-light-4);
-  color: var(--color-danger-6);
+  display: none;
 }
 
 /* ==================== Drag and Drop ==================== */

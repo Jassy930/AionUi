@@ -450,6 +450,36 @@ const ProjectDetail: React.FC = () => {
       <div className='task-board__card task-board__card--expanded'>
         <div className='task-board__card-header'>
           <h4 className='task-board__card-title'>{task.name}</h4>
+          <div className='task-board__card-actions'>
+            <Dropdown
+              droplist={renderAgentDropdownMenu(task.id)}
+              trigger='click'
+              position='br'
+              disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
+            >
+              <button
+                className='task-board__card-action'
+                disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
+                title={t('task.newConversation', { defaultValue: 'New Conversation' })}
+              >
+                <Plus theme='outline' size={14} />
+              </button>
+            </Dropdown>
+            <button
+              className='task-board__card-action'
+              onClick={() => setEditingTask(task)}
+              title={t('common.edit', { defaultValue: 'Edit' })}
+            >
+              <Edit theme='outline' size={14} />
+            </button>
+            <button
+              className='task-board__card-action task-board__card-action--danger'
+              onClick={() => void handleDeleteTask(task.id)}
+              title={t('common.delete', { defaultValue: 'Delete' })}
+            >
+              <Delete theme='outline' size={14} />
+            </button>
+          </div>
         </div>
 
         {task.description && <p className='task-board__card-description'>{task.description}</p>}
@@ -484,38 +514,6 @@ const ProjectDetail: React.FC = () => {
               {t('task.noConversations', { defaultValue: 'No conversations' })}
             </div>
           )}
-        </div>
-
-        {/* Footer with actions - all buttons in a row */}
-        <div className='task-card__footer'>
-          <Dropdown
-            droplist={renderAgentDropdownMenu(task.id)}
-            trigger='click'
-            position='bl'
-            disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
-          >
-            <button
-              className='task-card__footer-action'
-              disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
-              title={t('task.newConversation', { defaultValue: 'New Conversation' })}
-            >
-              <Plus theme='outline' size={14} />
-            </button>
-          </Dropdown>
-          <button
-            className='task-card__footer-action'
-            onClick={() => setEditingTask(task)}
-            title={t('common.edit', { defaultValue: 'Edit' })}
-          >
-            <Edit theme='outline' size={14} />
-          </button>
-          <button
-            className='task-card__footer-action task-card__footer-action--danger'
-            onClick={() => void handleDeleteTask(task.id)}
-            title={t('common.delete', { defaultValue: 'Delete' })}
-          >
-            <Delete theme='outline' size={14} />
-          </button>
         </div>
       </div>
     );
