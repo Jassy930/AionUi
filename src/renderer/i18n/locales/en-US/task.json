@@ -10,6 +10,7 @@
   "nameRequired": "Task name is required",
   "description": "Description",
   "descriptionPlaceholder": "Enter task description (optional)...",
+  "statusLabel": "Status",
   "created": "Task created",
   "createFailed": "Failed to create task",
   "deleted": "Task deleted",
@@ -19,12 +20,18 @@
   "conversations": "conversations",
   "selectOrCreate": "Link to Task...",
   "status": {
-    "pending": "Pending",
-    "inProgress": "In Progress",
+    "brainstorming": "Brainstorming",
+    "todo": "Todo",
+    "progress": "In Progress",
+    "review": "Review",
     "done": "Done"
   },
   "action": {
-    "start": "Start",
-    "complete": "Complete"
+    "moveTo": {
+      "todo": "Move to Todo",
+      "progress": "Start",
+      "review": "Send to Review",
+      "done": "Complete"
+    }
   }
 }

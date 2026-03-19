@@ -1148,13 +1148,151 @@ const migration_v17: IMigration = {
 };
 
 /**
+ * Migration v17 -> v18: Remove status from projects, update task statuses
+ *
+ * - Projects become pure containers (no status field)
+ * - Task status changes from (pending, in_progress, done) to
+ *   (brainstorming, todo, progress, review, done)
+ */
+const migration_v18: IMigration = {
+  version: 18,
+  name: 'Remove project status, update task statuses',
+  up: (db) => {
+    // Step 1: Recreate projects table without status column
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects_new (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO projects_new (id, name, description, user_id, created_at, updated_at)
+      SELECT id, name, description, user_id, created_at, updated_at FROM projects;
+
+      DROP TABLE projects;
+      ALTER TABLE projects_new RENAME TO projects;
+
+      CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+      CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
+    `);
+
+    // Step 2: Recreate tasks table with new status constraint
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tasks_new (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'brainstorming'
+          CHECK(status IN ('brainstorming', 'todo', 'progress', 'review', 'done')),
+        sort_order INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO tasks_new (id, project_id, name, description, status, sort_order, created_at, updated_at)
+      SELECT id, project_id, name, description,
+        CASE status
+          WHEN 'pending' THEN 'todo'
+          WHEN 'in_progress' THEN 'progress'
+          WHEN 'done' THEN 'done'
+          ELSE 'todo'
+        END,
+        sort_order, created_at, updated_at
+      FROM tasks;
+
+      DROP TABLE tasks;
+      ALTER TABLE tasks_new RENAME TO tasks;
+
+      CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(project_id, sort_order);
+    `);
+
+    console.log('[Migration v18] Removed project status, updated task statuses');
+  },
+  down: (db) => {
+    // Recreate projects with status column
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects_old (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'brainstorming'
+          CHECK(status IN ('brainstorming', 'todo', 'progressing', 'done')),
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO projects_old (id, name, description, status, user_id, created_at, updated_at)
+      SELECT id, name, description, 'todo', user_id, created_at, updated_at FROM projects;
+
+      DROP TABLE projects;
+      ALTER TABLE projects_old RENAME TO projects;
+
+      CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+      CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
+      CREATE INDEX IF NOT EXISTS idx_projects_user_status ON projects(user_id, status);
+      CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
+    `);
+
+    // Recreate tasks with old status constraint
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS tasks_old (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending'
+          CHECK(status IN ('pending', 'in_progress', 'done')),
+        sort_order INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO tasks_old (id, project_id, name, description, status, sort_order, created_at, updated_at)
+      SELECT id, project_id, name, description,
+        CASE status
+          WHEN 'brainstorming' THEN 'pending'
+          WHEN 'todo' THEN 'pending'
+          WHEN 'progress' THEN 'in_progress'
+          WHEN 'review' THEN 'in_progress'
+          WHEN 'done' THEN 'done'
+          ELSE 'pending'
+        END,
+        sort_order, created_at, updated_at
+      FROM tasks;
+
+      DROP TABLE tasks;
+      ALTER TABLE tasks_old RENAME TO tasks;
+
+      CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_project_status ON tasks(project_id, status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_sort_order ON tasks(project_id, sort_order);
+    `);
+
+    console.log('[Migration v18] Rolled back: Restored project status and old task statuses');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
 export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
-  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17,
+  migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
 ];
 
 /**

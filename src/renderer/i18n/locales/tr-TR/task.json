@@ -10,6 +10,7 @@
   "nameRequired": "Gorev adi gereklidir",
   "description": "Aciklama",
   "descriptionPlaceholder": "Gorev aciklamasini girin (istege bagli)...",
+  "statusLabel": "Durum",
   "created": "Gorev olusturuldu",
   "createFailed": "Gorev olusturulamadi",
   "deleted": "Gorev silindi",
@@ -19,12 +20,18 @@
   "conversations": "konusma",
   "selectOrCreate": "Goreve bagla...",
   "status": {
-    "pending": "Beklemede",
-    "inProgress": "Devam Ediyor",
+    "brainstorming": "Beyin Firtinasi",
+    "todo": "Yapilacak",
+    "progress": "Devam Ediyor",
+    "review": "Inceleme",
     "done": "Tamamlandi"
   },
   "action": {
-    "start": "Basla",
-    "complete": "Tamamla"
+    "moveTo": {
+      "todo": "Yapilacaklara Tasi",
+      "progress": "Basla",
+      "review": "Incelemeye Gonder",
+      "done": "Tamamla"
+    }
   }
 }

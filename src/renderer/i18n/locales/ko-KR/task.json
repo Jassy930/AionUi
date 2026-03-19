@@ -10,6 +10,7 @@
   "nameRequired": "작업 이름은 필수입니다",
   "description": "설명",
   "descriptionPlaceholder": "작업 설명을 입력하세요(선택 사항)...",
+  "statusLabel": "상태",
   "created": "작업이 생성되었습니다",
   "createFailed": "작업 생성에 실패했습니다",
   "deleted": "작업이 삭제되었습니다",
@@ -19,12 +20,18 @@
   "conversations": "개의 대화",
   "selectOrCreate": "작업에 연결...",
   "status": {
-    "pending": "대기 중",
-    "inProgress": "진행 중",
+    "brainstorming": "브레인스토밍",
+    "todo": "할 일",
+    "progress": "진행 중",
+    "review": "검토",
     "done": "완료"
   },
   "action": {
-    "start": "시작",
-    "complete": "완료"
+    "moveTo": {
+      "todo": "할 일로 이동",
+      "progress": "시작",
+      "review": "검토로 보내기",
+      "done": "완료"
+    }
   }
 }

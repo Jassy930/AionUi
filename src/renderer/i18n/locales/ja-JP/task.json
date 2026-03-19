@@ -10,6 +10,7 @@
   "nameRequired": "タスク名は必須です",
   "description": "説明",
   "descriptionPlaceholder": "タスクの説明を入力（任意）...",
+  "statusLabel": "ステータス",
   "created": "タスクを作成しました",
   "createFailed": "タスクの作成に失敗しました",
   "deleted": "タスクを削除しました",
@@ -19,12 +20,18 @@
   "conversations": "件の会話",
   "selectOrCreate": "タスクにリンク...",
   "status": {
-    "pending": "未着手",
-    "inProgress": "進行中",
+    "brainstorming": "ブレスト",
+    "todo": "未着手",
+    "progress": "進行中",
+    "review": "レビュー",
     "done": "完了"
   },
   "action": {
-    "start": "開始",
-    "complete": "完了"
+    "moveTo": {
+      "todo": "未着手に移動",
+      "progress": "開始",
+      "review": "レビューへ",
+      "done": "完了"
+    }
   }
 }

@@ -10,6 +10,7 @@
   "nameRequired": "任务名称不能为空",
   "description": "描述",
   "descriptionPlaceholder": "请输入任务描述（可选）...",
+  "statusLabel": "状态",
   "created": "任务已创建",
   "createFailed": "创建任务失败",
   "deleted": "任务已删除",
@@ -19,12 +20,18 @@
   "conversations": "个会话",
   "selectOrCreate": "关联任务...",
   "status": {
-    "pending": "待处理",
-    "inProgress": "进行中",
+    "brainstorming": "头脑风暴",
+    "todo": "待办",
+    "progress": "进行中",
+    "review": "审查",
     "done": "已完成"
   },
   "action": {
-    "start": "开始",
-    "complete": "完成"
+    "moveTo": {
+      "todo": "移至待办",
+      "progress": "开始",
+      "review": "提交审查",
+      "done": "完成"
+    }
   }
 }

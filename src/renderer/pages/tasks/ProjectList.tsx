@@ -7,18 +7,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Button, Input, Modal, Message, Empty, Select } from '@arco-design/web-react';
+import { Button, Input, Modal, Message, Empty } from '@arco-design/web-react';
 import { Plus, Delete, Edit, Time, DocumentFolder } from '@icon-park/react';
 import { ipcBridge } from '@/common';
-import type { TProjectWithCount, ProjectStatus } from '@/common/types/task';
+import type { TProjectWithCount } from '@/common/types/task';
 import './TaskBoard.css';
-
-const STATUS_COLORS: Record<ProjectStatus, string> = {
-  brainstorming: 'var(--color-purple-6, #722ed1)',
-  todo: 'var(--color-warning-6)',
-  progressing: 'var(--color-primary-6)',
-  done: 'var(--color-success-6)',
-};
 
 const ProjectList: React.FC = () => {
   const { t } = useTranslation();
@@ -29,7 +22,6 @@ const ProjectList: React.FC = () => {
   const [editingProject, setEditingProject] = useState<TProjectWithCount | null>(null);
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
-  const [formStatus, setFormStatus] = useState<ProjectStatus>('brainstorming');
 
   const loadProjects = useCallback(async () => {
     try {
@@ -61,7 +53,6 @@ const ProjectList: React.FC = () => {
   const resetForm = () => {
     setFormName('');
     setFormDesc('');
-    setFormStatus('brainstorming');
   };
 
   const handleCreate = async () => {
@@ -73,7 +64,6 @@ const ProjectList: React.FC = () => {
       const result = await ipcBridge.project.create.invoke({
         name: formName.trim(),
         description: formDesc.trim() || undefined,
-        status: formStatus,
       });
       if (result.success) {
         Message.success(t('project.created', { defaultValue: 'Project created' }));
@@ -96,7 +86,6 @@ const ProjectList: React.FC = () => {
         updates: {
           name: formName.trim(),
           description: formDesc.trim() || undefined,
-          status: formStatus,
         },
       });
       setEditingProject(null);
@@ -126,12 +115,7 @@ const ProjectList: React.FC = () => {
     setEditingProject(proj);
     setFormName(proj.name);
     setFormDesc(proj.description || '');
-    setFormStatus(proj.status);
   };
-
-  const statusLabel = (status: ProjectStatus) => t(`project.status.${status}`, { defaultValue: status });
-
-  const statusOptions: ProjectStatus[] = ['brainstorming', 'todo', 'progressing', 'done'];
 
   const formContent = (
     <div className='task-board__modal-form'>
@@ -152,16 +136,6 @@ const ProjectList: React.FC = () => {
           placeholder={t('project.descriptionPlaceholder', { defaultValue: 'Enter description (optional)...' })}
           rows={3}
         />
-      </div>
-      <div className='task-board__modal-field'>
-        <label>{t('project.statusLabel', { defaultValue: 'Status' })}</label>
-        <Select value={formStatus} onChange={setFormStatus}>
-          {statusOptions.map((s) => (
-            <Select.Option key={s} value={s}>
-              {statusLabel(s)}
-            </Select.Option>
-          ))}
-        </Select>
       </div>
     </div>
   );
@@ -202,7 +176,7 @@ const ProjectList: React.FC = () => {
                   <DocumentFolder
                     theme='outline'
                     size={16}
-                    style={{ color: STATUS_COLORS[proj.status], flexShrink: 0 }}
+                    style={{ color: 'var(--color-primary-6)', flexShrink: 0 }}
                   />
                   <h4 className='task-board__card-title'>{proj.name}</h4>
                 </div>
@@ -222,12 +196,6 @@ const ProjectList: React.FC = () => {
               {proj.description && <p className='task-board__card-description'>{proj.description}</p>}
 
               <div className='task-board__card-meta'>
-                <span
-                  className='project-card__status-badge'
-                  style={{ color: STATUS_COLORS[proj.status], borderColor: STATUS_COLORS[proj.status] }}
-                >
-                  {statusLabel(proj.status)}
-                </span>
                 <span className='task-board__card-conversations'>
                   {proj.task_count} {t('project.tasks', { defaultValue: 'tasks' })}
                 </span>

@@ -998,7 +998,6 @@ export const channel = {
 import type {
   TProject,
   TProjectWithCount,
-  ProjectStatus,
   ICreateProjectParams,
   IUpdateProjectParams,
   TTask,
@@ -1011,7 +1010,6 @@ import type {
 export type {
   TProject,
   TProjectWithCount,
-  ProjectStatus,
   ICreateProjectParams,
   IUpdateProjectParams,
   TTask,

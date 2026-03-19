@@ -12,7 +12,6 @@ import type { TMessage } from '@/common/chatLib';
 export type {
   TProject,
   IProjectRow,
-  ProjectStatus,
   ICreateProjectParams,
   IUpdateProjectParams,
   TProjectWithCount,

@@ -37,6 +37,10 @@
   overflow: hidden;
 }
 
+.task-board__columns--5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 .task-board__column {
   display: flex;
   flex-direction: column;
@@ -61,12 +65,20 @@
   margin: 0;
 }
 
-.task-board__column--pending .task-board__column-title {
+.task-board__column--brainstorming .task-board__column-title {
+  color: var(--color-purple-6, #722ed1);
+}
+
+.task-board__column--todo .task-board__column-title {
   color: var(--color-warning-6);
 }
 
-.task-board__column--in_progress .task-board__column-title {
+.task-board__column--progress .task-board__column-title {
   color: var(--color-primary-6);
+}
+
+.task-board__column--review .task-board__column-title {
+  color: var(--color-orangered-6, #f77234);
 }
 
 .task-board__column--done .task-board__column-title {
@@ -229,6 +241,10 @@
   .task-board__columns {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .task-board__columns--5 {
+    grid-template-columns: 1fr;
   }
 
   .task-board__column {

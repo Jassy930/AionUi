@@ -7,20 +7,13 @@
 // ==================== Project ====================
 
 /**
- * Project status enum
- * Project 状态枚举
- */
-export type ProjectStatus = 'brainstorming' | 'todo' | 'progressing' | 'done';
-
-/**
- * Project entity type (top-level work container)
- * Project 实体类型（顶层工作容器）
+ * Project entity type (top-level work container, no status)
+ * Project 实体类型（顶层工作容器，无状态）
  */
 export type TProject = {
   id: string;
   name: string;
   description?: string;
-  status: ProjectStatus;
   user_id: string;
   created_at: number;
   updated_at: number;
@@ -33,7 +26,6 @@ export type IProjectRow = {
   id: string;
   name: string;
   description: string | null;
-  status: ProjectStatus;
   user_id: string;
   created_at: number;
   updated_at: number;
@@ -47,7 +39,6 @@ export function projectToRow(project: TProject): IProjectRow {
     id: project.id,
     name: project.name,
     description: project.description ?? null,
-    status: project.status,
     user_id: project.user_id,
     created_at: project.created_at,
     updated_at: project.updated_at,
@@ -62,7 +53,6 @@ export function rowToProject(row: IProjectRow): TProject {
     id: row.id,
     name: row.name,
     description: row.description ?? undefined,
-    status: row.status,
     user_id: row.user_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -75,7 +65,6 @@ export function rowToProject(row: IProjectRow): TProject {
 export type ICreateProjectParams = {
   name: string;
   description?: string;
-  status?: ProjectStatus;
 };
 
 /**
@@ -83,7 +72,7 @@ export type ICreateProjectParams = {
  */
 export type IUpdateProjectParams = {
   id: string;
-  updates: Partial<Pick<TProject, 'name' | 'description' | 'status'>>;
+  updates: Partial<Pick<TProject, 'name' | 'description'>>;
 };
 
 /**
@@ -99,7 +88,7 @@ export type TProjectWithCount = TProject & {
  * Task status enum
  * Task 状态枚举
  */
-export type TaskStatus = 'pending' | 'in_progress' | 'done';
+export type TaskStatus = 'brainstorming' | 'todo' | 'progress' | 'review' | 'done';
 
 /**
  * Task entity type (work item within a Project)

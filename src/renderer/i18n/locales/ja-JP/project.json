@@ -7,18 +7,11 @@
   "nameRequired": "プロジェクト名は必須です",
   "description": "説明",
   "descriptionPlaceholder": "説明を入力（任意）...",
-  "statusLabel": "ステータス",
   "created": "プロジェクトを作成しました",
   "createFailed": "プロジェクトの作成に失敗しました",
   "deleted": "プロジェクトを削除しました",
   "deleteFailed": "プロジェクトの削除に失敗しました",
   "updateFailed": "プロジェクトの更新に失敗しました",
   "noProjects": "プロジェクトがありません",
-  "tasks": "件のタスク",
-  "status": {
-    "brainstorming": "ブレスト",
-    "todo": "未着手",
-    "progressing": "進行中",
-    "done": "完了"
-  }
+  "tasks": "件のタスク"
 }

@@ -7,18 +7,11 @@
   "nameRequired": "项目名称不能为空",
   "description": "描述",
   "descriptionPlaceholder": "请输入描述（可选）...",
-  "statusLabel": "状态",
   "created": "项目已创建",
   "createFailed": "创建项目失败",
   "deleted": "项目已删除",
   "deleteFailed": "删除项目失败",
   "updateFailed": "更新项目失败",
   "noProjects": "暂无项目",
-  "tasks": "个任务",
-  "status": {
-    "brainstorming": "头脑风暴",
-    "todo": "待办",
-    "progressing": "进行中",
-    "done": "已完成"
-  }
+  "tasks": "个任务"
 }

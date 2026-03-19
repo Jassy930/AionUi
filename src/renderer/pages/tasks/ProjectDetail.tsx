@@ -7,17 +7,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Input, Modal, Message, Empty } from '@arco-design/web-react';
-import { Plus, Delete, Edit, Time, CheckOne, Left } from '@icon-park/react';
+import { Button, Input, Modal, Message, Empty, Select } from '@arco-design/web-react';
+import { Plus, Delete, Edit, Time, Left } from '@icon-park/react';
 import classNames from 'classnames';
 import { ipcBridge } from '@/common';
-import type { TProject, ProjectStatus, TTaskWithCount, TaskStatus } from '@/common/types/task';
+import type { TProject, TTaskWithCount, TaskStatus } from '@/common/types/task';
 import './TaskBoard.css';
 
-const STATUS_COLORS: Record<ProjectStatus, string> = {
+const STATUS_COLORS: Record<TaskStatus, string> = {
   brainstorming: 'var(--color-purple-6, #722ed1)',
   todo: 'var(--color-warning-6)',
-  progressing: 'var(--color-primary-6)',
+  progress: 'var(--color-primary-6)',
+  review: 'var(--color-orangered-6, #f77234)',
   done: 'var(--color-success-6)',
 };
 
@@ -26,6 +27,8 @@ type TaskColumn = {
   titleKey: string;
   tasks: TTaskWithCount[];
 };
+
+const ALL_STATUSES: TaskStatus[] = ['brainstorming', 'todo', 'progress', 'review', 'done'];
 
 const ProjectDetail: React.FC = () => {
   const { t } = useTranslation();
@@ -39,6 +42,7 @@ const ProjectDetail: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>('brainstorming');
   const [editingTask, setEditingTask] = useState<TTaskWithCount | null>(null);
 
   const loadProject = useCallback(async () => {
@@ -93,12 +97,14 @@ const ProjectDetail: React.FC = () => {
         project_id: projectId,
         name: newTaskName.trim(),
         description: newTaskDesc.trim() || undefined,
+        status: newTaskStatus,
       });
       if (result.success) {
         Message.success(t('task.created', { defaultValue: 'Task created' }));
         setCreateModalVisible(false);
         setNewTaskName('');
         setNewTaskDesc('');
+        setNewTaskStatus('brainstorming');
       } else {
         Message.error(result.msg || t('task.createFailed', { defaultValue: 'Failed to create task' }));
       }
@@ -139,15 +145,21 @@ const ProjectDetail: React.FC = () => {
     void navigate(`/guid?taskId=${task.id}`);
   };
 
-  const columns: TaskColumn[] = [
-    { status: 'pending', titleKey: 'task.status.pending', tasks: tasks.filter((t) => t.status === 'pending') },
-    {
-      status: 'in_progress',
-      titleKey: 'task.status.inProgress',
-      tasks: tasks.filter((t) => t.status === 'in_progress'),
-    },
-    { status: 'done', titleKey: 'task.status.done', tasks: tasks.filter((t) => t.status === 'done') },
-  ];
+  const statusLabel = (status: TaskStatus) => t(`task.status.${status}`, { defaultValue: status });
+
+  const columns: TaskColumn[] = ALL_STATUSES.map((status) => ({
+    status,
+    titleKey: `task.status.${status}`,
+    tasks: tasks.filter((tsk) => tsk.status === status),
+  }));
+
+  // Next status mapping for quick-advance buttons
+  const nextStatus: Partial<Record<TaskStatus, TaskStatus>> = {
+    brainstorming: 'todo',
+    todo: 'progress',
+    progress: 'review',
+    review: 'done',
+  };
 
   const renderTaskCard = (task: TTaskWithCount) => (
     <div
@@ -187,29 +199,17 @@ const ProjectDetail: React.FC = () => {
           {new Date(task.updated_at).toLocaleDateString()}
         </span>
       </div>
-      {task.status !== 'done' && (
+      {nextStatus[task.status] && (
         <div className='task-board__card-status-actions' onClick={(e) => e.stopPropagation()}>
-          {task.status === 'pending' && (
-            <Button size='mini' type='outline' onClick={() => void handleUpdateStatus(task.id, 'in_progress')}>
-              {t('task.action.start', { defaultValue: 'Start' })}
-            </Button>
-          )}
-          {task.status === 'in_progress' && (
-            <Button
-              size='mini'
-              type='primary'
-              icon={<CheckOne theme='outline' size={12} />}
-              onClick={() => void handleUpdateStatus(task.id, 'done')}
-            >
-              {t('task.action.complete', { defaultValue: 'Complete' })}
-            </Button>
-          )}
+          <Button size='mini' type='outline' onClick={() => void handleUpdateStatus(task.id, nextStatus[task.status]!)}>
+            {t(`task.action.moveTo.${nextStatus[task.status]}`, {
+              defaultValue: statusLabel(nextStatus[task.status]!),
+            })}
+          </Button>
         </div>
       )}
     </div>
   );
-
-  const statusColor = project ? STATUS_COLORS[project.status] : undefined;
 
   return (
     <div className='task-board'>
@@ -222,18 +222,13 @@ const ProjectDetail: React.FC = () => {
             className='project-detail__back-btn'
           />
           <h1 className='task-board__title'>{project?.name || '...'}</h1>
-          {project && (
-            <span className='project-card__status-badge' style={{ color: statusColor, borderColor: statusColor }}>
-              {t(`project.status.${project.status}`, { defaultValue: project.status })}
-            </span>
-          )}
         </div>
         <Button type='primary' icon={<Plus theme='outline' />} onClick={() => setCreateModalVisible(true)}>
           {t('task.create', { defaultValue: 'New Task' })}
         </Button>
       </div>
 
-      <div className='task-board__columns'>
+      <div className='task-board__columns task-board__columns--5'>
         {columns.map((column) => (
           <div key={column.status} className={classNames('task-board__column', `task-board__column--${column.status}`)}>
             <div className='task-board__column-header'>
@@ -262,6 +257,7 @@ const ProjectDetail: React.FC = () => {
           setCreateModalVisible(false);
           setNewTaskName('');
           setNewTaskDesc('');
+          setNewTaskStatus('brainstorming');
         }}
         okText={t('common.create', { defaultValue: 'Create' })}
         cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
@@ -284,6 +280,16 @@ const ProjectDetail: React.FC = () => {
               placeholder={t('task.descriptionPlaceholder', { defaultValue: 'Enter task description (optional)...' })}
               rows={3}
             />
+          </div>
+          <div className='task-board__modal-field'>
+            <label>{t('task.statusLabel', { defaultValue: 'Status' })}</label>
+            <Select value={newTaskStatus} onChange={setNewTaskStatus}>
+              {ALL_STATUSES.map((s) => (
+                <Select.Option key={s} value={s}>
+                  {statusLabel(s)}
+                </Select.Option>
+              ))}
+            </Select>
           </div>
         </div>
       </Modal>

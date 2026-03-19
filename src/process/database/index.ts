@@ -1416,10 +1416,10 @@ export class AionUIDatabase {
     try {
       const row = projectToRow(project);
       const stmt = this.db.prepare(`
-        INSERT INTO projects (id, name, description, status, user_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO projects (id, name, description, user_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
-      stmt.run(row.id, row.name, row.description, row.status, row.user_id, row.created_at, row.updated_at);
+      stmt.run(row.id, row.name, row.description, row.user_id, row.created_at, row.updated_at);
       return { success: true, data: project };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -1474,10 +1474,7 @@ export class AionUIDatabase {
   /**
    * Update project
    */
-  updateProject(
-    projectId: string,
-    updates: Partial<Pick<TProject, 'name' | 'description' | 'status'>>
-  ): IQueryResult<boolean> {
+  updateProject(projectId: string, updates: Partial<Pick<TProject, 'name' | 'description'>>): IQueryResult<boolean> {
     try {
       const existing = this.getProject(projectId);
       if (!existing.success || !existing.data) {
@@ -1495,10 +1492,6 @@ export class AionUIDatabase {
       if (updates.description !== undefined) {
         setClauses.push('description = ?');
         params.push(updates.description ?? null);
-      }
-      if (updates.status !== undefined) {
-        setClauses.push('status = ?');
-        params.push(updates.status);
       }
 
       params.push(projectId);

@@ -7,18 +7,11 @@
   "nameRequired": "專案名稱不能為空",
   "description": "描述",
   "descriptionPlaceholder": "請輸入描述（可選）...",
-  "statusLabel": "狀態",
   "created": "專案已建立",
   "createFailed": "建立專案失敗",
   "deleted": "專案已刪除",
   "deleteFailed": "刪除專案失敗",
   "updateFailed": "更新專案失敗",
   "noProjects": "暫無專案",
-  "tasks": "個任務",
-  "status": {
-    "brainstorming": "腦力激盪",
-    "todo": "待辦",
-    "progressing": "進行中",
-    "done": "已完成"
-  }
+  "tasks": "個任務"
 }

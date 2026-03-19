@@ -10,6 +10,7 @@
   "nameRequired": "任務名稱不能為空",
   "description": "描述",
   "descriptionPlaceholder": "請輸入任務描述（可選）...",
+  "statusLabel": "狀態",
   "created": "任務已建立",
   "createFailed": "建立任務失敗",
   "deleted": "任務已刪除",
@@ -19,12 +20,18 @@
   "conversations": "個對話",
   "selectOrCreate": "關聯任務...",
   "status": {
-    "pending": "待處理",
-    "inProgress": "進行中",
+    "brainstorming": "腦力激盪",
+    "todo": "待辦",
+    "progress": "進行中",
+    "review": "審查",
     "done": "已完成"
   },
   "action": {
-    "start": "開始",
-    "complete": "完成"
+    "moveTo": {
+      "todo": "移至待辦",
+      "progress": "開始",
+      "review": "提交審查",
+      "done": "完成"
+    }
   }
 }
