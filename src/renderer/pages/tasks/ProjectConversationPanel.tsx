@@ -44,7 +44,8 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
   const { cliAgents, presetAssistants, isLoading: isAgentsLoading } = useConversationAgents();
 
   const [conversation, setConversation] = useState<TChatConversation | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Start loading=true so the agent picker doesn't flash before project loads
+  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
   // Track which conversation_id has been loaded to avoid redundant fetches
@@ -58,15 +59,22 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
 
   // Load existing conversation when project.conversation_id is set
   useEffect(() => {
-    if (!project?.conversation_id) {
+    // Project hasn't been loaded yet — keep showing the loading spinner
+    if (!project?.id) return;
+
+    if (!project.conversation_id) {
       if (loadedConvIdRef.current !== null) {
         loadedConvIdRef.current = null;
         setConversation(null);
       }
+      setLoading(false);
       return;
     }
 
-    if (loadedConvIdRef.current === project.conversation_id) return;
+    if (loadedConvIdRef.current === project.conversation_id) {
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     setLoading(true);
@@ -81,9 +89,10 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
           // Conversation was deleted externally — clear reference
           loadedConvIdRef.current = null;
           setConversation(null);
+          // Use null (not undefined) so JSON serialization preserves the key over IPC
           void ipcBridge.project.update.invoke({
             id: project.id,
-            updates: { conversation_id: undefined },
+            updates: { conversation_id: null as unknown as string },
           });
         }
       })
@@ -100,7 +109,7 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
     return () => {
       cancelled = true;
     };
-  }, [project?.conversation_id, project?.id]);
+  }, [project?.id, project?.conversation_id]);
 
   const handleSelectAgent = useCallback(
     async (agent: AvailableAgent, isPreset: boolean) => {
@@ -175,7 +184,7 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
       await ipcBridge.conversation.remove.invoke({ id: conversation.id });
       await ipcBridge.project.update.invoke({
         id: project.id,
-        updates: { conversation_id: undefined },
+        updates: { conversation_id: null as unknown as string },
       });
     } catch (error) {
       console.error('[ProjectConversation] Failed to remove conversation:', error);
