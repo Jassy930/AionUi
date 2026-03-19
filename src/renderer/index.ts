@@ -17,6 +17,7 @@ import Main from './main';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ViewModeProvider } from './context/ViewModeContext';
+import { ProjectModeProvider } from './context/ProjectModeContext';
 import { PreviewProvider } from './pages/conversation/preview/context/PreviewContext';
 import { ConversationTabsProvider } from './pages/conversation/context/ConversationTabsContext';
 
@@ -76,7 +77,11 @@ const AppProviders: React.FC<PropsWithChildren> = ({ children }) =>
       React.createElement(
         ViewModeProvider,
         null,
-        React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children))
+        React.createElement(
+          ProjectModeProvider,
+          null,
+          React.createElement(PreviewProvider, null, React.createElement(ConversationTabsProvider, null, children))
+        )
       )
     )
   );

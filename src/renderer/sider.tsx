@@ -11,10 +11,12 @@ import { cleanupSiderTooltips, getSiderTooltipProps } from './utils/siderTooltip
 import { useLayoutContext } from './context/LayoutContext';
 import { blurActiveElement } from './utils/focus';
 import { useThemeContext } from './context/ThemeContext';
+import { useProjectModeOptional } from './context/ProjectModeContext';
 import ConversationSearchPopover from './pages/conversation/grouped-history/ConversationSearchPopover';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
+const ProjectSider = React.lazy(() => import('./pages/tasks/ProjectSider'));
 
 interface SiderProps {
   onSessionClick?: () => void;
@@ -26,6 +28,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const isMobile = layout?.isMobile ?? false;
   const location = useLocation();
   const { pathname, search, hash } = location;
+  const projectMode = useProjectModeOptional();
 
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -33,6 +36,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { theme, setTheme } = useThemeContext();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const isSettings = pathname.startsWith('/settings');
+  const isProjectMode = projectMode?.isProjectMode ?? false;
   const lastNonSettingsPathRef = useRef('/guid');
 
   useEffect(() => {
@@ -88,6 +92,10 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
         {isSettings ? (
           <Suspense fallback={<div className='size-full' />}>
             <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
+          </Suspense>
+        ) : isProjectMode ? (
+          <Suspense fallback={<div className='size-full' />}>
+            <ProjectSider collapsed={collapsed} onSessionClick={onSessionClick} />
           </Suspense>
         ) : (
           <div className='size-full flex flex-col'>

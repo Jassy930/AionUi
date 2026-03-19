@@ -31,6 +31,7 @@ import {
 import { applyDefaultConversationName } from '@/renderer/pages/conversation/utils/newConversationName';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
+import { useProjectMode } from '@/renderer/context/ProjectModeContext';
 import './TaskBoard.css';
 
 type TaskColumn = {
@@ -95,6 +96,7 @@ const ProjectDetail: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
+  const { enterProjectMode, exitProjectMode } = useProjectMode();
 
   const [project, setProject] = useState<TProject | null>(null);
   const [tasks, setTasks] = useState<TTaskWithCount[]>([]);
@@ -288,6 +290,9 @@ const ProjectDetail: React.FC = () => {
   };
 
   const handleOpenConversation = (conversationId: string) => {
+    if (projectId) {
+      enterProjectMode(projectId);
+    }
     void navigate(`/conversation/${conversationId}`);
   };
 
@@ -339,13 +344,28 @@ const ProjectDetail: React.FC = () => {
 
         // Refresh conversation list for this task
         void loadTaskConversations(taskId);
+        // Enter project mode before navigating to conversation
+        if (projectId) {
+          enterProjectMode(projectId);
+        }
         void navigate(`/conversation/${conversation.id}`);
       } catch (error) {
         console.error('Failed to create conversation:', error);
         Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
       }
     },
-    [project, cliAgents, presetAssistants, i18n.language, t, defaultConversationName, loadTaskConversations, navigate]
+    [
+      project,
+      cliAgents,
+      presetAssistants,
+      i18n.language,
+      t,
+      defaultConversationName,
+      loadTaskConversations,
+      navigate,
+      projectId,
+      enterProjectMode,
+    ]
   );
 
   const renderAgentDropdownMenu = useCallback(
@@ -430,22 +450,6 @@ const ProjectDetail: React.FC = () => {
       <div className='task-board__card task-board__card--expanded'>
         <div className='task-board__card-header'>
           <h4 className='task-board__card-title'>{task.name}</h4>
-          <div className='task-board__card-actions'>
-            <button
-              className='task-board__card-action'
-              onClick={() => setEditingTask(task)}
-              title={t('common.edit', { defaultValue: 'Edit' })}
-            >
-              <Edit theme='outline' size={14} />
-            </button>
-            <button
-              className='task-board__card-action task-board__card-action--danger'
-              onClick={() => void handleDeleteTask(task.id)}
-              title={t('common.delete', { defaultValue: 'Delete' })}
-            >
-              <Delete theme='outline' size={14} />
-            </button>
-          </div>
         </div>
 
         {task.description && <p className='task-board__card-description'>{task.description}</p>}
@@ -482,7 +486,7 @@ const ProjectDetail: React.FC = () => {
           )}
         </div>
 
-        {/* Footer with actions */}
+        {/* Footer with actions - all buttons in a row */}
         <div className='task-card__footer'>
           <Dropdown
             droplist={renderAgentDropdownMenu(task.id)}
@@ -490,15 +494,28 @@ const ProjectDetail: React.FC = () => {
             position='bl'
             disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
           >
-            <Button
-              size='mini'
-              type='text'
-              icon={<Plus theme='outline' size={12} />}
+            <button
+              className='task-card__footer-action'
               disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
+              title={t('task.newConversation', { defaultValue: 'New Conversation' })}
             >
-              {t('task.newConversation', { defaultValue: 'New Conversation' })}
-            </Button>
+              <Plus theme='outline' size={14} />
+            </button>
           </Dropdown>
+          <button
+            className='task-card__footer-action'
+            onClick={() => setEditingTask(task)}
+            title={t('common.edit', { defaultValue: 'Edit' })}
+          >
+            <Edit theme='outline' size={14} />
+          </button>
+          <button
+            className='task-card__footer-action task-card__footer-action--danger'
+            onClick={() => void handleDeleteTask(task.id)}
+            title={t('common.delete', { defaultValue: 'Delete' })}
+          >
+            <Delete theme='outline' size={14} />
+          </button>
         </div>
       </div>
     );
