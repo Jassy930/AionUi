@@ -85,9 +85,10 @@ function buildConversationsContext(taskConversations: Record<string, TChatConver
 
 function buildToolsSchema() {
   return {
-    version: 1,
+    version: 2,
     description: 'Available operations for managing this project. Write a JSON file to .aionui/operations/ to execute.',
     operations: [
+      // ---- Task CRUD ----
       {
         name: 'create_task',
         description: 'Create a new task in this project',
@@ -136,6 +137,54 @@ function buildToolsSchema() {
         params: {
           name: { type: 'string', required: false, description: 'New project name' },
           description: { type: 'string', required: false, description: 'New project description' },
+        },
+      },
+      // ---- Sub-Agent Operations ----
+      {
+        name: 'create_conversation',
+        description:
+          'Create a sub-agent conversation for a task. Returns conversation_id for subsequent send_message calls.',
+        params: {
+          task_id: { type: 'string', required: true, description: 'Task ID to associate the conversation with' },
+          backend: {
+            type: 'string',
+            required: false,
+            default: 'claude',
+            description: 'Agent backend (e.g. claude, qwen, codex, kimi, qoder)',
+          },
+          name: { type: 'string', required: false, description: 'Conversation name' },
+          system_prompt: {
+            type: 'string',
+            required: false,
+            description: 'System prompt / instructions for the sub-agent',
+          },
+        },
+      },
+      {
+        name: 'send_message',
+        description:
+          "Send a message to a sub-agent conversation and wait for the full response. This is a blocking operation — the result file will contain the agent's complete reply.",
+        params: {
+          conversation_id: {
+            type: 'string',
+            required: true,
+            description: 'Conversation ID (from create_conversation)',
+          },
+          message: { type: 'string', required: true, description: 'Message text to send to the sub-agent' },
+          timeout: {
+            type: 'number',
+            required: false,
+            default: 300000,
+            description: 'Max wait time in ms (default 5 min)',
+          },
+        },
+      },
+      {
+        name: 'get_messages',
+        description: 'Get recent messages from a sub-agent conversation.',
+        params: {
+          conversation_id: { type: 'string', required: true, description: 'Conversation ID' },
+          limit: { type: 'number', required: false, default: 20, description: 'Number of recent messages to return' },
         },
       },
     ],
@@ -316,6 +365,32 @@ Available operations:
 Filename must be unique and descriptive, e.g. \`create-auth-module.json\`, \`mark-task-done-xxx.json\`.
 </TASK_OPERATIONS>
 
+<SUB_AGENTS>
+You can spawn sub-agent conversations to delegate work to task-level AI agents.
+Sub-agents are independent AI sessions that run in the project workspace and can execute code, read/write files, etc.
+
+**Workflow:**
+1. Create a sub-agent for a task:
+   \`{ "operation": "create_conversation", "params": { "task_id": "...", "backend": "claude", "system_prompt": "You are ..." } }\`
+   → Result contains \`conversation_id\`
+
+2. Send a message and wait for the full response:
+   \`{ "operation": "send_message", "params": { "conversation_id": "...", "message": "Implement the login page" } }\`
+   → This is **blocking**: the result file appears only after the sub-agent finishes its complete response.
+   → Result \`.data.response\` contains the sub-agent's full reply text.
+
+3. Read conversation history if needed:
+   \`{ "operation": "get_messages", "params": { "conversation_id": "...", "limit": 20 } }\`
+
+**Available backends:** claude, qwen, codex, kimi, qoder, opencode, goose, copilot
+**Important:**
+- Each \`send_message\` call is a full turn: you send, the sub-agent processes, you get the complete reply.
+- You can send multiple messages to the same conversation to build on previous context.
+- Use \`system_prompt\` in \`create_conversation\` to give the sub-agent clear, task-specific instructions.
+- Sub-agent conversations appear in the task's conversation list in the UI.
+- The \`send_message\` operation has a default timeout of 5 minutes. Set \`"timeout"\` in params to override.
+</SUB_AGENTS>
+
 <TASK_WORKFLOW>
 Tasks flow through five stages:  brainstorming → todo → progress → review → done
 - **brainstorming**: Ideas and proposals, not yet committed
@@ -332,6 +407,7 @@ Tasks flow through five stages:  brainstorming → todo → progress → review 
 4. **Be structured**: When reporting progress, use clear tables or lists organized by status.
 5. **Proactive analysis**: When asked about project status, provide completion percentages, blockers, and suggested next steps.
 6. **File access**: You can read and write any files in \`${project.workspace}\` to assist with the project (e.g., reviewing code, writing specs, updating documentation). Use this capability to provide informed task management.
-7. **Language**: Respond in the same language the user uses.
+7. **Delegate wisely**: Use sub-agents (\`create_conversation\` + \`send_message\`) for concrete implementation tasks. Give sub-agents clear, self-contained instructions. Review their responses before updating task statuses.
+8. **Language**: Respond in the same language the user uses.
 </BEHAVIORAL_RULES>`;
 }

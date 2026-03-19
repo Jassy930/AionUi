@@ -11,14 +11,22 @@
  * written by the project-level AI conversation. When a new file appears,
  * it parses the operation, executes it via the database layer, and
  * refreshes the context files.
+ *
+ * Supports both synchronous operations (task CRUD) and asynchronous
+ * sub-agent operations (create_conversation, send_message).
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
 import type { TTask, TaskStatus } from '@/common/types/task';
+import type { TMessage } from '@/common/chatLib';
 import { ipcBridge } from '@/common';
+import { uuid } from '@/common/utils';
 import { getDatabase } from '@process/database';
+import { ConversationService } from '@process/services/conversationService';
+import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import WorkerManage from '@process/WorkerManage';
 import { syncProjectContext, getProjectContextDir } from './projectContextService';
 
 type OperationPayload = {
@@ -41,7 +49,10 @@ const activeWatchers = new Map<string, fs.FSWatcher>();
 // Track processed files to avoid double-processing
 const processedFiles = new Set<string>();
 
-// ==================== Operation Handlers ====================
+// Default timeout for sub-agent responses (5 minutes)
+const SUBAGENT_TIMEOUT_MS = 300_000;
+
+// ==================== Task Operation Handlers ====================
 
 function handleCreateTask(projectId: string, params: Record<string, unknown>): OperationResult {
   const name = params.name as string;
@@ -150,9 +161,211 @@ function handleUpdateProject(projectId: string, params: Record<string, unknown>)
   return { success: true, operation: 'update_project', message: 'Project updated' };
 }
 
+// ==================== Sub-Agent Operation Handlers ====================
+
+/**
+ * Create a sub-conversation (sub-agent) for a task.
+ * The conversation is created with the specified backend and associated with the task.
+ */
+async function handleCreateConversation(
+  projectId: string,
+  workspace: string,
+  params: Record<string, unknown>
+): Promise<OperationResult> {
+  const taskId = params.task_id as string;
+  if (!taskId) {
+    return { success: false, operation: 'create_conversation', message: 'Missing required param: task_id' };
+  }
+
+  const db = getDatabase();
+  const taskResult = db.getTask(taskId);
+  if (!taskResult.success || !taskResult.data) {
+    return { success: false, operation: 'create_conversation', message: `Task ${taskId} not found` };
+  }
+  if (taskResult.data.project_id !== projectId) {
+    return { success: false, operation: 'create_conversation', message: 'Task does not belong to this project' };
+  }
+
+  const backend = (params.backend as string) || 'claude';
+  const name = (params.name as string) || `Sub-agent: ${taskResult.data.name}`;
+  const systemPrompt = (params.system_prompt as string) || '';
+
+  try {
+    const result = await ConversationService.createConversation({
+      type: 'acp',
+      model: {} as any,
+      name,
+      taskId,
+      extra: {
+        workspace,
+        customWorkspace: true,
+        backend: backend as any,
+        agentName: backend,
+        presetContext: systemPrompt || undefined,
+      },
+    });
+
+    if (!result.success || !result.conversation) {
+      return {
+        success: false,
+        operation: 'create_conversation',
+        message: result.error || 'Failed to create conversation',
+      };
+    }
+
+    return {
+      success: true,
+      operation: 'create_conversation',
+      message: `Conversation created for task "${taskResult.data.name}"`,
+      data: { conversation_id: result.conversation.id, task_id: taskId, backend },
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { success: false, operation: 'create_conversation', message: `Error: ${msg}` };
+  }
+}
+
+/**
+ * Extract the last assistant response text from conversation messages.
+ */
+function extractLastResponse(conversationId: string): string {
+  const db = getDatabase();
+  const msgs = db.getConversationMessages(conversationId, 0, 50, 'DESC');
+  if (!msgs?.data?.length) return '(no response)';
+
+  // Collect all consecutive assistant text messages (they arrive in DESC order)
+  const parts: string[] = [];
+  for (const msg of msgs.data) {
+    if (msg.position !== 'left') {
+      if (parts.length > 0) break; // reached user message after assistant messages
+      continue;
+    }
+    if (msg.type === 'text') {
+      const content = (msg.content as { content?: string })?.content || '';
+      if (content) parts.push(content);
+    }
+  }
+
+  // parts are in DESC order, reverse to get chronological
+  return parts.reverse().join('\n') || '(no response)';
+}
+
+/**
+ * Send a message to an existing sub-conversation and wait for the full response.
+ * Uses cronBusyGuard.onceIdle() to detect when the agent finishes its turn.
+ */
+async function handleSendMessage(params: Record<string, unknown>): Promise<OperationResult> {
+  const conversationId = params.conversation_id as string;
+  if (!conversationId) {
+    return { success: false, operation: 'send_message', message: 'Missing required param: conversation_id' };
+  }
+
+  const message = params.message as string;
+  if (!message) {
+    return { success: false, operation: 'send_message', message: 'Missing required param: message' };
+  }
+
+  const timeoutMs = (params.timeout as number) || SUBAGENT_TIMEOUT_MS;
+
+  try {
+    // Build/get the agent task
+    const task = await WorkerManage.getTaskByIdRollbackBuild(conversationId);
+    if (!task) {
+      return { success: false, operation: 'send_message', message: 'Conversation agent not found' };
+    }
+
+    const msgId = uuid();
+
+    // Send the message
+    const sendResult = await (task as any).sendMessage({
+      content: message,
+      msg_id: msgId,
+    });
+
+    if (sendResult && !sendResult.success) {
+      return {
+        success: false,
+        operation: 'send_message',
+        message: sendResult.msg || sendResult.message || 'sendMessage failed',
+      };
+    }
+
+    // Wait for the agent to finish processing (turn complete)
+    await waitForTurnComplete(conversationId, timeoutMs);
+
+    // Extract the response from the database
+    const response = extractLastResponse(conversationId);
+
+    return {
+      success: true,
+      operation: 'send_message',
+      message: 'Response received',
+      data: { conversation_id: conversationId, response },
+    };
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { success: false, operation: 'send_message', message: `Error: ${msg}` };
+  }
+}
+
+/**
+ * Wait for a sub-agent to finish its current turn.
+ * Combines cronBusyGuard.onceIdle with a timeout.
+ */
+function waitForTurnComplete(conversationId: string, timeoutMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`Sub-agent response timeout after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    cronBusyGuard.onceIdle(conversationId, () => {
+      clearTimeout(timeout);
+      // Small delay to let final DB writes flush
+      setTimeout(resolve, 500);
+    });
+  });
+}
+
+/**
+ * Get messages from an existing sub-conversation.
+ */
+function handleGetMessages(params: Record<string, unknown>): OperationResult {
+  const conversationId = params.conversation_id as string;
+  if (!conversationId) {
+    return { success: false, operation: 'get_messages', message: 'Missing required param: conversation_id' };
+  }
+
+  const limit = (params.limit as number) || 20;
+
+  const db = getDatabase();
+  const msgs = db.getConversationMessages(conversationId, 0, limit, 'DESC');
+  if (!msgs?.data) {
+    return { success: false, operation: 'get_messages', message: 'Failed to read messages' };
+  }
+
+  const simplified = msgs.data.reverse().map((m: TMessage) => ({
+    id: m.id,
+    role: m.position === 'right' ? 'user' : 'assistant',
+    type: m.type,
+    content: m.type === 'text' ? (m.content as { content?: string })?.content || '' : `[${m.type}]`,
+    created_at: m.createdAt,
+  }));
+
+  return {
+    success: true,
+    operation: 'get_messages',
+    message: `${simplified.length} message(s)`,
+    data: { conversation_id: conversationId, messages: simplified },
+  };
+}
+
 // ==================== Operation Dispatcher ====================
 
-function executeOperation(projectId: string, payload: OperationPayload): OperationResult {
+async function executeOperation(
+  projectId: string,
+  workspace: string,
+  payload: OperationPayload
+): Promise<OperationResult> {
   switch (payload.operation) {
     case 'create_task':
       return handleCreateTask(projectId, payload.params);
@@ -163,8 +376,16 @@ function executeOperation(projectId: string, payload: OperationPayload): Operati
     case 'update_project':
       return handleUpdateProject(projectId, payload.params);
     case 'list_tasks':
-      // Just sync context - the LLM reads the files
       return { success: true, operation: 'list_tasks', message: 'Context synced. Read .aionui/context/tasks.json' };
+
+    // Sub-agent operations (async)
+    case 'create_conversation':
+      return handleCreateConversation(projectId, workspace, payload.params);
+    case 'send_message':
+      return handleSendMessage(payload.params);
+    case 'get_messages':
+      return handleGetMessages(payload.params);
+
     default:
       return { success: false, operation: payload.operation, message: `Unknown operation: ${payload.operation}` };
   }
@@ -172,7 +393,7 @@ function executeOperation(projectId: string, payload: OperationPayload): Operati
 
 // ==================== File Processing ====================
 
-function processOperationFile(projectId: string, workspace: string, filePath: string): void {
+async function processOperationFile(projectId: string, workspace: string, filePath: string): Promise<void> {
   if (processedFiles.has(filePath)) return;
   processedFiles.add(filePath);
 
@@ -186,7 +407,7 @@ function processOperationFile(projectId: string, workspace: string, filePath: st
     }
 
     console.log(`[ProjectOps] Executing operation: ${payload.operation} from ${path.basename(filePath)}`);
-    const result = executeOperation(projectId, payload);
+    const result = await executeOperation(projectId, workspace, payload);
     console.log(`[ProjectOps] Result: ${result.success ? 'OK' : 'FAIL'} - ${result.message}`);
 
     // Write result next to the operation file
@@ -224,7 +445,7 @@ export function startProjectWatcher(projectId: string, workspace: string): void 
   // Process any existing operation files
   const existingFiles = fs.readdirSync(opsDir).filter((f) => f.endsWith('.json') && !f.endsWith('.result.json'));
   for (const file of existingFiles) {
-    processOperationFile(projectId, workspace, path.join(opsDir, file));
+    void processOperationFile(projectId, workspace, path.join(opsDir, file));
   }
 
   try {
@@ -236,7 +457,7 @@ export function startProjectWatcher(projectId: string, workspace: string): void 
       // Debounce: wait for file to be fully written
       setTimeout(() => {
         if (fs.existsSync(filePath)) {
-          processOperationFile(projectId, workspace, filePath);
+          void processOperationFile(projectId, workspace, filePath);
         }
       }, 200);
     });
