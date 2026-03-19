@@ -13,7 +13,7 @@
  * - Conversation persists in project.conversation_id.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Spin, Empty, Message } from '@arco-design/web-react';
 import { Robot, RefreshOne } from '@icon-park/react';
@@ -47,25 +47,50 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Load existing conversation
+  // Track which conversation_id has been loaded so the effect doesn't re-fetch
+  // when project.updated events cause a parent re-render with the same id.
+  const loadedConvIdRef = useRef<string | null>(null);
+
+  // Load existing conversation when project.conversation_id changes.
   useEffect(() => {
     if (!project?.conversation_id) {
-      setConversation(null);
+      if (loadedConvIdRef.current !== null) {
+        loadedConvIdRef.current = null;
+        setConversation(null);
+      }
       return;
     }
 
+    // Already loaded this conversation — skip
+    if (loadedConvIdRef.current === project.conversation_id) return;
+
+    let cancelled = false;
     setLoading(true);
     ipcBridge.conversation.get
       .invoke({ id: project.conversation_id })
       .then((conv) => {
+        if (cancelled) return;
         if (conv?.id) {
+          loadedConvIdRef.current = conv.id;
           setConversation(conv);
         } else {
+          loadedConvIdRef.current = null;
           setConversation(null);
         }
       })
-      .catch(() => setConversation(null))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!cancelled) {
+          loadedConvIdRef.current = null;
+          setConversation(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [project?.conversation_id]);
 
   // Initialize .aionui context
@@ -110,6 +135,7 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
           updates: { conversation_id: conv.id },
         });
 
+        loadedConvIdRef.current = conv.id;
         setConversation(conv);
         onProjectUpdate?.();
       } catch (error) {
@@ -131,6 +157,7 @@ const ProjectConversationPanel: React.FC<ProjectConversationPanelProps> = ({ pro
         id: project.id,
         updates: { conversation_id: undefined },
       });
+      loadedConvIdRef.current = null;
       setConversation(null);
       onProjectUpdate?.();
     } catch (error) {

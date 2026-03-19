@@ -121,21 +121,22 @@ const ProjectDetail: React.FC = () => {
 
   // Auto-collapse app sider when entering project page, restore on leave
   const layout = useLayoutContext();
-  const prevSiderRef = React.useRef<boolean | null>(null);
+  const layoutRef = React.useRef(layout);
+  layoutRef.current = layout;
+
   useEffect(() => {
-    if (!layout) return;
-    if (prevSiderRef.current === null) {
-      prevSiderRef.current = layout.siderCollapsed;
-      if (!layout.siderCollapsed) {
-        layout.setSiderCollapsed(true);
-      }
+    const ctx = layoutRef.current;
+    if (!ctx) return;
+    const wasSiderCollapsed = ctx.siderCollapsed;
+    if (!wasSiderCollapsed) {
+      ctx.setSiderCollapsed(true);
     }
     return () => {
-      if (prevSiderRef.current === false && layout) {
-        layout.setSiderCollapsed(false);
+      if (!wasSiderCollapsed && layoutRef.current) {
+        layoutRef.current.setSiderCollapsed(false);
       }
     };
-  }, [layout]);
+  }, []);
 
   // Configure sensors for drag and drop
   const sensors = useSensors(

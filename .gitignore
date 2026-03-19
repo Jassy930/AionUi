@@ -169,6 +169,9 @@ ${env.ELECTRON_CACHE}/
 .codebuddy/
 wiki/
 
+# Project AI context directory (generated at runtime)
+.aionui/
+
 # Local design docs and screenshots
 desdoc/
 

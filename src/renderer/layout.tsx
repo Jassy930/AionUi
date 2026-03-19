@@ -11,7 +11,7 @@ import Titlebar from '@/renderer/components/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from './context/LayoutContext';
 import { useDeepLink } from './hooks/useDeepLink';
@@ -341,8 +341,14 @@ const Layout: React.FC<{
   useEffect(() => {
     collapsedRef.current = collapsed;
   }, [collapsed]);
+
+  const layoutContextValue = useMemo(
+    () => ({ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }),
+    [isMobile, collapsed]
+  );
+
   return (
-    <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
+    <LayoutContext.Provider value={layoutContextValue}>
       <div className='app-shell flex flex-col size-full min-h-0'>
         <Titlebar workspaceAvailable={workspaceAvailable} />
         {/* 移动端左侧边栏蒙板 / Mobile left sider backdrop */}
