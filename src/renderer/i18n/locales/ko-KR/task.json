@@ -18,6 +18,9 @@
   "updateFailed": "작업 업데이트에 실패했습니다",
   "noTasks": "작업이 없습니다",
   "conversations": "개의 대화",
+  "noConversations": "대화가 없습니다",
+  "unnamedConversation": "제목 없음",
+  "newConversation": "새 대화",
   "selectOrCreate": "작업에 연결...",
   "status": {
     "brainstorming": "브레인스토밍",

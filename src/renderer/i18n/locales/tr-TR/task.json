@@ -18,6 +18,9 @@
   "updateFailed": "Gorev guncellenemedi",
   "noTasks": "Gorev yok",
   "conversations": "konusma",
+  "noConversations": "Konusma yok",
+  "unnamedConversation": "Adsiz",
+  "newConversation": "Yeni Konusma",
   "selectOrCreate": "Goreve bagla...",
   "status": {
     "brainstorming": "Beyin Firtinasi",

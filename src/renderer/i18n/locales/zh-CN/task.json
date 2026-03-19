@@ -18,6 +18,9 @@
   "updateFailed": "更新任务失败",
   "noTasks": "暂无任务",
   "conversations": "个会话",
+  "noConversations": "暂无会话",
+  "unnamedConversation": "未命名",
+  "newConversation": "新建会话",
   "selectOrCreate": "关联任务...",
   "status": {
     "brainstorming": "头脑风暴",

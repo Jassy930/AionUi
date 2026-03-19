@@ -18,6 +18,9 @@
   "updateFailed": "タスクの更新に失敗しました",
   "noTasks": "タスクがありません",
   "conversations": "件の会話",
+  "noConversations": "会話がありません",
+  "unnamedConversation": "無題",
+  "newConversation": "新規会話",
   "selectOrCreate": "タスクにリンク...",
   "status": {
     "brainstorming": "ブレスト",

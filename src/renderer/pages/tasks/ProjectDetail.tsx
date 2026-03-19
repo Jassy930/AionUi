@@ -7,12 +7,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Input, Modal, Message, Empty, Select } from '@arco-design/web-react';
-import { Plus, Delete, Edit, Time, Left, FolderOpen } from '@icon-park/react';
+import { Button, Input, Modal, Message, Empty, Select, Spin } from '@arco-design/web-react';
+import { Plus, Delete, Edit, Time, Left, FolderOpen, MessageOne } from '@icon-park/react';
 import classNames from 'classnames';
 import { ipcBridge } from '@/common';
+import type { TChatConversation } from '@/common/storage';
 import type { TProject, TTaskWithCount, TaskStatus } from '@/common/types/task';
-import { getLastDirectoryName } from '@/renderer/utils/workspace';
 import './TaskBoard.css';
 
 type TaskColumn = {
@@ -31,6 +31,9 @@ const ProjectDetail: React.FC = () => {
   const [project, setProject] = useState<TProject | null>(null);
   const [tasks, setTasks] = useState<TTaskWithCount[]>([]);
   const [loading, setLoading] = useState(true);
+  // Task conversations map: taskId -> conversations[]
+  const [taskConversations, setTaskConversations] = useState<Record<string, TChatConversation[]>>({});
+  const [loadingConversations, setLoadingConversations] = useState<Record<string, boolean>>({});
 
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
@@ -65,10 +68,40 @@ const ProjectDetail: React.FC = () => {
     }
   }, [projectId]);
 
+  // Load conversations for a specific task
+  const loadTaskConversations = useCallback(async (taskId: string) => {
+    setLoadingConversations((prev) => ({ ...prev, [taskId]: true }));
+    try {
+      const result = await ipcBridge.workTask.getConversations.invoke({ taskId });
+      if (result.success && result.data) {
+        setTaskConversations((prev) => ({ ...prev, [taskId]: result.data }));
+      }
+    } catch (error) {
+      console.error('Failed to load task conversations:', error);
+    } finally {
+      setLoadingConversations((prev) => ({ ...prev, [taskId]: false }));
+    }
+  }, []);
+
+  // Load conversations for all tasks
+  const loadAllTaskConversations = useCallback(
+    async (taskList: TTaskWithCount[]) => {
+      await Promise.all(taskList.map((task) => loadTaskConversations(task.id)));
+    },
+    [loadTaskConversations]
+  );
+
   useEffect(() => {
     void loadProject();
     void loadTasks();
   }, [loadProject, loadTasks]);
+
+  // When tasks are loaded, load their conversations
+  useEffect(() => {
+    if (tasks.length > 0) {
+      void loadAllTaskConversations(tasks);
+    }
+  }, [tasks, loadAllTaskConversations]);
 
   useEffect(() => {
     const unsubs = [
@@ -134,8 +167,17 @@ const ProjectDetail: React.FC = () => {
     }
   };
 
-  const handleOpenTask = (task: TTaskWithCount) => {
-    void navigate(`/guid?taskId=${task.id}`);
+  const handleOpenConversation = (conversationId: string) => {
+    void navigate(`/conversation/${conversationId}`);
+  };
+
+  const handleNewConversation = (taskId: string) => {
+    // Navigate to guid with taskId and project workspace
+    const params = new URLSearchParams({ taskId });
+    if (project?.workspace) {
+      params.set('workspace', project.workspace);
+    }
+    void navigate(`/guid?${params.toString()}`);
   };
 
   const statusLabel = (status: TaskStatus) => t(`task.status.${status}`, { defaultValue: status });
@@ -154,55 +196,103 @@ const ProjectDetail: React.FC = () => {
     review: 'done',
   };
 
-  const renderTaskCard = (task: TTaskWithCount) => (
-    <div
-      key={task.id}
-      className='task-board__card'
-      onClick={() => handleOpenTask(task)}
-      role='button'
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && handleOpenTask(task)}
-    >
-      <div className='task-board__card-header'>
-        <h4 className='task-board__card-title'>{task.name}</h4>
-        <div className='task-board__card-actions' onClick={(e) => e.stopPropagation()}>
-          <button
-            className='task-board__card-action'
-            onClick={() => setEditingTask(task)}
-            title={t('common.edit', { defaultValue: 'Edit' })}
-          >
-            <Edit theme='outline' size={14} />
-          </button>
-          <button
-            className='task-board__card-action task-board__card-action--danger'
-            onClick={() => void handleDeleteTask(task.id)}
-            title={t('common.delete', { defaultValue: 'Delete' })}
-          >
-            <Delete theme='outline' size={14} />
-          </button>
+  const getConversationStatusColor = (status?: string) => {
+    switch (status) {
+      case 'running':
+        return 'var(--color-primary-6)';
+      case 'finished':
+        return 'var(--color-success-6)';
+      default:
+        return 'var(--color-text-4)';
+    }
+  };
+
+  const renderTaskCard = (task: TTaskWithCount) => {
+    const conversations = taskConversations[task.id] || [];
+    const isLoadingConvs = loadingConversations[task.id];
+
+    return (
+      <div key={task.id} className='task-board__card task-board__card--expanded'>
+        <div className='task-board__card-header'>
+          <h4 className='task-board__card-title'>{task.name}</h4>
+          <div className='task-board__card-actions'>
+            <button
+              className='task-board__card-action'
+              onClick={() => setEditingTask(task)}
+              title={t('common.edit', { defaultValue: 'Edit' })}
+            >
+              <Edit theme='outline' size={14} />
+            </button>
+            <button
+              className='task-board__card-action task-board__card-action--danger'
+              onClick={() => void handleDeleteTask(task.id)}
+              title={t('common.delete', { defaultValue: 'Delete' })}
+            >
+              <Delete theme='outline' size={14} />
+            </button>
+          </div>
         </div>
-      </div>
-      {task.description && <p className='task-board__card-description'>{task.description}</p>}
-      <div className='task-board__card-meta'>
-        <span className='task-board__card-conversations'>
-          {task.conversation_count} {t('task.conversations', { defaultValue: 'conversations' })}
-        </span>
-        <span className='task-board__card-time'>
-          <Time theme='outline' size={12} />
-          {new Date(task.updated_at).toLocaleDateString()}
-        </span>
-      </div>
-      {nextStatus[task.status] && (
-        <div className='task-board__card-status-actions' onClick={(e) => e.stopPropagation()}>
-          <Button size='mini' type='outline' onClick={() => void handleUpdateStatus(task.id, nextStatus[task.status]!)}>
-            {t(`task.action.moveTo.${nextStatus[task.status]}`, {
-              defaultValue: statusLabel(nextStatus[task.status]!),
-            })}
+
+        {task.description && <p className='task-board__card-description'>{task.description}</p>}
+
+        {/* Conversations list */}
+        <div className='task-card__conversations'>
+          {isLoadingConvs ? (
+            <div className='task-card__conversations-loading'>
+              <Spin size={12} />
+            </div>
+          ) : conversations.length > 0 ? (
+            conversations.map((conv) => (
+              <div
+                key={conv.id}
+                className='task-card__conversation-item'
+                onClick={() => handleOpenConversation(conv.id)}
+                role='button'
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && handleOpenConversation(conv.id)}
+              >
+                <MessageOne theme='outline' size={12} style={{ color: getConversationStatusColor(conv.status) }} />
+                <span className='task-card__conversation-name'>
+                  {conv.name || t('task.unnamedConversation', { defaultValue: 'Untitled' })}
+                </span>
+                {conv.status === 'running' && (
+                  <span className='task-card__conversation-status-dot task-card__conversation-status-dot--running' />
+                )}
+              </div>
+            ))
+          ) : (
+            <div className='task-card__conversations-empty'>
+              {t('task.noConversations', { defaultValue: 'No conversations' })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer with actions */}
+        <div className='task-card__footer'>
+          <Button
+            size='mini'
+            type='text'
+            icon={<Plus theme='outline' size={12} />}
+            onClick={() => handleNewConversation(task.id)}
+          >
+            {t('task.newConversation', { defaultValue: 'New Conversation' })}
           </Button>
+
+          {nextStatus[task.status] && (
+            <Button
+              size='mini'
+              type='outline'
+              onClick={() => void handleUpdateStatus(task.id, nextStatus[task.status]!)}
+            >
+              {t(`task.action.moveTo.${nextStatus[task.status]}`, {
+                defaultValue: statusLabel(nextStatus[task.status]!),
+              })}
+            </Button>
+          )}
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   return (
     <div className='task-board'>

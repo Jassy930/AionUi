@@ -18,6 +18,9 @@
   "updateFailed": "更新任務失敗",
   "noTasks": "暫無任務",
   "conversations": "個對話",
+  "noConversations": "暫無對話",
+  "unnamedConversation": "未命名",
+  "newConversation": "新建對話",
   "selectOrCreate": "關聯任務...",
   "status": {
     "brainstorming": "腦力激盪",

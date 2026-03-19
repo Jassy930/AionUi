@@ -18,6 +18,9 @@
   "updateFailed": "Failed to update task",
   "noTasks": "No tasks",
   "conversations": "conversations",
+  "noConversations": "No conversations",
+  "unnamedConversation": "Untitled",
+  "newConversation": "New Conversation",
   "selectOrCreate": "Link to Task...",
   "status": {
     "brainstorming": "Brainstorming",
