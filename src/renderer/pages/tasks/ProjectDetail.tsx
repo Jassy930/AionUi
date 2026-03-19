@@ -8,19 +8,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Input, Modal, Message, Empty, Select } from '@arco-design/web-react';
-import { Plus, Delete, Edit, Time, Left } from '@icon-park/react';
+import { Plus, Delete, Edit, Time, Left, FolderOpen } from '@icon-park/react';
 import classNames from 'classnames';
 import { ipcBridge } from '@/common';
 import type { TProject, TTaskWithCount, TaskStatus } from '@/common/types/task';
+import { getLastDirectoryName } from '@/renderer/utils/workspace';
 import './TaskBoard.css';
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  brainstorming: 'var(--color-purple-6, #722ed1)',
-  todo: 'var(--color-warning-6)',
-  progress: 'var(--color-primary-6)',
-  review: 'var(--color-orangered-6, #f77234)',
-  done: 'var(--color-success-6)',
-};
 
 type TaskColumn = {
   status: TaskStatus;
@@ -227,6 +220,17 @@ const ProjectDetail: React.FC = () => {
           {t('task.create', { defaultValue: 'New Task' })}
         </Button>
       </div>
+
+      {project?.workspace && (
+        <div
+          className='project-detail__workspace-bar'
+          title={project.workspace}
+          onClick={() => void ipcBridge.shell.showItemInFolder.invoke(project.workspace)}
+        >
+          <FolderOpen theme='outline' size={14} />
+          <span className='project-detail__workspace-path'>{project.workspace}</span>
+        </div>
+      )}
 
       <div className='task-board__columns task-board__columns--5'>
         {columns.map((column) => (

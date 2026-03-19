@@ -8,9 +8,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Modal, Message, Empty } from '@arco-design/web-react';
-import { Plus, Delete, Edit, Time, DocumentFolder } from '@icon-park/react';
+import { Plus, Delete, Edit, Time, DocumentFolder, FolderOpen } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import type { TProjectWithCount } from '@/common/types/task';
+import { getLastDirectoryName } from '@/renderer/utils/workspace';
 import './TaskBoard.css';
 
 const ProjectList: React.FC = () => {
@@ -22,6 +23,7 @@ const ProjectList: React.FC = () => {
   const [editingProject, setEditingProject] = useState<TProjectWithCount | null>(null);
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
+  const [formWorkspace, setFormWorkspace] = useState('');
 
   const loadProjects = useCallback(async () => {
     try {
@@ -53,6 +55,19 @@ const ProjectList: React.FC = () => {
   const resetForm = () => {
     setFormName('');
     setFormDesc('');
+    setFormWorkspace('');
+  };
+
+  const handleSelectWorkspace = async () => {
+    try {
+      const files = await ipcBridge.dialog.showOpen.invoke({ properties: ['openDirectory'] });
+      const selected = files?.[0];
+      if (selected) {
+        setFormWorkspace(selected);
+      }
+    } catch (error) {
+      console.error('Failed to select workspace:', error);
+    }
   };
 
   const handleCreate = async () => {
@@ -64,6 +79,7 @@ const ProjectList: React.FC = () => {
       const result = await ipcBridge.project.create.invoke({
         name: formName.trim(),
         description: formDesc.trim() || undefined,
+        workspace: formWorkspace || undefined,
       });
       if (result.success) {
         Message.success(t('project.created', { defaultValue: 'Project created' }));
@@ -86,6 +102,7 @@ const ProjectList: React.FC = () => {
         updates: {
           name: formName.trim(),
           description: formDesc.trim() || undefined,
+          workspace: formWorkspace || undefined,
         },
       });
       setEditingProject(null);
@@ -115,6 +132,7 @@ const ProjectList: React.FC = () => {
     setEditingProject(proj);
     setFormName(proj.name);
     setFormDesc(proj.description || '');
+    setFormWorkspace(proj.workspace);
   };
 
   const formContent = (
@@ -136,6 +154,21 @@ const ProjectList: React.FC = () => {
           placeholder={t('project.descriptionPlaceholder', { defaultValue: 'Enter description (optional)...' })}
           rows={3}
         />
+      </div>
+      <div className='task-board__modal-field'>
+        <label>{t('project.workspace', { defaultValue: 'Workspace' })}</label>
+        <div className='project-form__workspace-picker'>
+          <Input
+            value={formWorkspace}
+            readOnly
+            placeholder={t('project.workspaceDefault', { defaultValue: 'Default (AionUi workspace)' })}
+            onClick={handleSelectWorkspace}
+            style={{ cursor: 'pointer' }}
+          />
+          <Button type='outline' icon={<FolderOpen theme='outline' size={14} />} onClick={handleSelectWorkspace}>
+            {t('project.browse', { defaultValue: 'Browse' })}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -196,6 +229,10 @@ const ProjectList: React.FC = () => {
               {proj.description && <p className='task-board__card-description'>{proj.description}</p>}
 
               <div className='task-board__card-meta'>
+                <span className='task-board__card-workspace' title={proj.workspace}>
+                  <FolderOpen theme='outline' size={12} />
+                  {getLastDirectoryName(proj.workspace)}
+                </span>
                 <span className='task-board__card-conversations'>
                   {proj.task_count} {t('project.tasks', { defaultValue: 'tasks' })}
                 </span>

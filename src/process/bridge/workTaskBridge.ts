@@ -14,6 +14,7 @@
 import { ipcBridge } from '@/common';
 import type { TProject, TTask } from '@/common/types/task';
 import { getDatabase } from '../database';
+import { getSystemDir } from '../initStorage';
 import { nanoid } from 'nanoid';
 
 export function initWorkTaskBridge(): void {
@@ -24,10 +25,13 @@ export function initWorkTaskBridge(): void {
   ipcBridge.project.create.provider(async (params) => {
     try {
       const now = Date.now();
+      // Default workspace to AionUi's workDir if not specified
+      const workspace = params.workspace || getSystemDir().workDir;
       const proj: TProject = {
         id: `proj_${nanoid()}`,
         name: params.name,
         description: params.description,
+        workspace,
         user_id: db.getSystemUser()?.id || 'system_default_user',
         created_at: now,
         updated_at: now,

@@ -1286,6 +1286,42 @@ const migration_v18: IMigration = {
 };
 
 /**
+ * Migration v18 -> v19: Add workspace column to projects
+ *
+ * Each project is bound to a workspace directory.
+ * Default value is empty string (resolved to AionUi workDir at runtime).
+ */
+const migration_v19: IMigration = {
+  version: 19,
+  name: 'Add workspace column to projects',
+  up: (db) => {
+    db.exec(`ALTER TABLE projects ADD COLUMN workspace TEXT NOT NULL DEFAULT ''`);
+    console.log('[Migration v19] Added workspace column to projects');
+  },
+  down: (db) => {
+    // SQLite doesn't support DROP COLUMN before 3.35.0; recreate table
+    db.exec(`
+      CREATE TABLE projects_backup (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+      INSERT INTO projects_backup (id, name, description, user_id, created_at, updated_at)
+      SELECT id, name, description, user_id, created_at, updated_at FROM projects;
+      DROP TABLE projects;
+      ALTER TABLE projects_backup RENAME TO projects;
+      CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+      CREATE INDEX IF NOT EXISTS idx_projects_updated_at ON projects(updated_at DESC);
+    `);
+    console.log('[Migration v19] Rolled back: Removed workspace column from projects');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1293,6 +1329,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
+  migration_v19,
 ];
 
 /**
