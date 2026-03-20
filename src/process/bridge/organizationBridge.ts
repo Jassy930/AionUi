@@ -18,6 +18,7 @@ import type {
   TOrgSkill,
   TOrganization,
 } from '@/common/types/organization';
+import type { AcpBackendAll } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
 import { getSystemDir } from '@process/initStorage';
 import {
@@ -30,6 +31,7 @@ import {
   startOrganizationWatcher,
   stopOrganizationWatcher,
 } from '@process/services/organizationOpsWatcher';
+import { ConversationService } from '@process/services/conversationService';
 
 function wrapResult<T>(success: boolean, data?: T, msg?: string) {
   return success ? { success: true, data } : { success: false, msg };
@@ -57,6 +59,80 @@ function ensureOrganizationRuntime(organization: TOrganization): void {
   initOrganizationContext(organization);
   syncOrganizationContext(organization.id);
   startOrganizationWatcher(organization.id, organization.workspace);
+}
+
+function resolveRunWorkspace(run: TOrgRun, organization: TOrganization): string {
+  return (typeof run.workspace?.path === 'string' && run.workspace.path) || organization.workspace;
+}
+
+function buildRunExecutorPrompt(organization: TOrganization, task: ReturnType<typeof requireTask>): string {
+  const organizationPrompt = generateOrganizationSystemPrompt(organization.id);
+  return `${organizationPrompt}
+
+<RUN_EXECUTION>
+You are executing organization run work for task "${task?.title}".
+Stay within the task contract, produce concrete changes, and leave a concise final summary for run closure.
+</RUN_EXECUTION>`;
+}
+
+async function createRunExecutionConversation(
+  organization: TOrganization,
+  task: NonNullable<ReturnType<typeof requireTask>>,
+  run: TOrgRun
+) {
+  const execution = run.execution || {};
+  const backend = (execution.backend as AcpBackendAll | undefined) || 'codex';
+  const modelId = typeof execution.model === 'string' ? execution.model : undefined;
+
+  return ConversationService.createConversation({
+    type: 'acp',
+    model: {} as any,
+    name: `${task.title} · Run`,
+    taskId: task.id,
+    extra: {
+      workspace: resolveRunWorkspace(run, organization),
+      customWorkspace: true,
+      backend,
+      agentName: `${organization.name} Run Executor`,
+      presetContext: buildRunExecutorPrompt(organization, task),
+      currentModelId: modelId,
+      organizationId: organization.id,
+      runId: run.id,
+      organizationRole: 'run_executor',
+    },
+  });
+}
+
+function extractConversationSummary(conversationId: string): string {
+  const db = getDatabase();
+  const result = db.getConversationMessages(conversationId, 0, 50, 'DESC');
+  if (!result.data?.length) {
+    return 'Run closed without assistant output.';
+  }
+
+  const parts: string[] = [];
+  for (const message of result.data) {
+    if (message.position !== 'left') {
+      if (parts.length > 0) {
+        break;
+      }
+      continue;
+    }
+    if (message.type !== 'text') {
+      if (parts.length > 0) {
+        break;
+      }
+      continue;
+    }
+
+    const content = (message.content as { content?: string } | undefined)?.content?.trim();
+    if (!content) {
+      continue;
+    }
+    parts.push(content);
+  }
+
+  return parts.reverse().join('\n').trim() || 'Run closed without assistant output.';
 }
 
 async function invokeOrganizationOperation<T>(
@@ -257,6 +333,7 @@ export function initOrganizationBridge(): void {
     if (!task) {
       return wrapResult(false, undefined, 'Organization task not found');
     }
+    const previousTaskStatus = task.status;
 
     const organization = requireOrganization(task.organization_id);
     if (!organization) {
@@ -270,9 +347,52 @@ export function initOrganizationBridge(): void {
       params as any
     );
     if (result.success && result.data) {
-      ipcBridge.org.run.created.emit(result.data);
-      ipcBridge.org.run.statusChanged.emit({ id: result.data.id, status: result.data.status });
+      const conversationResult = await createRunExecutionConversation(organization, task, result.data);
+      if (!conversationResult.success || !conversationResult.conversation) {
+        db.deleteOrgRun(result.data.id);
+        db.updateOrgTask(task.id, { status: previousTaskStatus });
+        syncOrganizationContext(organization.id);
+        return wrapResult(
+          false,
+          undefined,
+          conversationResult.error || 'Failed to create execution conversation for organization run'
+        );
+      }
+
+      const associationResult = db.associateConversationWithOrgRun(
+        conversationResult.conversation.id,
+        organization.id,
+        result.data.id
+      );
+      if (!associationResult.success) {
+        db.deleteConversation(conversationResult.conversation.id);
+        db.deleteOrgRun(result.data.id);
+        db.updateOrgTask(task.id, { status: previousTaskStatus });
+        syncOrganizationContext(organization.id);
+        return wrapResult(
+          false,
+          undefined,
+          associationResult.error || 'Failed to persist organization run conversation mapping'
+        );
+      }
+
+      const bindResult = db.updateOrgRun(result.data.id, { conversation_id: conversationResult.conversation.id });
+      if (!bindResult.success) {
+        db.deleteConversation(conversationResult.conversation.id);
+        db.deleteOrgRun(result.data.id);
+        db.updateOrgTask(task.id, { status: previousTaskStatus });
+        syncOrganizationContext(organization.id);
+        return wrapResult(false, undefined, bindResult.error || 'Failed to bind conversation to organization run');
+      }
+
+      const updatedRun = db.getOrgRun(result.data.id).data || {
+        ...result.data,
+        conversation_id: conversationResult.conversation.id,
+      };
+      ipcBridge.org.run.created.emit(updatedRun);
+      ipcBridge.org.run.statusChanged.emit({ id: updatedRun.id, status: updatedRun.status });
       syncOrganizationContext(organization.id);
+      return wrapResult(true, updatedRun);
     }
     return result;
   });
@@ -313,9 +433,37 @@ export function initOrganizationBridge(): void {
       return wrapResult(false, undefined, 'Organization run not found');
     }
 
-    const result = db.updateOrgRun(id, { status: 'closed', ended_at: Date.now() });
+    const now = Date.now();
+    const summary = run.conversation_id
+      ? extractConversationSummary(run.conversation_id)
+      : 'Run closed without conversation.';
+    const executionLogs = [
+      ...(run.execution_logs || []),
+      {
+        at: now,
+        level: 'info' as const,
+        message: `Run summary: ${summary}`,
+      },
+    ];
+
+    const result = db.updateOrgRun(id, { status: 'closed', ended_at: now, execution_logs: executionLogs });
     if (!result.success) {
       return wrapResult(false, undefined, result.error);
+    }
+
+    if (run.conversation_id) {
+      const conversationResult = db.getConversation(run.conversation_id);
+      if (conversationResult.success && conversationResult.data) {
+        const updatedExtra = {
+          ...conversationResult.data.extra,
+          organizationId: run.organization_id,
+          runId: run.id,
+          organizationRole: conversationResult.data.extra.organizationRole || 'run_executor',
+          runSummary: summary,
+          runClosedAt: now,
+        };
+        db.updateConversation(run.conversation_id, { extra: updatedExtra } as Partial<typeof conversationResult.data>);
+      }
     }
 
     ipcBridge.org.run.closed.emit({ id });
@@ -330,7 +478,19 @@ export function initOrganizationBridge(): void {
       return wrapResult(false, undefined, 'Organization run not found');
     }
 
-    const result = db.updateOrgRun(id, { status: 'closed', ended_at: Date.now() });
+    const now = Date.now();
+    const result = db.updateOrgRun(id, {
+      status: 'closed',
+      ended_at: now,
+      execution_logs: [
+        ...(run.execution_logs || []),
+        {
+          at: now,
+          level: 'warn',
+          message: 'Run cancelled before completion.',
+        },
+      ],
+    });
     if (!result.success) {
       return wrapResult(false, undefined, result.error);
     }

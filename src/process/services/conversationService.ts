@@ -220,6 +220,22 @@ export class ConversationService {
         }
       }
 
+      if (params.extra.organizationId || params.extra.runId) {
+        const bindResult = db.associateConversationWithOrgRun(
+          conversation.id,
+          params.extra.organizationId || null,
+          params.extra.runId || null
+        );
+        if (!bindResult.success) {
+          db.deleteConversation(conversation.id);
+          console.warn(
+            '[ConversationService] Failed to associate conversation with organization run:',
+            bindResult.error
+          );
+          return { success: false, error: bindResult.error || 'Failed to bind conversation to organization run' };
+        }
+      }
+
       // Register with WorkerManage after DB save so early emitted messages can be persisted reliably.
       // Note: Don't call initAgent() here - let it be lazy initialized when sendMessage() is called.
       WorkerManage.buildConversation(conversation);

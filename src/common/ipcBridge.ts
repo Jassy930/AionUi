@@ -783,6 +783,12 @@ export interface ICreateConversationParams {
     isHealthCheck?: boolean;
     /** Marker for ephemeral project-level conversations (hidden from sidebar list) */
     isProjectConversation?: boolean;
+    /** Organization OS binding stored in conversation extra for execution/runtime lookups */
+    organizationId?: string;
+    /** Organization run binding stored in conversation extra for execution/runtime lookups */
+    runId?: string;
+    /** Distinguishes control-plane chats from execution chats */
+    organizationRole?: 'control_plane' | 'run_executor';
   };
 }
 interface IResetConversationParams {

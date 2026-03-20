@@ -144,6 +144,21 @@ export interface IEnvStorageRefer {
  */
 export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | (string & {});
 
+export type ConversationExecutionBinding = {
+  /** Task binding used by task-centric execution views */
+  taskId?: string;
+  /** Organization OS binding stored redundantly in extra for renderer/runtime reads */
+  organizationId?: string;
+  /** Organization run binding stored redundantly in extra for renderer/runtime reads */
+  runId?: string;
+  /** Distinguishes control-plane chats from execution chats */
+  organizationRole?: 'control_plane' | 'run_executor';
+  /** Final execution summary captured when the run closes */
+  runSummary?: string;
+  /** Timestamp for the last run summary update */
+  runClosedAt?: number;
+};
+
 interface IChatConversation<T, Extra> {
   createTime: number;
   modifyTime: number;
@@ -151,7 +166,7 @@ interface IChatConversation<T, Extra> {
   desc?: string;
   id: string;
   type: T;
-  extra: Extra;
+  extra: Extra & ConversationExecutionBinding;
   model: TProviderWithModel;
   status?: 'pending' | 'running' | 'finished' | undefined;
   /** 会话来源，默认为 aionui / Conversation source, defaults to aionui */
