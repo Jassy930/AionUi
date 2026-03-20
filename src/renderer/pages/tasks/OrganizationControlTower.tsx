@@ -11,6 +11,11 @@ type OrganizationControlTowerProps = {
   organization: TOrganization;
   selectedViewLabel: string;
   pendingGovernanceCount: number;
+  onCreateTask: () => void;
+  onStartRun: () => void;
+  onExecuteEval: () => void;
+  onPromoteMemory: () => void;
+  onProposePatch: () => void;
   children?: React.ReactNode;
 };
 
@@ -18,6 +23,11 @@ const OrganizationControlTower: React.FC<OrganizationControlTowerProps> = ({
   organization,
   selectedViewLabel,
   pendingGovernanceCount,
+  onCreateTask,
+  onStartRun,
+  onExecuteEval,
+  onPromoteMemory,
+  onProposePatch,
   children,
 }) => {
   return (
@@ -36,16 +46,19 @@ const OrganizationControlTower: React.FC<OrganizationControlTowerProps> = ({
       <section className='organization-console__tower-card'>
         <h3 className='organization-console__tower-title'>Structured Actions</h3>
         <div className='organization-console__action-list'>
-          <button type='button' className='organization-console__action'>
+          <button type='button' className='organization-console__action' onClick={onCreateTask}>
             Create Task Contract
           </button>
-          <button type='button' className='organization-console__action'>
+          <button type='button' className='organization-console__action' onClick={onStartRun}>
             Start Run
           </button>
-          <button type='button' className='organization-console__action'>
+          <button type='button' className='organization-console__action' onClick={onExecuteEval}>
             Execute Eval
           </button>
-          <button type='button' className='organization-console__action'>
+          <button type='button' className='organization-console__action' onClick={onPromoteMemory}>
+            Promote Memory
+          </button>
+          <button type='button' className='organization-console__action' onClick={onProposePatch}>
             Propose Patch
           </button>
         </div>

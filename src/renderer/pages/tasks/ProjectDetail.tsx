@@ -190,6 +190,7 @@ const ProjectDetail: React.FC = () => {
       genomePatches={genomePatches}
       pendingGovernanceCount={pendingGovernanceCount}
       onBack={() => void navigate('/tasks')}
+      onRefresh={loadOrganizationConsole}
     />
   );
 };
