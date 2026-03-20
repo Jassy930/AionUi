@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Empty } from '@arco-design/web-react';
 import type { TOrgTask } from '@/common/types/organization';
 
@@ -13,8 +14,10 @@ type OrganizationTasksViewProps = {
 };
 
 const OrganizationTasksView: React.FC<OrganizationTasksViewProps> = ({ tasks }) => {
+  const { t } = useTranslation();
+
   if (!tasks.length) {
-    return <Empty description='No task contracts yet' />;
+    return <Empty description={t('project.console.empty.tasks', { defaultValue: 'No task contracts yet' })} />;
   }
 
   return (

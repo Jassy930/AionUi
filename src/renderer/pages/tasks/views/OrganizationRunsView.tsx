@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Empty } from '@arco-design/web-react';
 import type { TOrgRun } from '@/common/types/organization';
 
@@ -13,8 +14,10 @@ type OrganizationRunsViewProps = {
 };
 
 const OrganizationRunsView: React.FC<OrganizationRunsViewProps> = ({ runs }) => {
+  const { t } = useTranslation();
+
   if (!runs.length) {
-    return <Empty description='No runs yet' />;
+    return <Empty description={t('project.console.empty.runs', { defaultValue: 'No runs yet' })} />;
   }
 
   return (
@@ -22,7 +25,12 @@ const OrganizationRunsView: React.FC<OrganizationRunsViewProps> = ({ runs }) => 
       {runs.map((run) => (
         <article key={run.id} className='organization-console__summary-card'>
           <h3>{run.id}</h3>
-          <p>Status: {run.status}</p>
+          <p>
+            {t('project.console.run.status', {
+              defaultValue: 'Status: {{status}}',
+              status: run.status,
+            })}
+          </p>
         </article>
       ))}
     </div>

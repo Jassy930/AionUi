@@ -5,16 +5,29 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Empty } from '@arco-design/web-react';
 import type { TOrgGenomePatch } from '@/common/types/organization';
 
 type OrganizationGenomePatchesViewProps = {
   genomePatches: TOrgGenomePatch[];
+  emptyDescription?: string;
 };
 
-const OrganizationGenomePatchesView: React.FC<OrganizationGenomePatchesViewProps> = ({ genomePatches }) => {
+const OrganizationGenomePatchesView: React.FC<OrganizationGenomePatchesViewProps> = ({
+  genomePatches,
+  emptyDescription,
+}) => {
+  const { t } = useTranslation();
+
   if (!genomePatches.length) {
-    return <Empty description='No genome patches yet' />;
+    return (
+      <Empty
+        description={
+          emptyDescription || t('project.console.empty.genomePatches', { defaultValue: 'No genome patches yet' })
+        }
+      />
+    );
   }
 
   return (
@@ -22,7 +35,12 @@ const OrganizationGenomePatchesView: React.FC<OrganizationGenomePatchesViewProps
       {genomePatches.map((patch) => (
         <article key={patch.id} className='organization-console__summary-card'>
           <h3>{patch.id}</h3>
-          <p>Status: {patch.status}</p>
+          <p>
+            {t('project.console.genomePatch.status', {
+              defaultValue: 'Status: {{status}}',
+              status: patch.status,
+            })}
+          </p>
         </article>
       ))}
     </div>

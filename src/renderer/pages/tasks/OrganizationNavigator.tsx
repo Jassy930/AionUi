@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 export type OrganizationConsoleView =
   | 'overview'
@@ -30,8 +31,13 @@ type OrganizationNavigatorProps = {
 };
 
 const OrganizationNavigator: React.FC<OrganizationNavigatorProps> = ({ items, activeView, onSelect }) => {
+  const { t } = useTranslation();
+
   return (
-    <nav className='organization-console__nav' aria-label='Organization views'>
+    <nav
+      className='organization-console__nav'
+      aria-label={t('project.console.navAriaLabel', { defaultValue: 'Organization views' })}
+    >
       {items.map((item) => (
         <button
           key={item.id}

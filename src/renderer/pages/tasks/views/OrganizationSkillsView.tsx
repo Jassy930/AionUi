@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Empty } from '@arco-design/web-react';
 import type { TOrgSkill } from '@/common/types/organization';
 
@@ -13,8 +14,10 @@ type OrganizationSkillsViewProps = {
 };
 
 const OrganizationSkillsView: React.FC<OrganizationSkillsViewProps> = ({ skills }) => {
+  const { t } = useTranslation();
+
   if (!skills.length) {
-    return <Empty description='No skills yet' />;
+    return <Empty description={t('project.console.empty.skills', { defaultValue: 'No skills yet' })} />;
   }
 
   return (

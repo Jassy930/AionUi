@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Empty } from '@arco-design/web-react';
 import type { TOrgMemoryCard } from '@/common/types/organization';
 
@@ -13,8 +14,10 @@ type OrganizationMemoryViewProps = {
 };
 
 const OrganizationMemoryView: React.FC<OrganizationMemoryViewProps> = ({ memoryCards }) => {
+  const { t } = useTranslation();
+
   if (!memoryCards.length) {
-    return <Empty description='No memory cards yet' />;
+    return <Empty description={t('project.console.empty.memory', { defaultValue: 'No memory cards yet' })} />;
   }
 
   return (

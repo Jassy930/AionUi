@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Empty } from '@arco-design/web-react';
 import type { TOrgArtifact } from '@/common/types/organization';
 
@@ -13,8 +14,10 @@ type OrganizationArtifactsViewProps = {
 };
 
 const OrganizationArtifactsView: React.FC<OrganizationArtifactsViewProps> = ({ artifacts }) => {
+  const { t } = useTranslation();
+
   if (!artifacts.length) {
-    return <Empty description='No artifacts yet' />;
+    return <Empty description={t('project.console.empty.artifacts', { defaultValue: 'No artifacts yet' })} />;
   }
 
   return (
