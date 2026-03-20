@@ -10,47 +10,47 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Input, Modal, Message, Empty } from '@arco-design/web-react';
 import { Plus, Delete, Edit, Time, DocumentFolder, FolderOpen } from '@icon-park/react';
 import { ipcBridge } from '@/common';
-import type { TProjectWithCount } from '@/common/types/task';
+import type { TOrganization } from '@/common/types/organization';
 import { getLastDirectoryName } from '@/renderer/utils/workspace';
 import './TaskBoard.css';
 
 const ProjectList: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [projects, setProjects] = useState<TProjectWithCount[]>([]);
+  const [organizations, setOrganizations] = useState<TOrganization[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [editingProject, setEditingProject] = useState<TProjectWithCount | null>(null);
+  const [editingOrganization, setEditingOrganization] = useState<TOrganization | null>(null);
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formWorkspace, setFormWorkspace] = useState('');
 
-  const loadProjects = useCallback(async () => {
+  const loadOrganizations = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await ipcBridge.project.list.invoke();
+      const result = await ipcBridge.org.organization.list.invoke();
       if (result.success && result.data) {
-        setProjects(result.data);
+        setOrganizations(result.data);
       }
     } catch (error) {
-      console.error('Failed to load projects:', error);
+      console.error('Failed to load organizations:', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadProjects();
-  }, [loadProjects]);
+    void loadOrganizations();
+  }, [loadOrganizations]);
 
   useEffect(() => {
     const unsubs = [
-      ipcBridge.project.created.on(() => void loadProjects()),
-      ipcBridge.project.updated.on(() => void loadProjects()),
-      ipcBridge.project.deleted.on(() => void loadProjects()),
+      ipcBridge.org.organization.created.on(() => void loadOrganizations()),
+      ipcBridge.org.organization.updated.on(() => void loadOrganizations()),
+      ipcBridge.org.organization.deleted.on(() => void loadOrganizations()),
     ];
     return () => unsubs.forEach((fn) => fn());
-  }, [loadProjects]);
+  }, [loadOrganizations]);
 
   const resetForm = () => {
     setFormName('');
@@ -72,77 +72,89 @@ const ProjectList: React.FC = () => {
 
   const handleCreate = async () => {
     if (!formName.trim()) {
-      Message.warning(t('project.nameRequired', { defaultValue: 'Project name is required' }));
+      Message.warning(t('project.nameRequired', { defaultValue: 'Organization name is required' }));
       return;
     }
+    if (!formWorkspace.trim()) {
+      Message.warning(t('project.workspaceRequired', { defaultValue: 'Workspace is required' }));
+      return;
+    }
+
     try {
-      const result = await ipcBridge.project.create.invoke({
+      const result = await ipcBridge.org.organization.create.invoke({
         name: formName.trim(),
         description: formDesc.trim() || undefined,
-        workspace: formWorkspace || undefined,
+        workspace: formWorkspace.trim(),
       });
       if (result.success) {
-        Message.success(t('project.created', { defaultValue: 'Project created' }));
+        Message.success(t('project.created', { defaultValue: 'Organization created' }));
         setCreateModalVisible(false);
         resetForm();
       } else {
-        Message.error(result.msg || t('project.createFailed', { defaultValue: 'Failed to create project' }));
+        Message.error(result.msg || t('project.createFailed', { defaultValue: 'Failed to create organization' }));
       }
     } catch (error) {
-      console.error('Failed to create project:', error);
-      Message.error(t('project.createFailed', { defaultValue: 'Failed to create project' }));
+      console.error('Failed to create organization:', error);
+      Message.error(t('project.createFailed', { defaultValue: 'Failed to create organization' }));
     }
   };
 
   const handleEdit = async () => {
-    if (!editingProject || !formName.trim()) return;
+    if (!editingOrganization || !formName.trim() || !formWorkspace.trim()) {
+      return;
+    }
+
     try {
-      await ipcBridge.project.update.invoke({
-        id: editingProject.id,
+      const result = await ipcBridge.org.organization.update.invoke({
+        id: editingOrganization.id,
         updates: {
           name: formName.trim(),
           description: formDesc.trim() || undefined,
-          workspace: formWorkspace || undefined,
+          workspace: formWorkspace.trim(),
         },
       });
-      setEditingProject(null);
+      if (!result.success) {
+        Message.error(result.msg || t('project.updateFailed', { defaultValue: 'Failed to update organization' }));
+        return;
+      }
+      setEditingOrganization(null);
       resetForm();
     } catch (error) {
-      console.error('Failed to update project:', error);
-      Message.error(t('project.updateFailed', { defaultValue: 'Failed to update project' }));
+      console.error('Failed to update organization:', error);
+      Message.error(t('project.updateFailed', { defaultValue: 'Failed to update organization' }));
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, projectId: string) => {
+  const handleDelete = async (e: React.MouseEvent, organizationId: string) => {
     e.stopPropagation();
     try {
-      const result = await ipcBridge.project.delete.invoke({ id: projectId });
+      const result = await ipcBridge.org.organization.delete.invoke({ id: organizationId });
       if (result.success) {
-        Message.success(t('project.deleted', { defaultValue: 'Project deleted' }));
+        Message.success(t('project.deleted', { defaultValue: 'Organization deleted' }));
       } else {
-        Message.error(result.msg || t('project.deleteFailed', { defaultValue: 'Failed to delete project' }));
+        Message.error(result.msg || t('project.deleteFailed', { defaultValue: 'Failed to delete organization' }));
       }
     } catch (error) {
-      console.error('Failed to delete project:', error);
+      console.error('Failed to delete organization:', error);
     }
   };
 
-  const openEdit = (e: React.MouseEvent, proj: TProjectWithCount) => {
+  const openEdit = (e: React.MouseEvent, organization: TOrganization) => {
     e.stopPropagation();
-    setEditingProject(proj);
-    setFormName(proj.name);
-    setFormDesc(proj.description || '');
-    setFormWorkspace(proj.workspace);
+    setEditingOrganization(organization);
+    setFormName(organization.name);
+    setFormDesc(organization.description || '');
+    setFormWorkspace(organization.workspace);
   };
 
   const formContent = (
     <div className='task-board__modal-form'>
       <div className='task-board__modal-field'>
-        <label>{t('project.name', { defaultValue: 'Project Name' })}</label>
+        <label>{t('project.name', { defaultValue: 'Organization Name' })}</label>
         <Input
           value={formName}
           onChange={setFormName}
-          placeholder={t('project.namePlaceholder', { defaultValue: 'Enter project name...' })}
+          placeholder={t('project.namePlaceholder', { defaultValue: 'Enter organization name...' })}
           autoFocus
         />
       </div>
@@ -161,7 +173,7 @@ const ProjectList: React.FC = () => {
           <Input
             value={formWorkspace}
             readOnly
-            placeholder={t('project.workspaceDefault', { defaultValue: 'Default (AionUi workspace)' })}
+            placeholder={t('project.workspaceDefault', { defaultValue: 'Select organization workspace' })}
             onClick={handleSelectWorkspace}
             style={{ cursor: 'pointer' }}
           />
@@ -176,7 +188,7 @@ const ProjectList: React.FC = () => {
   return (
     <div className='task-board'>
       <div className='task-board__header'>
-        <h1 className='task-board__title'>{t('project.listTitle', { defaultValue: 'Projects' })}</h1>
+        <h1 className='task-board__title'>{t('project.listTitle', { defaultValue: 'Organizations' })}</h1>
         <Button
           type='primary'
           icon={<Plus theme='outline' />}
@@ -185,24 +197,24 @@ const ProjectList: React.FC = () => {
             setCreateModalVisible(true);
           }}
         >
-          {t('project.create', { defaultValue: 'New Project' })}
+          {t('project.create', { defaultValue: 'New Organization' })}
         </Button>
       </div>
 
-      {!loading && projects.length === 0 ? (
+      {!loading && organizations.length === 0 ? (
         <div className='project-list__empty'>
-          <Empty description={t('project.noProjects', { defaultValue: 'No projects yet' })} />
+          <Empty description={t('project.noProjects', { defaultValue: 'No organizations yet' })} />
         </div>
       ) : (
         <div className='project-list__grid'>
-          {projects.map((proj) => (
+          {organizations.map((organization) => (
             <div
-              key={proj.id}
+              key={organization.id}
               className='task-board__card project-card'
-              onClick={() => void navigate(`/tasks/${proj.id}`)}
+              onClick={() => void navigate(`/tasks/${organization.id}`)}
               role='button'
               tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && void navigate(`/tasks/${proj.id}`)}
+              onKeyDown={(e) => e.key === 'Enter' && void navigate(`/tasks/${organization.id}`)}
             >
               <div className='task-board__card-header'>
                 <div className='project-card__title-row'>
@@ -211,34 +223,36 @@ const ProjectList: React.FC = () => {
                     size={16}
                     style={{ color: 'var(--color-primary-6)', flexShrink: 0 }}
                   />
-                  <h4 className='task-board__card-title'>{proj.name}</h4>
+                  <h4 className='task-board__card-title'>{organization.name}</h4>
                 </div>
                 <div className='task-board__card-actions' onClick={(e) => e.stopPropagation()}>
-                  <button className='task-board__card-action' onClick={(e) => openEdit(e, proj)}>
+                  <button className='task-board__card-action' onClick={(e) => openEdit(e, organization)}>
                     <Edit theme='outline' size={14} />
                   </button>
                   <button
                     className='task-board__card-action task-board__card-action--danger'
-                    onClick={(e) => void handleDelete(e, proj.id)}
+                    onClick={(e) => void handleDelete(e, organization.id)}
                   >
                     <Delete theme='outline' size={14} />
                   </button>
                 </div>
               </div>
 
-              {proj.description && <p className='task-board__card-description'>{proj.description}</p>}
+              {organization.description ? (
+                <p className='task-board__card-description'>{organization.description}</p>
+              ) : null}
 
               <div className='task-board__card-meta'>
-                <span className='task-board__card-workspace' title={proj.workspace}>
+                <span className='task-board__card-workspace' title={organization.workspace}>
                   <FolderOpen theme='outline' size={12} />
-                  {getLastDirectoryName(proj.workspace)}
+                  {getLastDirectoryName(organization.workspace)}
                 </span>
                 <span className='task-board__card-conversations'>
-                  {proj.task_count} {t('project.tasks', { defaultValue: 'tasks' })}
+                  {t('project.organizationBadge', { defaultValue: 'Organization Workspace' })}
                 </span>
                 <span className='task-board__card-time'>
                   <Time theme='outline' size={12} />
-                  {new Date(proj.updated_at).toLocaleDateString()}
+                  {new Date(organization.updated_at).toLocaleDateString()}
                 </span>
               </div>
             </div>
@@ -246,9 +260,8 @@ const ProjectList: React.FC = () => {
         </div>
       )}
 
-      {/* Create Modal */}
       <Modal
-        title={t('project.create', { defaultValue: 'New Project' })}
+        title={t('project.create', { defaultValue: 'New Organization' })}
         visible={createModalVisible}
         onOk={handleCreate}
         onCancel={() => {
@@ -261,13 +274,12 @@ const ProjectList: React.FC = () => {
         {formContent}
       </Modal>
 
-      {/* Edit Modal */}
       <Modal
-        title={t('project.edit', { defaultValue: 'Edit Project' })}
-        visible={!!editingProject}
+        title={t('project.edit', { defaultValue: 'Edit Organization' })}
+        visible={!!editingOrganization}
         onOk={handleEdit}
         onCancel={() => {
-          setEditingProject(null);
+          setEditingOrganization(null);
           resetForm();
         }}
         okText={t('common.save', { defaultValue: 'Save' })}

@@ -5,710 +5,192 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Spin } from '@arco-design/web-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Dropdown, Input, Menu, Modal, Message, Empty, Select, Spin } from '@arco-design/web-react';
-import { Plus, Delete, Edit, Left, FolderOpen, MessageOne, Robot } from '@icon-park/react';
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDroppable,
-  useDraggable,
-} from '@dnd-kit/core';
-import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
-import classNames from 'classnames';
 import { ipcBridge } from '@/common';
-import type { TChatConversation } from '@/common/storage';
-import type { TProject, TTaskWithCount, TaskStatus } from '@/common/types/task';
-import { useConversationAgents } from '@/renderer/pages/conversation/hooks/useConversationAgents';
-import {
-  buildCliAgentParams,
-  buildPresetAssistantParams,
-} from '@/renderer/pages/conversation/utils/createConversationParams';
-import { applyDefaultConversationName } from '@/renderer/pages/conversation/utils/newConversationName';
-import { getAgentLogo } from '@/renderer/utils/agentLogo';
-import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
-import { useProjectMode } from '@/renderer/context/ProjectModeContext';
+import type {
+  TOrganization,
+  TOrgArtifact,
+  TOrgEvalSpec,
+  TOrgGenomePatch,
+  TOrgMemoryCard,
+  TOrgRun,
+  TOrgSkill,
+  TOrgTask,
+} from '@/common/types/organization';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import ProjectConversationPanel from './ProjectConversationPanel';
+import { useProjectMode } from '@/renderer/context/ProjectModeContext';
+import OrganizationConsole from './OrganizationConsole';
 import './TaskBoard.css';
 
-type TaskColumn = {
-  status: TaskStatus;
-  titleKey: string;
-  tasks: TTaskWithCount[];
-};
-
-const ALL_STATUSES: TaskStatus[] = ['brainstorming', 'todo', 'progress', 'review', 'done'];
-
-// Droppable column component
-const DroppableColumn: React.FC<{ status: TaskStatus; children: React.ReactNode }> = ({ status, children }) => {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `column-${status}`,
-    data: { status },
-  });
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={classNames('task-board__column-content', {
-        'task-board__column-content--drag-over': isOver,
-      })}
-    >
-      {children}
-    </div>
-  );
-};
-
-// Draggable task card wrapper
-type DraggableTaskCardProps = {
-  task: TTaskWithCount;
-  children: React.ReactNode;
-};
-
-const DraggableTaskCard: React.FC<DraggableTaskCardProps> = ({ task, children }) => {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: task.id,
-    data: { task },
-  });
-
-  const style: React.CSSProperties = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-      }
-    : undefined;
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={classNames('task-board__card-draggable', { 'task-board__card--dragging': isDragging })}
-      {...listeners}
-      {...attributes}
-    >
-      {children}
-    </div>
-  );
-};
-
 const ProjectDetail: React.FC = () => {
-  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
   const { enterProjectMode, exitProjectMode } = useProjectMode();
-
-  const [project, setProject] = useState<TProject | null>(null);
-  const [tasks, setTasks] = useState<TTaskWithCount[]>([]);
-  const [loading, setLoading] = useState(true);
-  // Task conversations map: taskId -> conversations[]
-  const [taskConversations, setTaskConversations] = useState<Record<string, TChatConversation[]>>({});
-  const [loadingConversations, setLoadingConversations] = useState<Record<string, boolean>>({});
-
-  const { cliAgents, presetAssistants, isLoading: isAgentsLoading } = useConversationAgents();
-  const defaultConversationName = t('conversation.welcome.newConversation');
-
-  const [createModalVisible, setCreateModalVisible] = useState(false);
-  const [newTaskName, setNewTaskName] = useState('');
-  const [newTaskDesc, setNewTaskDesc] = useState('');
-  const [newTaskStatus, setNewTaskStatus] = useState<TaskStatus>('brainstorming');
-  const [editingTask, setEditingTask] = useState<TTaskWithCount | null>(null);
-
-  // Drag and drop state
-  const [activeTask, setActiveTask] = useState<TTaskWithCount | null>(null);
-
-  // Auto-collapse app sider when entering project page, restore on leave
   const layout = useLayoutContext();
-  const layoutRef = React.useRef(layout);
-  layoutRef.current = layout;
 
-  useEffect(() => {
-    const ctx = layoutRef.current;
-    if (!ctx) return;
-    const wasSiderCollapsed = ctx.siderCollapsed;
-    if (!wasSiderCollapsed) {
-      ctx.setSiderCollapsed(true);
-    }
-    return () => {
-      if (!wasSiderCollapsed && layoutRef.current) {
-        layoutRef.current.setSiderCollapsed(false);
+  const [organization, setOrganization] = useState<TOrganization | null>(null);
+  const [tasks, setTasks] = useState<TOrgTask[]>([]);
+  const [runs, setRuns] = useState<TOrgRun[]>([]);
+  const [artifacts, setArtifacts] = useState<TOrgArtifact[]>([]);
+  const [memoryCards, setMemoryCards] = useState<TOrgMemoryCard[]>([]);
+  const [evalSpecs, setEvalSpecs] = useState<TOrgEvalSpec[]>([]);
+  const [skills, setSkills] = useState<TOrgSkill[]>([]);
+  const [genomePatches, setGenomePatches] = useState<TOrgGenomePatch[]>([]);
+  const [pendingGovernanceCount, setPendingGovernanceCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const loadArtifacts = useCallback(async (taskIds: string[], runIds: string[]) => {
+    const artifactMap = new Map<string, TOrgArtifact>();
+
+    const [taskArtifacts, runArtifacts] = await Promise.all([
+      Promise.all(taskIds.map(async (taskId) => ipcBridge.org.artifact.list.invoke({ task_id: taskId }))),
+      Promise.all(runIds.map(async (runId) => ipcBridge.org.artifact.list.invoke({ run_id: runId }))),
+    ]);
+
+    for (const result of [...taskArtifacts, ...runArtifacts]) {
+      for (const artifact of result.success && result.data ? result.data : []) {
+        artifactMap.set(artifact.id, artifact);
       }
-    };
+    }
+
+    return Array.from(artifactMap.values());
   }, []);
 
-  // Configure sensors for drag and drop
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // Require 8px movement before starting drag
-      },
-    })
-  );
-
-  const loadProject = useCallback(async () => {
-    if (!projectId) return;
-    try {
-      const result = await ipcBridge.project.get.invoke({ id: projectId });
-      if (result.success && result.data) {
-        setProject(result.data);
-      }
-    } catch (error) {
-      console.error('Failed to load project:', error);
+  useEffect(() => {
+    const wasSiderCollapsed = layout.siderCollapsed;
+    if (!wasSiderCollapsed) {
+      layout.setSiderCollapsed(true);
     }
-  }, [projectId]);
+    return () => {
+      if (!wasSiderCollapsed) {
+        layout.setSiderCollapsed(false);
+      }
+    };
+  }, [layout]);
 
-  const loadTasks = useCallback(async () => {
-    if (!projectId) return;
+  useEffect(() => {
+    if (!projectId) {
+      return;
+    }
+    enterProjectMode(projectId);
+    return () => {
+      exitProjectMode();
+    };
+  }, [enterProjectMode, exitProjectMode, projectId]);
+
+  const loadOrganizationConsole = useCallback(async () => {
+    if (!projectId) {
+      return;
+    }
+
     try {
       setLoading(true);
-      const result = await ipcBridge.workTask.list.invoke({ projectId });
-      if (result.success && result.data) {
-        setTasks(result.data);
-      }
+      const [
+        organizationResult,
+        taskResult,
+        runResult,
+        memoryResult,
+        evalResult,
+        skillResult,
+        evolutionResult,
+        governanceResult,
+      ] = await Promise.all([
+        ipcBridge.org.organization.get.invoke({ id: projectId }),
+        ipcBridge.org.task.list.invoke({ organization_id: projectId }),
+        ipcBridge.org.run.list.invoke({ organization_id: projectId }),
+        ipcBridge.org.memory.list.invoke({ organization_id: projectId }),
+        ipcBridge.org.eval.list.invoke({ organization_id: projectId }),
+        ipcBridge.org.skill.list.invoke({ organization_id: projectId }),
+        ipcBridge.org.evolution.list.invoke({ organization_id: projectId }),
+        ipcBridge.org.governance.listPending.invoke({ organization_id: projectId }),
+      ]);
+
+      const nextTasks = taskResult.success && taskResult.data ? taskResult.data : [];
+      const nextRuns = runResult.success && runResult.data ? runResult.data : [];
+      const nextArtifacts = await loadArtifacts(
+        nextTasks.map((task) => task.id),
+        nextRuns.map((run) => run.id)
+      );
+
+      setOrganization(organizationResult.success && organizationResult.data ? organizationResult.data : null);
+      setTasks(nextTasks);
+      setRuns(nextRuns);
+      setArtifacts(nextArtifacts);
+      setMemoryCards(memoryResult.success && memoryResult.data ? memoryResult.data : []);
+      setEvalSpecs(evalResult.success && evalResult.data ? evalResult.data : []);
+      setSkills(skillResult.success && skillResult.data ? skillResult.data : []);
+      setGenomePatches(evolutionResult.success && evolutionResult.data ? evolutionResult.data : []);
+      setPendingGovernanceCount(governanceResult.success && governanceResult.data ? governanceResult.data.length : 0);
     } catch (error) {
-      console.error('Failed to load tasks:', error);
+      console.error('Failed to load organization console:', error);
+      setOrganization(null);
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
-
-  // Load conversations for a specific task
-  const loadTaskConversations = useCallback(async (taskId: string) => {
-    setLoadingConversations((prev) => ({ ...prev, [taskId]: true }));
-    try {
-      const result = await ipcBridge.workTask.getConversations.invoke({ taskId });
-      if (result.success && result.data) {
-        setTaskConversations((prev) => ({ ...prev, [taskId]: result.data }));
-      }
-    } catch (error) {
-      console.error('Failed to load task conversations:', error);
-    } finally {
-      setLoadingConversations((prev) => ({ ...prev, [taskId]: false }));
-    }
-  }, []);
-
-  // Load conversations for all tasks
-  const loadAllTaskConversations = useCallback(
-    async (taskList: TTaskWithCount[]) => {
-      await Promise.all(taskList.map((task) => loadTaskConversations(task.id)));
-    },
-    [loadTaskConversations]
-  );
+  }, [loadArtifacts, projectId]);
 
   useEffect(() => {
-    void loadProject();
-    void loadTasks();
-  }, [loadProject, loadTasks]);
-
-  // When tasks are loaded, load their conversations
-  useEffect(() => {
-    if (tasks.length > 0) {
-      void loadAllTaskConversations(tasks);
-    }
-  }, [tasks, loadAllTaskConversations]);
+    void loadOrganizationConsole();
+  }, [loadOrganizationConsole]);
 
   useEffect(() => {
     const unsubs = [
-      ipcBridge.workTask.created.on(() => void loadTasks()),
-      ipcBridge.workTask.updated.on(() => void loadTasks()),
-      ipcBridge.workTask.deleted.on(() => void loadTasks()),
-      ipcBridge.project.updated.on(() => void loadProject()),
-      // Sub-agent: refresh a task's conversation list when it changes
-      ipcBridge.workTask.conversationsChanged.on(({ taskId }) => void loadTaskConversations(taskId)),
+      ipcBridge.org.organization.updated.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.task.created.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.task.updated.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.task.deleted.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.task.statusChanged.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.run.created.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.run.updated.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.run.statusChanged.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.run.closed.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.artifact.created.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.artifact.updated.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.artifact.deleted.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.memory.promoted.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.memory.updated.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.memory.deleted.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.eval.created.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.eval.updated.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.eval.deleted.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.skill.created.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.skill.updated.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.skill.deleted.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.evolution.proposed.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.evolution.statusChanged.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.evolution.adopted.on(() => void loadOrganizationConsole()),
+      ipcBridge.org.evolution.rejected.on(() => void loadOrganizationConsole()),
     ];
-    return () => unsubs.forEach((fn) => fn());
-  }, [loadTasks, loadProject, loadTaskConversations]);
 
-  const handleCreateTask = async () => {
-    if (!newTaskName.trim() || !projectId) {
-      Message.warning(t('task.nameRequired', { defaultValue: 'Task name is required' }));
-      return;
-    }
-    try {
-      const result = await ipcBridge.workTask.create.invoke({
-        project_id: projectId,
-        name: newTaskName.trim(),
-        description: newTaskDesc.trim() || undefined,
-        status: newTaskStatus,
-      });
-      if (result.success) {
-        Message.success(t('task.created', { defaultValue: 'Task created' }));
-        setCreateModalVisible(false);
-        setNewTaskName('');
-        setNewTaskDesc('');
-        setNewTaskStatus('brainstorming');
-      } else {
-        Message.error(result.msg || t('task.createFailed', { defaultValue: 'Failed to create task' }));
-      }
-    } catch (error) {
-      console.error('Failed to create task:', error);
-      Message.error(t('task.createFailed', { defaultValue: 'Failed to create task' }));
-    }
-  };
+    return () => unsubs.forEach((unsubscribe) => unsubscribe());
+  }, [loadOrganizationConsole]);
 
-  const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
-    try {
-      const result = await ipcBridge.workTask.update.invoke({
-        id: taskId,
-        updates: { status: newStatus },
-      });
-      if (!result.success) {
-        Message.error(result.msg || t('task.updateFailed', { defaultValue: 'Failed to update task' }));
-      }
-    } catch (error) {
-      console.error('Failed to update task status:', error);
-    }
-  };
-
-  // Drag and drop handlers
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      const { active } = event;
-      const task = tasks.find((t) => t.id === active.id);
-      setActiveTask(task || null);
-    },
-    [tasks]
-  );
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      setActiveTask(null);
-
-      if (!over) return;
-
-      // Extract target status from droppable id (format: "column-{status}")
-      const overId = String(over.id);
-      if (!overId.startsWith('column-')) return;
-
-      const targetStatus = overId.replace('column-', '') as TaskStatus;
-      const taskId = String(active.id);
-      const task = tasks.find((t) => t.id === taskId);
-
-      // Only update if status actually changed
-      if (task && task.status !== targetStatus) {
-        void handleUpdateStatus(taskId, targetStatus);
-      }
-    },
-    [tasks, handleUpdateStatus]
-  );
-
-  const handleDragCancel = useCallback(() => {
-    setActiveTask(null);
-  }, []);
-
-  const handleDeleteTask = async (taskId: string) => {
-    try {
-      const result = await ipcBridge.workTask.delete.invoke({ id: taskId });
-      if (result.success) {
-        Message.success(t('task.deleted', { defaultValue: 'Task deleted' }));
-      } else {
-        Message.error(result.msg || t('task.deleteFailed', { defaultValue: 'Failed to delete task' }));
-      }
-    } catch (error) {
-      console.error('Failed to delete task:', error);
-    }
-  };
-
-  const handleOpenConversation = (conversationId: string) => {
-    if (projectId) {
-      enterProjectMode(projectId);
-    }
-    void navigate(`/conversation/${conversationId}`);
-  };
-
-  const handleNewConversation = useCallback(
-    async (taskId: string, agentKey: string) => {
-      try {
-        const workspace = project?.workspace;
-
-        // Validate workspace exists
-        if (!workspace) {
-          Message.warning(t('task.noWorkspace', { defaultValue: 'Project workspace is not set' }));
-          return;
-        }
-
-        let params;
-
-        if (agentKey.startsWith('cli:')) {
-          const backend = agentKey.slice(4);
-          const agent = cliAgents.find((a) => a.backend === backend);
-          if (!agent) {
-            Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
-            return;
-          }
-          params = await buildCliAgentParams(agent, workspace);
-        } else if (agentKey.startsWith('preset:')) {
-          const assistantId = agentKey.slice(7);
-          const agent = presetAssistants.find((a) => a.customAgentId === assistantId);
-          if (!agent) {
-            Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
-            return;
-          }
-          params = await buildPresetAssistantParams(agent, workspace, i18n.language);
-        } else {
-          return;
-        }
-
-        // Apply taskId to extra params - workspace is validated above
-        params.extra = { ...params.extra, workspace, customWorkspace: true };
-        params.taskId = taskId;
-
-        const conversation = await ipcBridge.conversation.create.invoke(
-          applyDefaultConversationName(params, defaultConversationName)
-        );
-
-        if (!conversation?.id) {
-          Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
-          return;
-        }
-
-        // Refresh conversation list for this task
-        void loadTaskConversations(taskId);
-        // Enter project mode before navigating to conversation
-        if (projectId) {
-          enterProjectMode(projectId);
-        }
-        void navigate(`/conversation/${conversation.id}`);
-      } catch (error) {
-        console.error('Failed to create conversation:', error);
-        Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
-      }
-    },
-    [
-      project,
-      cliAgents,
-      presetAssistants,
-      i18n.language,
-      t,
-      defaultConversationName,
-      loadTaskConversations,
-      navigate,
-      projectId,
-      enterProjectMode,
-    ]
-  );
-
-  const renderAgentDropdownMenu = useCallback(
-    (taskId: string) => {
-      return (
-        <Menu onClickMenuItem={(key) => void handleNewConversation(taskId, key)}>
-          {cliAgents.length > 0 && (
-            <Menu.ItemGroup title={t('conversation.dropdown.cliAgents')}>
-              {cliAgents.map((agent) => {
-                const logo = getAgentLogo(agent.backend);
-                return (
-                  <Menu.Item key={`cli:${agent.backend}`}>
-                    <div className='flex items-center gap-8px'>
-                      {logo ? (
-                        <img src={logo} alt={agent.name} style={{ width: 16, height: 16, objectFit: 'contain' }} />
-                      ) : (
-                        <Robot size='16' />
-                      )}
-                      <span>{agent.name}</span>
-                    </div>
-                  </Menu.Item>
-                );
-              })}
-            </Menu.ItemGroup>
-          )}
-          {presetAssistants.length > 0 && (
-            <Menu.ItemGroup title={t('conversation.dropdown.presetAssistants')}>
-              {presetAssistants.map((agent) => {
-                const avatarImage = agent.avatar ? CUSTOM_AVATAR_IMAGE_MAP[agent.avatar] : undefined;
-                const isEmoji = agent.avatar && !avatarImage && !agent.avatar.endsWith('.svg');
-                return (
-                  <Menu.Item key={`preset:${agent.customAgentId}`}>
-                    <div className='flex items-center gap-8px'>
-                      {avatarImage ? (
-                        <img
-                          src={avatarImage}
-                          alt={agent.name}
-                          style={{ width: 16, height: 16, objectFit: 'contain' }}
-                        />
-                      ) : isEmoji ? (
-                        <span style={{ fontSize: 14, lineHeight: '16px' }}>{agent.avatar}</span>
-                      ) : (
-                        <Robot size='16' />
-                      )}
-                      <span>{agent.name}</span>
-                    </div>
-                  </Menu.Item>
-                );
-              })}
-            </Menu.ItemGroup>
-          )}
-        </Menu>
-      );
-    },
-    [cliAgents, presetAssistants, handleNewConversation, t]
-  );
-
-  const statusLabel = (status: TaskStatus) => t(`task.status.${status}`, { defaultValue: status });
-
-  const columns: TaskColumn[] = ALL_STATUSES.map((status) => ({
-    status,
-    titleKey: `task.status.${status}`,
-    tasks: tasks.filter((tsk) => tsk.status === status),
-  }));
-
-  const getConversationStatusColor = (status?: string) => {
-    switch (status) {
-      case 'running':
-        return 'var(--color-primary-6)';
-      case 'finished':
-        return 'var(--color-success-6)';
-      default:
-        return 'var(--color-text-4)';
-    }
-  };
-
-  const renderTaskCard = (task: TTaskWithCount) => {
-    const conversations = taskConversations[task.id] || [];
-    const isLoadingConvs = loadingConversations[task.id];
-
+  if (loading) {
     return (
-      <div className='task-board__card task-board__card--expanded'>
-        <div className='task-board__card-header'>
-          <h4 className='task-board__card-title'>{task.name}</h4>
-          <div className='task-board__card-actions'>
-            <Dropdown
-              droplist={renderAgentDropdownMenu(task.id)}
-              trigger='click'
-              position='br'
-              disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
-            >
-              <button
-                className='task-board__card-action'
-                disabled={!project?.workspace || isAgentsLoading || (!cliAgents.length && !presetAssistants.length)}
-                title={t('task.newConversation', { defaultValue: 'New Conversation' })}
-              >
-                <Plus theme='outline' size={14} />
-              </button>
-            </Dropdown>
-            <button
-              className='task-board__card-action'
-              onClick={() => setEditingTask(task)}
-              title={t('common.edit', { defaultValue: 'Edit' })}
-            >
-              <Edit theme='outline' size={14} />
-            </button>
-            <button
-              className='task-board__card-action task-board__card-action--danger'
-              onClick={() => void handleDeleteTask(task.id)}
-              title={t('common.delete', { defaultValue: 'Delete' })}
-            >
-              <Delete theme='outline' size={14} />
-            </button>
-          </div>
-        </div>
-
-        {task.description && <p className='task-board__card-description'>{task.description}</p>}
-
-        {/* Conversations list */}
-        <div className='task-card__conversations'>
-          {isLoadingConvs ? (
-            <div className='task-card__conversations-loading'>
-              <Spin size={12} />
-            </div>
-          ) : conversations.length > 0 ? (
-            conversations.map((conv) => (
-              <div
-                key={conv.id}
-                className='task-card__conversation-item'
-                onClick={() => handleOpenConversation(conv.id)}
-                role='button'
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleOpenConversation(conv.id)}
-              >
-                <MessageOne theme='outline' size={12} style={{ color: getConversationStatusColor(conv.status) }} />
-                <span className='task-card__conversation-name'>
-                  {conv.name || t('task.unnamedConversation', { defaultValue: 'Untitled' })}
-                </span>
-                {conv.status === 'running' && (
-                  <span className='task-card__conversation-status-dot task-card__conversation-status-dot--running' />
-                )}
-              </div>
-            ))
-          ) : (
-            <div className='task-card__conversations-empty'>
-              {t('task.noConversations', { defaultValue: 'No conversations' })}
-            </div>
-          )}
-        </div>
+      <div className='organization-console__loading'>
+        <Spin />
       </div>
     );
-  };
+  }
+
+  if (!organization) {
+    return null;
+  }
 
   return (
-    <div className='project-detail__split'>
-      {/* Left: Task Kanban */}
-      <div className='project-detail__tasks'>
-        <div className='task-board'>
-          <div className='task-board__header'>
-            <div className='project-detail__title-area'>
-              <Button
-                type='text'
-                icon={<Left theme='outline' size={18} />}
-                onClick={() => void navigate('/tasks')}
-                className='project-detail__back-btn'
-              />
-              <h1 className='task-board__title'>{project?.name || '...'}</h1>
-            </div>
-            <Button
-              type='primary'
-              size='small'
-              icon={<Plus theme='outline' />}
-              onClick={() => setCreateModalVisible(true)}
-            >
-              {t('task.create', { defaultValue: 'New Task' })}
-            </Button>
-          </div>
-
-          {project?.workspace && (
-            <div
-              className='project-detail__workspace-bar'
-              title={project.workspace}
-              onClick={() => void ipcBridge.shell.showItemInFolder.invoke(project.workspace)}
-            >
-              <FolderOpen theme='outline' size={14} />
-              <span className='project-detail__workspace-path'>{project.workspace}</span>
-            </div>
-          )}
-
-          <DndContext
-            sensors={sensors}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            onDragCancel={handleDragCancel}
-          >
-            <div className='task-board__columns task-board__columns--5'>
-              {columns.map((column) => (
-                <div
-                  key={column.status}
-                  className={classNames('task-board__column', `task-board__column--${column.status}`)}
-                >
-                  <div className='task-board__column-header'>
-                    <h3 className='task-board__column-title'>{t(column.titleKey, { defaultValue: column.status })}</h3>
-                    <span className='task-board__column-count'>{column.tasks.length}</span>
-                  </div>
-                  <DroppableColumn status={column.status}>
-                    {column.tasks.length === 0 ? (
-                      <div className='task-board__column-empty'>
-                        <Empty description={t('task.noTasks', { defaultValue: 'No tasks' })} />
-                      </div>
-                    ) : (
-                      column.tasks.map((task) => (
-                        <DraggableTaskCard key={task.id} task={task}>
-                          {renderTaskCard(task)}
-                        </DraggableTaskCard>
-                      ))
-                    )}
-                  </DroppableColumn>
-                </div>
-              ))}
-            </div>
-
-            <DragOverlay>
-              {activeTask ? <div className='task-board__card task-board__card--overlay'>{activeTask.name}</div> : null}
-            </DragOverlay>
-          </DndContext>
-        </div>
-      </div>
-
-      {/* Right: AI Conversation (always visible) */}
-      <div className='project-detail__conversation'>
-        <ProjectConversationPanel project={project} onProjectUpdate={() => void loadProject()} />
-      </div>
-
-      {/* Create Task Modal */}
-      <Modal
-        title={t('task.create', { defaultValue: 'New Task' })}
-        visible={createModalVisible}
-        onOk={handleCreateTask}
-        onCancel={() => {
-          setCreateModalVisible(false);
-          setNewTaskName('');
-          setNewTaskDesc('');
-          setNewTaskStatus('brainstorming');
-        }}
-        okText={t('common.create', { defaultValue: 'Create' })}
-        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-      >
-        <div className='task-board__modal-form'>
-          <div className='task-board__modal-field'>
-            <label>{t('task.name', { defaultValue: 'Task Name' })}</label>
-            <Input
-              value={newTaskName}
-              onChange={setNewTaskName}
-              placeholder={t('task.namePlaceholder', { defaultValue: 'Enter task name...' })}
-              autoFocus
-            />
-          </div>
-          <div className='task-board__modal-field'>
-            <label>{t('task.description', { defaultValue: 'Description' })}</label>
-            <Input.TextArea
-              value={newTaskDesc}
-              onChange={setNewTaskDesc}
-              placeholder={t('task.descriptionPlaceholder', { defaultValue: 'Enter task description (optional)...' })}
-              rows={3}
-            />
-          </div>
-          <div className='task-board__modal-field'>
-            <label>{t('task.statusLabel', { defaultValue: 'Status' })}</label>
-            <Select value={newTaskStatus} onChange={setNewTaskStatus}>
-              {ALL_STATUSES.map((s) => (
-                <Select.Option key={s} value={s}>
-                  {statusLabel(s)}
-                </Select.Option>
-              ))}
-            </Select>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Edit Task Modal */}
-      <Modal
-        title={t('task.edit', { defaultValue: 'Edit Task' })}
-        visible={!!editingTask}
-        onOk={async () => {
-          if (editingTask) {
-            try {
-              await ipcBridge.workTask.update.invoke({
-                id: editingTask.id,
-                updates: { name: editingTask.name, description: editingTask.description },
-              });
-              setEditingTask(null);
-            } catch (error) {
-              console.error('Failed to update task:', error);
-              Message.error(t('task.updateFailed', { defaultValue: 'Failed to update task' }));
-            }
-          }
-        }}
-        onCancel={() => setEditingTask(null)}
-        okText={t('common.save', { defaultValue: 'Save' })}
-        cancelText={t('common.cancel', { defaultValue: 'Cancel' })}
-      >
-        {editingTask && (
-          <div className='task-board__modal-form'>
-            <div className='task-board__modal-field'>
-              <label>{t('task.name', { defaultValue: 'Task Name' })}</label>
-              <Input value={editingTask.name} onChange={(v) => setEditingTask({ ...editingTask, name: v })} />
-            </div>
-            <div className='task-board__modal-field'>
-              <label>{t('task.description', { defaultValue: 'Description' })}</label>
-              <Input.TextArea
-                value={editingTask.description || ''}
-                onChange={(v) => setEditingTask({ ...editingTask, description: v })}
-                rows={3}
-              />
-            </div>
-          </div>
-        )}
-      </Modal>
-    </div>
+    <OrganizationConsole
+      organization={organization}
+      tasks={tasks}
+      runs={runs}
+      artifacts={artifacts}
+      memoryCards={memoryCards}
+      evalSpecs={evalSpecs}
+      skills={skills}
+      genomePatches={genomePatches}
+      pendingGovernanceCount={pendingGovernanceCount}
+      onBack={() => void navigate('/tasks')}
+    />
   );
 };
 
