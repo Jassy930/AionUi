@@ -1008,6 +1008,55 @@ import type {
   ICreateTaskParams,
   IUpdateTaskParams,
 } from '@/common/types/task';
+import type {
+  TOrganization,
+  TOrgTask,
+  TOrgRun,
+  TOrgArtifact,
+  TOrgMemoryCard,
+  TOrgEvalSpec,
+  TOrgSkill,
+  TOrgGenomePatch,
+  ArtifactType,
+  MemoryCardType,
+  GovernanceTargetType,
+  ICreateOrganizationParams,
+  IUpdateOrganizationParams,
+  ICreateOrgTaskParams,
+  IListOrgTaskParams,
+  IUpdateOrgTaskParams,
+  IStartOrgRunParams,
+  IListOrgRunParams,
+  IUpdateOrgRunParams,
+  ICreateOrgArtifactParams,
+  IListOrgArtifactParams,
+  ICreateOrgMemoryCardParams,
+  IListOrgMemoryCardParams,
+  ICreateOrgEvalSpecParams,
+  IListOrgEvalSpecParams,
+  IOrgEvalExecuteParams,
+  TOrgEvalExecutionResult,
+  ICreateOrgSkillParams,
+  IListOrgSkillParams,
+  ICreateOrgGenomePatchParams,
+  IListOrgGenomePatchParams,
+  TOrgEvolutionEvaluationResult,
+  IOrgEvolutionDecisionParams,
+  IOrgGovernanceApproveParams,
+  IOrgGovernanceRejectParams,
+  IOrgGovernanceListPendingParams,
+  IOrgGovernanceGetAuditLogsParams,
+  TOrgGovernancePendingItem,
+  TOrgGovernanceAuditLog,
+  TaskStatus as OrgTaskStatus,
+  RunStatus,
+  GenomePatchStatus,
+  TASK_STATUS_VALUES as ORG_TASK_STATUS_VALUES,
+  RUN_STATUS_VALUES,
+  GENOME_PATCH_STATUS_VALUES,
+  MUTATION_TARGET_VALUES as ORG_MUTATION_TARGET_VALUES,
+  GOVERNANCE_TARGET_TYPE_VALUES as ORG_GOVERNANCE_TARGET_TYPE_VALUES,
+} from '@/common/types/organization';
 
 export type {
   TProject,
@@ -1019,6 +1068,59 @@ export type {
   TaskStatus,
   ICreateTaskParams,
   IUpdateTaskParams,
+};
+
+export type {
+  TOrganization,
+  TOrgTask,
+  TOrgRun,
+  TOrgArtifact,
+  TOrgMemoryCard,
+  TOrgEvalSpec,
+  TOrgSkill,
+  TOrgGenomePatch,
+  ArtifactType,
+  MemoryCardType,
+  GovernanceTargetType,
+  ICreateOrganizationParams,
+  IUpdateOrganizationParams,
+  ICreateOrgTaskParams,
+  IListOrgTaskParams,
+  IUpdateOrgTaskParams,
+  IStartOrgRunParams,
+  IListOrgRunParams,
+  IUpdateOrgRunParams,
+  ICreateOrgArtifactParams,
+  IListOrgArtifactParams,
+  ICreateOrgMemoryCardParams,
+  IListOrgMemoryCardParams,
+  ICreateOrgEvalSpecParams,
+  IListOrgEvalSpecParams,
+  IOrgEvalExecuteParams,
+  TOrgEvalExecutionResult,
+  ICreateOrgSkillParams,
+  IListOrgSkillParams,
+  ICreateOrgGenomePatchParams,
+  IListOrgGenomePatchParams,
+  TOrgEvolutionEvaluationResult,
+  IOrgEvolutionDecisionParams,
+  IOrgGovernanceApproveParams,
+  IOrgGovernanceRejectParams,
+  IOrgGovernanceListPendingParams,
+  IOrgGovernanceGetAuditLogsParams,
+  TOrgGovernancePendingItem,
+  TOrgGovernanceAuditLog,
+  OrgTaskStatus,
+  RunStatus,
+  GenomePatchStatus,
+};
+
+export {
+  ORG_TASK_STATUS_VALUES,
+  RUN_STATUS_VALUES,
+  GENOME_PATCH_STATUS_VALUES,
+  ORG_MUTATION_TARGET_VALUES,
+  ORG_GOVERNANCE_TARGET_TYPE_VALUES,
 };
 
 export const project = {
@@ -1063,4 +1165,147 @@ export const workTask = {
   deleted: bridge.buildEmitter<{ id: string }>('workTask.deleted'),
   /** Fired when a task's sub-conversations change (created, status change, etc.) */
   conversationsChanged: bridge.buildEmitter<{ taskId: string }>('workTask.conversations-changed'),
+};
+
+// ==================== Organization OS API ====================
+// Organization control plane: organization/task/run/artifact/memory/eval/skill/evolution/governance
+
+export const org = {
+  organization: {
+    create: bridge.buildProvider<IBridgeResponse<TOrganization>, ICreateOrganizationParams>('org.organization.create'),
+    get: bridge.buildProvider<IBridgeResponse<TOrganization>, { id: string }>('org.organization.get'),
+    list: bridge.buildProvider<IBridgeResponse<TOrganization[]>, void>('org.organization.list'),
+    update: bridge.buildProvider<IBridgeResponse<boolean>, IUpdateOrganizationParams>('org.organization.update'),
+    delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.organization.delete'),
+    created: bridge.buildEmitter<TOrganization>('org.organization.created'),
+    updated: bridge.buildEmitter<TOrganization>('org.organization.updated'),
+    deleted: bridge.buildEmitter<{ id: string }>('org.organization.deleted'),
+  },
+  task: {
+    create: bridge.buildProvider<IBridgeResponse<TOrgTask>, ICreateOrgTaskParams>('org.task.create'),
+    get: bridge.buildProvider<IBridgeResponse<TOrgTask>, { id: string }>('org.task.get'),
+    list: bridge.buildProvider<IBridgeResponse<TOrgTask[]>, IListOrgTaskParams>('org.task.list'),
+    update: bridge.buildProvider<IBridgeResponse<boolean>, IUpdateOrgTaskParams>('org.task.update'),
+    updateStatus: bridge.buildProvider<IBridgeResponse<boolean>, { id: string; status: OrgTaskStatus }>(
+      'org.task.update-status'
+    ),
+    delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.task.delete'),
+    created: bridge.buildEmitter<TOrgTask>('org.task.created'),
+    updated: bridge.buildEmitter<TOrgTask>('org.task.updated'),
+    statusChanged: bridge.buildEmitter<{ id: string; status: OrgTaskStatus }>('org.task.status-changed'),
+    deleted: bridge.buildEmitter<{ id: string }>('org.task.deleted'),
+  },
+  run: {
+    start: bridge.buildProvider<IBridgeResponse<TOrgRun>, IStartOrgRunParams>('org.run.start'),
+    get: bridge.buildProvider<IBridgeResponse<TOrgRun>, { id: string }>('org.run.get'),
+    list: bridge.buildProvider<IBridgeResponse<TOrgRun[]>, IListOrgRunParams>('org.run.list'),
+    update: bridge.buildProvider<IBridgeResponse<boolean>, IUpdateOrgRunParams>('org.run.update'),
+    close: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.run.close'),
+    cancel: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.run.cancel'),
+    created: bridge.buildEmitter<TOrgRun>('org.run.created'),
+    updated: bridge.buildEmitter<TOrgRun>('org.run.updated'),
+    statusChanged: bridge.buildEmitter<{ id: string; status: RunStatus }>('org.run.status-changed'),
+    closed: bridge.buildEmitter<{ id: string }>('org.run.closed'),
+  },
+  artifact: {
+    create: bridge.buildProvider<IBridgeResponse<TOrgArtifact>, ICreateOrgArtifactParams>('org.artifact.create'),
+    get: bridge.buildProvider<IBridgeResponse<TOrgArtifact>, { id: string }>('org.artifact.get'),
+    list: bridge.buildProvider<IBridgeResponse<TOrgArtifact[]>, IListOrgArtifactParams>('org.artifact.list'),
+    update: bridge.buildProvider<
+      IBridgeResponse<boolean>,
+      { id: string; updates: Partial<Pick<TOrgArtifact, 'title' | 'summary' | 'content_ref' | 'metadata'>> }
+    >('org.artifact.update'),
+    delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.artifact.delete'),
+    created: bridge.buildEmitter<TOrgArtifact>('org.artifact.created'),
+    updated: bridge.buildEmitter<TOrgArtifact>('org.artifact.updated'),
+    deleted: bridge.buildEmitter<{ id: string }>('org.artifact.deleted'),
+  },
+  memory: {
+    promote: bridge.buildProvider<IBridgeResponse<TOrgMemoryCard>, ICreateOrgMemoryCardParams>('org.memory.promote'),
+    get: bridge.buildProvider<IBridgeResponse<TOrgMemoryCard>, { id: string }>('org.memory.get'),
+    list: bridge.buildProvider<IBridgeResponse<TOrgMemoryCard[]>, IListOrgMemoryCardParams>('org.memory.list'),
+    update: bridge.buildProvider<
+      IBridgeResponse<boolean>,
+      { id: string; updates: Partial<Pick<TOrgMemoryCard, 'title' | 'knowledge_unit' | 'tags'>> }
+    >('org.memory.update'),
+    delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.memory.delete'),
+    promoted: bridge.buildEmitter<TOrgMemoryCard>('org.memory.promoted'),
+    updated: bridge.buildEmitter<TOrgMemoryCard>('org.memory.updated'),
+    deleted: bridge.buildEmitter<{ id: string }>('org.memory.deleted'),
+  },
+  eval: {
+    create: bridge.buildProvider<IBridgeResponse<TOrgEvalSpec>, ICreateOrgEvalSpecParams>('org.eval.create'),
+    get: bridge.buildProvider<IBridgeResponse<TOrgEvalSpec>, { id: string }>('org.eval.get'),
+    list: bridge.buildProvider<IBridgeResponse<TOrgEvalSpec[]>, IListOrgEvalSpecParams>('org.eval.list'),
+    update: bridge.buildProvider<
+      IBridgeResponse<boolean>,
+      {
+        id: string;
+        updates: Partial<
+          Pick<
+            TOrgEvalSpec,
+            'name' | 'description' | 'test_commands' | 'quality_gates' | 'baseline_comparison' | 'thresholds'
+          >
+        >;
+      }
+    >('org.eval.update'),
+    delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.eval.delete'),
+    execute: bridge.buildProvider<IBridgeResponse<TOrgEvalExecutionResult>, IOrgEvalExecuteParams>('org.eval.execute'),
+    created: bridge.buildEmitter<TOrgEvalSpec>('org.eval.created'),
+    updated: bridge.buildEmitter<TOrgEvalSpec>('org.eval.updated'),
+    deleted: bridge.buildEmitter<{ id: string }>('org.eval.deleted'),
+    executed: bridge.buildEmitter<{ task_id: string; run_id?: string; success: boolean }>('org.eval.executed'),
+  },
+  skill: {
+    create: bridge.buildProvider<IBridgeResponse<TOrgSkill>, ICreateOrgSkillParams>('org.skill.create'),
+    get: bridge.buildProvider<IBridgeResponse<TOrgSkill>, { id: string }>('org.skill.get'),
+    list: bridge.buildProvider<IBridgeResponse<TOrgSkill[]>, IListOrgSkillParams>('org.skill.list'),
+    update: bridge.buildProvider<
+      IBridgeResponse<boolean>,
+      {
+        id: string;
+        updates: Partial<Pick<TOrgSkill, 'name' | 'description' | 'workflow_unit' | 'instructions' | 'resources'>>;
+      }
+    >('org.skill.update'),
+    delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.skill.delete'),
+    created: bridge.buildEmitter<TOrgSkill>('org.skill.created'),
+    updated: bridge.buildEmitter<TOrgSkill>('org.skill.updated'),
+    deleted: bridge.buildEmitter<{ id: string }>('org.skill.deleted'),
+  },
+  evolution: {
+    propose: bridge.buildProvider<IBridgeResponse<TOrgGenomePatch>, ICreateOrgGenomePatchParams>(
+      'org.evolution.propose'
+    ),
+    get: bridge.buildProvider<IBridgeResponse<TOrgGenomePatch>, { id: string }>('org.evolution.get'),
+    list: bridge.buildProvider<IBridgeResponse<TOrgGenomePatch[]>, IListOrgGenomePatchParams>('org.evolution.list'),
+    update: bridge.buildProvider<
+      IBridgeResponse<boolean>,
+      { id: string; updates: Partial<Pick<TOrgGenomePatch, 'proposal' | 'based_on'>> }
+    >('org.evolution.update'),
+    delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.evolution.delete'),
+    offlineEval: bridge.buildProvider<IBridgeResponse<TOrgEvolutionEvaluationResult>, { id: string }>(
+      'org.evolution.offline-eval'
+    ),
+    canary: bridge.buildProvider<IBridgeResponse<TOrgEvolutionEvaluationResult>, { id: string }>(
+      'org.evolution.canary'
+    ),
+    adopt: bridge.buildProvider<IBridgeResponse<boolean>, IOrgEvolutionDecisionParams>('org.evolution.adopt'),
+    reject: bridge.buildProvider<IBridgeResponse<boolean>, IOrgEvolutionDecisionParams>('org.evolution.reject'),
+    proposed: bridge.buildEmitter<TOrgGenomePatch>('org.evolution.proposed'),
+    statusChanged: bridge.buildEmitter<{ id: string; status: GenomePatchStatus }>('org.evolution.status-changed'),
+    adopted: bridge.buildEmitter<{ id: string }>('org.evolution.adopted'),
+    rejected: bridge.buildEmitter<{ id: string }>('org.evolution.rejected'),
+  },
+  governance: {
+    approve: bridge.buildProvider<IBridgeResponse<boolean>, IOrgGovernanceApproveParams>('org.governance.approve'),
+    reject: bridge.buildProvider<IBridgeResponse<boolean>, IOrgGovernanceRejectParams>('org.governance.reject'),
+    listPending: bridge.buildProvider<IBridgeResponse<TOrgGovernancePendingItem[]>, IOrgGovernanceListPendingParams>(
+      'org.governance.list-pending'
+    ),
+    getAuditLogs: bridge.buildProvider<IBridgeResponse<TOrgGovernanceAuditLog[]>, IOrgGovernanceGetAuditLogsParams>(
+      'org.governance.get-audit-logs'
+    ),
+    approved: bridge.buildEmitter<{ target_type: GovernanceTargetType; target_id: string }>('org.governance.approved'),
+    rejected: bridge.buildEmitter<{ target_type: GovernanceTargetType; target_id: string }>('org.governance.rejected'),
+  },
 };
