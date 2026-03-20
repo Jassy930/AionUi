@@ -30,6 +30,7 @@ import { initWebuiBridge } from './webuiBridge';
 import { initSystemSettingsBridge } from './systemSettingsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
 import { initNotificationBridge } from './notificationBridge';
+import { initOrganizationBridge } from './organizationBridge';
 import { initExtensionsBridge } from './extensionsBridge';
 import { initWorkTaskBridge } from './workTaskBridge';
 
@@ -64,7 +65,10 @@ export function initAllBridges(): void {
   initTaskBridge();
   initExtensionsBridge();
   initStarOfficeBridge();
+  // Legacy compatibility path during Organization OS migration.
+  // New work should prefer the org.* control plane.
   initWorkTaskBridge();
+  initOrganizationBridge();
 }
 
 /**
@@ -98,6 +102,7 @@ export {
   initMcpBridge,
   initModelBridge,
   initNotificationBridge,
+  initOrganizationBridge,
   initPreviewHistoryBridge,
   initShellBridge,
   initStarOfficeBridge,

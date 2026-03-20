@@ -9,6 +9,9 @@
  *
  * Handles CRUD operations for both Projects and Tasks
  * Project → Task → Thread (Conversation) hierarchy
+ *
+ * Legacy compatibility layer during the Organization OS migration.
+ * New control-plane work should prefer organizationBridge and org.* contracts.
  */
 
 import { ipcBridge } from '@/common';

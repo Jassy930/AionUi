@@ -1177,6 +1177,15 @@ export const org = {
     list: bridge.buildProvider<IBridgeResponse<TOrganization[]>, void>('org.organization.list'),
     update: bridge.buildProvider<IBridgeResponse<boolean>, IUpdateOrganizationParams>('org.organization.update'),
     delete: bridge.buildProvider<IBridgeResponse<boolean>, { id: string }>('org.organization.delete'),
+    initContext: bridge.buildProvider<IBridgeResponse<boolean>, { organizationId: string }>(
+      'org.organization.init-context'
+    ),
+    syncContext: bridge.buildProvider<IBridgeResponse<boolean>, { organizationId: string }>(
+      'org.organization.sync-context'
+    ),
+    getSystemPrompt: bridge.buildProvider<IBridgeResponse<string>, { organizationId: string }>(
+      'org.organization.get-system-prompt'
+    ),
     created: bridge.buildEmitter<TOrganization>('org.organization.created'),
     updated: bridge.buildEmitter<TOrganization>('org.organization.updated'),
     deleted: bridge.buildEmitter<{ id: string }>('org.organization.deleted'),
@@ -1209,6 +1218,7 @@ export const org = {
   },
   artifact: {
     create: bridge.buildProvider<IBridgeResponse<TOrgArtifact>, ICreateOrgArtifactParams>('org.artifact.create'),
+    register: bridge.buildProvider<IBridgeResponse<TOrgArtifact>, ICreateOrgArtifactParams>('org.artifact.register'),
     get: bridge.buildProvider<IBridgeResponse<TOrgArtifact>, { id: string }>('org.artifact.get'),
     list: bridge.buildProvider<IBridgeResponse<TOrgArtifact[]>, IListOrgArtifactParams>('org.artifact.list'),
     update: bridge.buildProvider<
