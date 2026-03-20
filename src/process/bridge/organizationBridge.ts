@@ -31,6 +31,10 @@ import {
   startOrganizationWatcher,
   stopOrganizationWatcher,
 } from '@process/services/organizationOpsWatcher';
+import {
+  executeGenomePatchCanary,
+  executeGenomePatchOfflineEval,
+} from '@process/services/organizationEvolutionService';
 import { ConversationService } from '@process/services/conversationService';
 
 function wrapResult<T>(success: boolean, data?: T, msg?: string) {
@@ -885,21 +889,14 @@ export function initOrganizationBridge(): void {
       return wrapResult(false, undefined, 'Organization genome patch not found');
     }
 
-    const updated = {
-      status: 'offline_eval' as const,
-      offline_eval_result: {
-        score: 1,
-        summary: 'Task 3 skeleton offline evaluation completed.',
-      },
-    };
-    const result = db.updateOrgGenomePatch(id, updated);
-    if (!result.success) {
+    const result = executeGenomePatchOfflineEval({ patch_id: id });
+    if (!result.success || !result.data) {
       return wrapResult(false, undefined, result.error);
     }
 
     ipcBridge.org.evolution.statusChanged.emit({ id, status: 'offline_eval' });
     syncOrganizationContext(patch.organization_id);
-    return wrapResult(true, { id, status: 'offline_eval', score: 1, summary: updated.offline_eval_result.summary });
+    return wrapResult(true, result.data);
   });
 
   ipcBridge.org.evolution.canary.provider(async ({ id }) => {
@@ -908,21 +905,14 @@ export function initOrganizationBridge(): void {
       return wrapResult(false, undefined, 'Organization genome patch not found');
     }
 
-    const updated = {
-      status: 'canary' as const,
-      canary_result: {
-        score: 1,
-        summary: 'Task 3 skeleton canary completed.',
-      },
-    };
-    const result = db.updateOrgGenomePatch(id, updated);
-    if (!result.success) {
+    const result = executeGenomePatchCanary({ patch_id: id });
+    if (!result.success || !result.data) {
       return wrapResult(false, undefined, result.error);
     }
 
     ipcBridge.org.evolution.statusChanged.emit({ id, status: 'canary' });
     syncOrganizationContext(patch.organization_id);
-    return wrapResult(true, { id, status: 'canary', score: 1, summary: updated.canary_result.summary });
+    return wrapResult(true, result.data);
   });
 
   ipcBridge.org.evolution.adopt.provider(async ({ id, approved_by, reason }) => {

@@ -11,6 +11,9 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import type { TOrganization, TOrgTask, TOrgEvalSpec } from '@/common/types/organization';
 
 let currentDb: import('@/process/database').AionUIDatabase;
+const { safeExecFileMock } = vi.hoisted(() => ({
+  safeExecFileMock: vi.fn(),
+}));
 
 const TEST_DATA_PATH = path.join(
   os.tmpdir(),
@@ -35,6 +38,10 @@ vi.mock('@process/database', async () => {
   };
 });
 
+vi.mock('@process/utils/safeExec', () => ({
+  safeExecFile: safeExecFileMock,
+}));
+
 import { AionUIDatabase } from '@/process/database';
 import { getOrganizationContextDir, initOrganizationContext } from '@/process/services/organizationContextService';
 import {
@@ -49,6 +56,8 @@ describe('organizationOpsWatcher', () => {
   let evalSpec: TOrgEvalSpec;
 
   beforeEach(() => {
+    safeExecFileMock.mockReset();
+    safeExecFileMock.mockResolvedValue({ stdout: 'ok\n', stderr: '' });
     fs.mkdirSync(TEST_DATA_PATH, { recursive: true });
     fs.mkdirSync(WORKSPACE_PATH, { recursive: true });
     if (fs.existsSync(DB_PATH)) {
@@ -207,7 +216,7 @@ describe('organizationOpsWatcher', () => {
     });
     expect(governanceResult.success).toBe(true);
 
-    expect(db.getOrgRun(createdRunId).data?.status).toBe('active');
+    expect(db.getOrgRun(createdRunId).data?.status).toBe('reviewing');
     expect(db.getOrgTask(createdTaskId).data?.status).toBe('running');
     expect(db.listOrgArtifacts({ run_id: createdRunId }).data).toHaveLength(1);
     expect(db.listOrgMemoryCards({ organization_id: organization.id }).data).toHaveLength(1);
@@ -361,12 +370,23 @@ describe('organizationOpsWatcher', () => {
   });
 
   it('reverts governance approval when audit persistence fails', async () => {
+    const runStartResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/run/start',
+      params: {
+        task_id: task.id,
+        workspace: { mode: 'isolated', type: 'worktree', path: path.join(WORKSPACE_PATH, 'runs/run-governance') },
+        environment: { kind: 'cloud', env_id: 'ts-ci' },
+      },
+    });
+    expect(runStartResult.success).toBe(true);
+    const runId = (runStartResult.data as { id: string }).id;
+
     const patchResult = await executeOrganizationOperation(organization.id, organization.workspace, {
       method: 'org/evolution/propose',
       params: {
         organization_id: organization.id,
         mutation_target: 'skill',
-        based_on: [task.id],
+        based_on: [runId],
         proposal: { skill_name: 'watcher-triage', change_type: 'create' },
       },
     });

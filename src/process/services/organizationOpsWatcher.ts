@@ -22,6 +22,8 @@ import type {
 } from '@/common/types/organization';
 import { getDatabase } from '@process/database';
 import { getOrganizationContextDir, syncOrganizationContext } from './organizationContextService';
+import { executeOrganizationEval, registerOrganizationArtifact } from './organizationEvalService';
+import { promoteMemoryCardFromRun, proposeGenomePatchFromRuns } from './organizationEvolutionService';
 
 type OperationPayload = {
   method?: string;
@@ -293,9 +295,17 @@ async function handleRegisterArtifact(
     return { success: false, method: 'org/artifact/register', message: 'Run does not belong to the provided task' };
   }
 
-  const artifact = buildArtifact(params);
-  const result = db.createOrgArtifact(artifact);
-  if (!result.success) {
+  const result = registerOrganizationArtifact({
+    organization_id: params.organization_id as string,
+    task_id: params.task_id as string,
+    run_id: params.run_id as string,
+    type: ((params.type as ArtifactType) || 'other') as ArtifactType,
+    title: params.title as string,
+    summary: params.summary as string | undefined,
+    content_ref: params.content_ref as string | undefined,
+    metadata: params.metadata as Record<string, unknown> | undefined,
+  });
+  if (!result.success || !result.data) {
     return { success: false, method: 'org/artifact/register', message: result.error || 'Failed to create artifact' };
   }
 
@@ -303,7 +313,7 @@ async function handleRegisterArtifact(
     success: true,
     method: 'org/artifact/register',
     message: 'Organization artifact registered',
-    data: artifact,
+    data: result.data,
   };
 }
 
@@ -343,17 +353,14 @@ async function handleExecuteEval(
     }
   }
 
-  const result: TOrgEvalExecutionResult = {
+  const result = await executeOrganizationEval({
     task_id: taskId,
     run_id: params.run_id as string | undefined,
     eval_spec_id: params.eval_spec_id as string | undefined,
-    passed: true,
-    score: 1,
-    threshold_violations: [],
-    summary: 'Task 3 skeleton evaluation completed successfully.',
-  };
-
-  return { success: true, method: 'org/eval/execute', message: 'Organization eval executed', data: result };
+  });
+  return result.success
+    ? { success: true, method: 'org/eval/execute', message: 'Organization eval executed', data: result.data }
+    : { success: false, method: 'org/eval/execute', message: result.error || 'Organization eval failed' };
 }
 
 async function handlePromoteMemory(
@@ -388,6 +395,20 @@ async function handlePromoteMemory(
     }
   }
 
+  if (params.run_id) {
+    const result = promoteMemoryCardFromRun({
+      organization_id: params.organization_id as string,
+      run_id: params.run_id as string,
+      artifact_ids: params.artifact_ids as string[] | undefined,
+      type: params.type as TOrgMemoryCard['type'],
+      title: params.title as string,
+      tags: params.tags as string[] | undefined,
+    });
+    return result.success
+      ? { success: true, method: 'org/memory/promote', message: 'Organization memory promoted', data: result.data }
+      : { success: false, method: 'org/memory/promote', message: result.error || 'Failed to create memory card' };
+  }
+
   const memoryCard = buildMemoryCard(params);
   const result = db.createOrgMemoryCard(memoryCard);
   if (!result.success) {
@@ -416,18 +437,16 @@ async function handleProposeEvolution(
     };
   }
 
-  const patch = buildGenomePatch(params);
-  const db = getDatabase();
-  const result = db.createOrgGenomePatch(patch);
-  if (!result.success) {
-    return {
-      success: false,
-      method: 'org/evolution/propose',
-      message: result.error || 'Failed to create genome patch',
-    };
-  }
-
-  return { success: true, method: 'org/evolution/propose', message: 'Genome patch proposed', data: patch };
+  const result = proposeGenomePatchFromRuns({
+    organization_id: params.organization_id as string,
+    mutation_target: params.mutation_target as TOrgGenomePatch['mutation_target'],
+    based_on: (params.based_on as string[]) || [],
+    proposal: (params.proposal as Record<string, unknown>) || {},
+    status: (params.status as GenomePatchStatus | undefined) || undefined,
+  });
+  return result.success
+    ? { success: true, method: 'org/evolution/propose', message: 'Genome patch proposed', data: result.data }
+    : { success: false, method: 'org/evolution/propose', message: result.error || 'Failed to create genome patch' };
 }
 
 async function handleGovernanceApprove(

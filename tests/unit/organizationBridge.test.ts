@@ -10,6 +10,10 @@ import path from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TOrganization, TOrgTask, TOrgEvalSpec } from '@/common/types/organization';
 
+const { safeExecFileMock } = vi.hoisted(() => ({
+  safeExecFileMock: vi.fn(),
+}));
+
 const TEST_DATA_PATH = path.join(os.tmpdir(), `aionui-org-bridge-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 const DB_PATH = path.join(TEST_DATA_PATH, 'aionui.db');
 
@@ -20,6 +24,10 @@ vi.mock('@process/utils', async () => {
     getDataPath: () => TEST_DATA_PATH,
   };
 });
+
+vi.mock('@process/utils/safeExec', () => ({
+  safeExecFile: safeExecFileMock,
+}));
 
 import { AionUIDatabase } from '@/process/database';
 
@@ -164,6 +172,8 @@ describe('organizationBridge', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    safeExecFileMock.mockReset();
+    safeExecFileMock.mockResolvedValue({ stdout: 'ok\n', stderr: '' });
 
     fs.mkdirSync(TEST_DATA_PATH, { recursive: true });
     if (fs.existsSync(DB_PATH)) {
@@ -358,7 +368,7 @@ describe('organizationBridge', () => {
     expect(governanceResult.success).toBe(true);
 
     expect(db.getOrgTask(createdTaskId).data?.title).toBe('Created by bridge');
-    expect(db.getOrgRun(createdRunId).data?.status).toBe('active');
+    expect(db.getOrgRun(createdRunId).data?.status).toBe('reviewing');
     expect(db.listOrgArtifacts({ run_id: createdRunId }).data).toHaveLength(1);
     expect(db.listOrgMemoryCards({ organization_id: organization.id }).data).toHaveLength(1);
     expect(db.getOrgGenomePatch(patchResult.data.id).data?.status).toBe('adopted');
