@@ -1,20 +1,101 @@
 {
-  "listTitle": "プロジェクト",
-  "create": "新規プロジェクト",
-  "edit": "プロジェクトを編集",
-  "name": "プロジェクト名",
-  "namePlaceholder": "プロジェクト名を入力...",
-  "nameRequired": "プロジェクト名は必須です",
+  "listTitle": "組織一覧",
+  "create": "新規組織",
+  "edit": "組織を編集",
+  "name": "組織名",
+  "namePlaceholder": "組織名を入力...",
+  "nameRequired": "組織名は必須です",
+  "workspaceRequired": "ワークスペースは必須です",
   "description": "説明",
   "descriptionPlaceholder": "説明を入力（任意）...",
   "workspace": "ワークスペース",
-  "workspaceDefault": "デフォルト（AionUi ワークスペース）",
+  "workspaceDefault": "組織ワークスペースを選択",
   "browse": "参照",
-  "created": "プロジェクトを作成しました",
-  "createFailed": "プロジェクトの作成に失敗しました",
-  "deleted": "プロジェクトを削除しました",
-  "deleteFailed": "プロジェクトの削除に失敗しました",
-  "updateFailed": "プロジェクトの更新に失敗しました",
-  "noProjects": "プロジェクトがありません",
-  "tasks": "件のタスク"
+  "created": "組織を作成しました",
+  "createFailed": "組織の作成に失敗しました",
+  "deleted": "組織を削除しました",
+  "deleteFailed": "組織の削除に失敗しました",
+  "updateFailed": "組織の更新に失敗しました",
+  "noProjects": "組織がありません",
+  "organizationBadge": "組織ワークスペース",
+  "tasks": "件のタスク",
+  "console": {
+    "back": "戻る",
+    "organizationEyebrow": "組織",
+    "mainEyebrow": "組織コンソール",
+    "navAriaLabel": "組織ビュー",
+    "nav": {
+      "overview": "概要",
+      "tasks": "タスク契約",
+      "runs": "実行インスタンス",
+      "artifacts": "成果物",
+      "memory": "組織メモリ",
+      "evalSpecs": "評価仕様",
+      "skills": "スキル",
+      "genomePatches": "ゲノムパッチ",
+      "governance": "ガバナンス"
+    },
+    "overview": {
+      "stats": {
+        "tasks": "タスク契約",
+        "runs": "実行インスタンス",
+        "artifacts": "成果物",
+        "pendingGovernance": "保留中のガバナンス"
+      },
+      "controlLoopTitle": "制御ループ",
+      "controlLoopDescription": "タスク契約 -> 実行インスタンス -> 成果物 -> 評価 -> MemoryCard -> ゲノムパッチ -> ガバナンス"
+    },
+    "tower": {
+      "aiTitle": "組織 AI",
+      "aiPlaceholder": "組織レベルの制御会話は次のイテレーションで接続されます。",
+      "aiAgentHint": "組織AIマネージャーのエージェントを選択",
+      "actionsTitle": "構造化アクション",
+      "inspectorTitle": "オブジェクトインスペクター",
+      "unsupportedAgentType": "このエージェントタイプは組織モードではまだサポートされていません",
+      "inspector": {
+        "organization": "組織",
+        "workspace": "ワークスペース",
+        "currentView": "現在のビュー",
+        "pendingGovernance": "保留中のガバナンス"
+      }
+    },
+    "actions": {
+      "createTask": "タスク契約を作成",
+      "startRun": "実行を開始",
+      "executeEval": "評価を実行",
+      "promoteMemory": "メモリを昇格",
+      "proposePatch": "パッチ提案を送信"
+    },
+    "empty": {
+      "tasks": "タスク契約がありません",
+      "runs": "実行インスタンスがありません",
+      "artifacts": "成果物がありません",
+      "memory": "組織メモリがありません",
+      "evalSpecs": "評価仕様がありません",
+      "skills": "スキルがありません",
+      "genomePatches": "ゲノムパッチがありません",
+      "governance": "保留中のガバナンス項目はありません"
+    },
+    "run": {
+      "status": "ステータス: {{status}}"
+    },
+    "evalSpec": {
+      "commandsCount": "{{count}} 件のコマンド"
+    },
+    "genomePatch": {
+      "status": "ステータス: {{status}}"
+    },
+    "messages": {
+      "createTaskFailed": "タスクの作成に失敗しました",
+      "noTaskAvailable": "利用可能なタスク契約がありません",
+      "startRunFailed": "実行の開始に失敗しました",
+      "missingEvalRequirements": "評価の実行にはタスク、実行インスタンス、評価仕様が必要です",
+      "executeEvalFailed": "評価の実行に失敗しました",
+      "noRunAvailable": "利用可能な実行インスタンスがありません",
+      "promoteMemoryFailed": "メモリの昇格に失敗しました",
+      "proposePatchFailed": "パッチ提案の送信に失敗しました",
+      "promoteMemoryTitle": "{{runId}} からのメモリ",
+      "promoteMemoryKnowledgeFallback": "最新の実行から得た重要な学びを記録し、今後再利用できるようにします。"
+    }
+  }
 }

@@ -172,4 +172,32 @@ describe('useConversations - workspace expansion', () => {
     // Should stay collapsed, not re-expand
     expect(result.current.expandedWorkspaces).toEqual([]);
   });
+
+  it('should filter organization control and run conversations from grouped history data', async () => {
+    mockInvoke.mockResolvedValue([
+      {
+        id: 'conv-user',
+        name: 'User Conversation',
+        type: 'acp',
+        extra: { workspace: '/ws/a' },
+      },
+      {
+        id: 'conv-org-control',
+        name: 'Organization Control',
+        type: 'acp',
+        extra: { organizationId: 'org_alpha', organizationRole: 'control_plane' },
+      },
+      {
+        id: 'conv-org-run',
+        name: 'Organization Run',
+        type: 'acp',
+        extra: { organizationId: 'org_alpha', runId: 'run_1', organizationRole: 'run_executor' },
+      },
+    ]);
+
+    const { result } = renderHook(() => useConversations());
+    await act(async () => {});
+
+    expect(result.current.conversations.map((conv) => conv.id)).toEqual(['conv-user']);
+  });
 });

@@ -1,20 +1,101 @@
 {
-  "listTitle": "项目",
-  "create": "新建项目",
-  "edit": "编辑项目",
-  "name": "项目名称",
-  "namePlaceholder": "请输入项目名称...",
-  "nameRequired": "项目名称不能为空",
+  "listTitle": "组织列表",
+  "create": "新建组织",
+  "edit": "编辑组织",
+  "name": "组织名称",
+  "namePlaceholder": "请输入组织名称...",
+  "nameRequired": "组织名称不能为空",
+  "workspaceRequired": "工作空间不能为空",
   "description": "描述",
   "descriptionPlaceholder": "请输入描述（可选）...",
   "workspace": "工作空间",
-  "workspaceDefault": "默认（AionUi 工作空间）",
+  "workspaceDefault": "选择组织工作空间",
   "browse": "浏览",
-  "created": "项目已创建",
-  "createFailed": "创建项目失败",
-  "deleted": "项目已删除",
-  "deleteFailed": "删除项目失败",
-  "updateFailed": "更新项目失败",
-  "noProjects": "暂无项目",
-  "tasks": "个任务"
+  "created": "组织已创建",
+  "createFailed": "创建组织失败",
+  "deleted": "组织已删除",
+  "deleteFailed": "删除组织失败",
+  "updateFailed": "更新组织失败",
+  "noProjects": "暂无组织",
+  "organizationBadge": "组织工作空间",
+  "tasks": "个任务",
+  "console": {
+    "back": "返回",
+    "organizationEyebrow": "组织",
+    "mainEyebrow": "组织控制台",
+    "navAriaLabel": "组织视图",
+    "nav": {
+      "overview": "概览",
+      "tasks": "任务契约",
+      "runs": "运行实例",
+      "artifacts": "产物",
+      "memory": "组织记忆",
+      "evalSpecs": "评估规范",
+      "skills": "技能",
+      "genomePatches": "基因补丁",
+      "governance": "治理"
+    },
+    "overview": {
+      "stats": {
+        "tasks": "任务契约",
+        "runs": "运行实例",
+        "artifacts": "产物",
+        "pendingGovernance": "待处理治理"
+      },
+      "controlLoopTitle": "控制闭环",
+      "controlLoopDescription": "任务契约 -> 运行实例 -> 产物 -> 评估 -> MemoryCard -> 基因补丁 -> 治理"
+    },
+    "tower": {
+      "aiTitle": "组织 AI",
+      "aiPlaceholder": "组织级控制会话将在下一轮迭代接入。",
+      "aiAgentHint": "为组织 AI 管理器选择一个代理",
+      "actionsTitle": "结构化动作",
+      "inspectorTitle": "对象检查器",
+      "unsupportedAgentType": "该代理类型暂不支持组织模式",
+      "inspector": {
+        "organization": "组织",
+        "workspace": "工作空间",
+        "currentView": "当前视图",
+        "pendingGovernance": "待处理治理"
+      }
+    },
+    "actions": {
+      "createTask": "创建任务契约",
+      "startRun": "启动运行",
+      "executeEval": "执行评估",
+      "promoteMemory": "提升记忆",
+      "proposePatch": "提交补丁提案"
+    },
+    "empty": {
+      "tasks": "暂无任务契约",
+      "runs": "暂无运行实例",
+      "artifacts": "暂无产物",
+      "memory": "暂无组织记忆",
+      "evalSpecs": "暂无评估规范",
+      "skills": "暂无技能",
+      "genomePatches": "暂无基因补丁",
+      "governance": "暂无待处理治理项"
+    },
+    "run": {
+      "status": "状态：{{status}}"
+    },
+    "evalSpec": {
+      "commandsCount": "{{count}} 条命令"
+    },
+    "genomePatch": {
+      "status": "状态：{{status}}"
+    },
+    "messages": {
+      "createTaskFailed": "创建任务失败",
+      "noTaskAvailable": "暂无可用任务契约",
+      "startRunFailed": "启动运行失败",
+      "missingEvalRequirements": "执行评估需要任务、运行实例和评估规范",
+      "executeEvalFailed": "执行评估失败",
+      "noRunAvailable": "暂无可用运行实例",
+      "promoteMemoryFailed": "提升记忆失败",
+      "proposePatchFailed": "提交补丁提案失败",
+      "promoteMemoryTitle": "来自 {{runId}} 的记忆",
+      "promoteMemoryKnowledgeFallback": "记录最新运行中的关键经验，供后续复用。"
+    }
+  }
 }

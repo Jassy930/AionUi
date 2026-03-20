@@ -45,8 +45,15 @@ export const useConversations = () => {
           if (data && Array.isArray(data)) {
             // 只过滤显式标记的健康检测临时会话，避免误伤用户自定义同名前缀会话
             const filteredData = data.filter((conv) => {
-              const ex = conv.extra as { isHealthCheck?: boolean; isProjectConversation?: boolean } | undefined;
-              return ex?.isHealthCheck !== true && ex?.isProjectConversation !== true;
+              const ex = conv.extra as {
+                isHealthCheck?: boolean;
+                isProjectConversation?: boolean;
+                organizationId?: string;
+                runId?: string;
+              } | null;
+              return (
+                ex?.isHealthCheck !== true && ex?.isProjectConversation !== true && !ex?.organizationId && !ex?.runId
+              );
             });
             setConversations(filteredData);
           } else {

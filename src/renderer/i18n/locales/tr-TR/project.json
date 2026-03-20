@@ -1,20 +1,101 @@
 {
-  "listTitle": "Projeler",
-  "create": "Yeni Proje",
-  "edit": "Projeyi Duzenle",
-  "name": "Proje Adi",
-  "namePlaceholder": "Proje adini girin...",
-  "nameRequired": "Proje adi gereklidir",
+  "listTitle": "Organizasyonlar",
+  "create": "Yeni Organizasyon",
+  "edit": "Organizasyonu Duzenle",
+  "name": "Organizasyon Adi",
+  "namePlaceholder": "Organizasyon adini girin...",
+  "nameRequired": "Organizasyon adi gereklidir",
+  "workspaceRequired": "Calisma alani gereklidir",
   "description": "Aciklama",
   "descriptionPlaceholder": "Aciklama girin (istege bagli)...",
   "workspace": "Calisma Alani",
-  "workspaceDefault": "Varsayilan (AionUi calisma alani)",
+  "workspaceDefault": "Organizasyon calisma alanini secin",
   "browse": "Gozat",
-  "created": "Proje olusturuldu",
-  "createFailed": "Proje olusturulamadi",
-  "deleted": "Proje silindi",
-  "deleteFailed": "Proje silinemedi",
-  "updateFailed": "Proje guncellenemedi",
-  "noProjects": "Henuz proje yok",
-  "tasks": "gorev"
+  "created": "Organizasyon olusturuldu",
+  "createFailed": "Organizasyon olusturulamadi",
+  "deleted": "Organizasyon silindi",
+  "deleteFailed": "Organizasyon silinemedi",
+  "updateFailed": "Organizasyon guncellenemedi",
+  "noProjects": "Henuz organizasyon yok",
+  "organizationBadge": "Organizasyon Calisma Alani",
+  "tasks": "gorev",
+  "console": {
+    "back": "Geri",
+    "organizationEyebrow": "Organizasyon",
+    "mainEyebrow": "Organizasyon Konsolu",
+    "navAriaLabel": "Organizasyon gorunumleri",
+    "nav": {
+      "overview": "Genel Bakis",
+      "tasks": "Gorev Sozlesmeleri",
+      "runs": "Calistirmalar",
+      "artifacts": "Ciktilar",
+      "memory": "Organizasyon Bellekleri",
+      "evalSpecs": "Degerlendirme Ozellikleri",
+      "skills": "Yetenekler",
+      "genomePatches": "Genom Yamalar",
+      "governance": "Yonetişim"
+    },
+    "overview": {
+      "stats": {
+        "tasks": "Gorev Sozlesmeleri",
+        "runs": "Calistirmalar",
+        "artifacts": "Ciktilar",
+        "pendingGovernance": "Bekleyen Yonetişim"
+      },
+      "controlLoopTitle": "Kontrol Dongusu",
+      "controlLoopDescription": "Gorev Sozlesmesi -> Calistirma -> Cikti -> Degerlendirme -> MemoryCard -> Genom Yama -> Yonetişim"
+    },
+    "tower": {
+      "aiTitle": "Organizasyon AI",
+      "aiPlaceholder": "Organizasyon seviyesindeki kontrol konusmasi bir sonraki iterasyonda baglanacak.",
+      "aiAgentHint": "Organizasyon AI yöneticisi için bir ajan seçin",
+      "actionsTitle": "Yapisal Eylemler",
+      "inspectorTitle": "Nesne Inceleyici",
+      "unsupportedAgentType": "Bu ajan türü henüz organizasyon modunda desteklenmiyor",
+      "inspector": {
+        "organization": "Organizasyon",
+        "workspace": "Calisma Alani",
+        "currentView": "Guncel Gorunum",
+        "pendingGovernance": "Bekleyen Yonetişim"
+      }
+    },
+    "actions": {
+      "createTask": "Gorev Sozlesmesi Olustur",
+      "startRun": "Calistirma Baslat",
+      "executeEval": "Degerlendirme Calistir",
+      "promoteMemory": "Bellegi Yukselt",
+      "proposePatch": "Yama Oner"
+    },
+    "empty": {
+      "tasks": "Henuz gorev sozlesmesi yok",
+      "runs": "Henuz calistirma yok",
+      "artifacts": "Henuz cikti yok",
+      "memory": "Henuz organizasyon bellegi yok",
+      "evalSpecs": "Henuz degerlendirme ozelligi yok",
+      "skills": "Henuz yetenek yok",
+      "genomePatches": "Henuz genom yama yok",
+      "governance": "Bekleyen yonetişim oge yok"
+    },
+    "run": {
+      "status": "Durum: {{status}}"
+    },
+    "evalSpec": {
+      "commandsCount": "{{count}} komut"
+    },
+    "genomePatch": {
+      "status": "Durum: {{status}}"
+    },
+    "messages": {
+      "createTaskFailed": "Gorev olusturulamadi",
+      "noTaskAvailable": "Kullanilabilir gorev sozlesmesi yok",
+      "startRunFailed": "Calistirma baslatilamadi",
+      "missingEvalRequirements": "Degerlendirme icin gorev, calistirma ve degerlendirme ozelligi gerekir",
+      "executeEvalFailed": "Degerlendirme calistirilamadi",
+      "noRunAvailable": "Kullanilabilir calistirma yok",
+      "promoteMemoryFailed": "Bellek yukseltilemedi",
+      "proposePatchFailed": "Yama onerisi gonderilemedi",
+      "promoteMemoryTitle": "{{runId}} calistirmasindan bellek",
+      "promoteMemoryKnowledgeFallback": "Son calistirmadan cikarilan en guncel ogrenimi ileride yeniden kullanmak uzere kaydet."
+    }
+  }
 }

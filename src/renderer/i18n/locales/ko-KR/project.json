@@ -1,20 +1,101 @@
 {
-  "listTitle": "프로젝트",
-  "create": "새 프로젝트",
-  "edit": "프로젝트 수정",
-  "name": "프로젝트 이름",
-  "namePlaceholder": "프로젝트 이름을 입력하세요...",
-  "nameRequired": "프로젝트 이름은 필수입니다",
+  "listTitle": "조직 목록",
+  "create": "새 조직",
+  "edit": "조직 수정",
+  "name": "조직 이름",
+  "namePlaceholder": "조직 이름을 입력하세요...",
+  "nameRequired": "조직 이름은 필수입니다",
+  "workspaceRequired": "작업 공간은 필수입니다",
   "description": "설명",
   "descriptionPlaceholder": "설명을 입력하세요(선택 사항)...",
   "workspace": "작업 공간",
-  "workspaceDefault": "기본값 (AionUi 작업 공간)",
+  "workspaceDefault": "조직 작업 공간 선택",
   "browse": "찾아보기",
-  "created": "프로젝트가 생성되었습니다",
-  "createFailed": "프로젝트 생성에 실패했습니다",
-  "deleted": "프로젝트가 삭제되었습니다",
-  "deleteFailed": "프로젝트 삭제에 실패했습니다",
-  "updateFailed": "프로젝트 업데이트에 실패했습니다",
-  "noProjects": "프로젝트가 없습니다",
-  "tasks": "개의 작업"
+  "created": "조직이 생성되었습니다",
+  "createFailed": "조직 생성에 실패했습니다",
+  "deleted": "조직이 삭제되었습니다",
+  "deleteFailed": "조직 삭제에 실패했습니다",
+  "updateFailed": "조직 업데이트에 실패했습니다",
+  "noProjects": "조직이 없습니다",
+  "organizationBadge": "조직 작업 공간",
+  "tasks": "개의 작업",
+  "console": {
+    "back": "뒤로",
+    "organizationEyebrow": "조직",
+    "mainEyebrow": "조직 콘솔",
+    "navAriaLabel": "조직 보기",
+    "nav": {
+      "overview": "개요",
+      "tasks": "작업 계약",
+      "runs": "실행 인스턴스",
+      "artifacts": "산출물",
+      "memory": "조직 메모리",
+      "evalSpecs": "평가 명세",
+      "skills": "스킬",
+      "genomePatches": "게놈 패치",
+      "governance": "거버넌스"
+    },
+    "overview": {
+      "stats": {
+        "tasks": "작업 계약",
+        "runs": "실행 인스턴스",
+        "artifacts": "산출물",
+        "pendingGovernance": "대기 중인 거버넌스"
+      },
+      "controlLoopTitle": "제어 루프",
+      "controlLoopDescription": "작업 계약 -> 실행 인스턴스 -> 산출물 -> 평가 -> MemoryCard -> 게놈 패치 -> 거버넌스"
+    },
+    "tower": {
+      "aiTitle": "조직 AI",
+      "aiPlaceholder": "조직 수준 제어 대화는 다음 반복에서 연결됩니다.",
+      "aiAgentHint": "조직 AI 관리자용 에이전트를 선택하세요",
+      "actionsTitle": "구조화된 작업",
+      "inspectorTitle": "객체 검사기",
+      "unsupportedAgentType": "이 에이전트 유형은 아직 조직 모드에서 지원되지 않습니다",
+      "inspector": {
+        "organization": "조직",
+        "workspace": "작업 공간",
+        "currentView": "현재 보기",
+        "pendingGovernance": "대기 중인 거버넌스"
+      }
+    },
+    "actions": {
+      "createTask": "작업 계약 생성",
+      "startRun": "실행 시작",
+      "executeEval": "평가 실행",
+      "promoteMemory": "메모리 승격",
+      "proposePatch": "패치 제안 제출"
+    },
+    "empty": {
+      "tasks": "작업 계약이 없습니다",
+      "runs": "실행 인스턴스가 없습니다",
+      "artifacts": "산출물이 없습니다",
+      "memory": "조직 메모리가 없습니다",
+      "evalSpecs": "평가 명세가 없습니다",
+      "skills": "스킬이 없습니다",
+      "genomePatches": "게놈 패치가 없습니다",
+      "governance": "대기 중인 거버넌스 항목이 없습니다"
+    },
+    "run": {
+      "status": "상태: {{status}}"
+    },
+    "evalSpec": {
+      "commandsCount": "{{count}}개 명령"
+    },
+    "genomePatch": {
+      "status": "상태: {{status}}"
+    },
+    "messages": {
+      "createTaskFailed": "작업 생성에 실패했습니다",
+      "noTaskAvailable": "사용 가능한 작업 계약이 없습니다",
+      "startRunFailed": "실행 시작에 실패했습니다",
+      "missingEvalRequirements": "평가 실행에는 작업, 실행 인스턴스, 평가 명세가 필요합니다",
+      "executeEvalFailed": "평가 실행에 실패했습니다",
+      "noRunAvailable": "사용 가능한 실행 인스턴스가 없습니다",
+      "promoteMemoryFailed": "메모리 승격에 실패했습니다",
+      "proposePatchFailed": "패치 제안 제출에 실패했습니다",
+      "promoteMemoryTitle": "{{runId}}의 메모리",
+      "promoteMemoryKnowledgeFallback": "최신 실행에서 얻은 핵심 학습을 기록해 이후에 재사용할 수 있도록 합니다."
+    }
+  }
 }

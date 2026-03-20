@@ -1,20 +1,101 @@
 {
-  "listTitle": "Projects",
-  "create": "New Project",
-  "edit": "Edit Project",
-  "name": "Project Name",
-  "namePlaceholder": "Enter project name...",
-  "nameRequired": "Project name is required",
+  "listTitle": "Organizations",
+  "create": "New Organization",
+  "edit": "Edit Organization",
+  "name": "Organization Name",
+  "namePlaceholder": "Enter organization name...",
+  "nameRequired": "Organization name is required",
+  "workspaceRequired": "Workspace is required",
   "description": "Description",
   "descriptionPlaceholder": "Enter description (optional)...",
   "workspace": "Workspace",
-  "workspaceDefault": "Default (AionUi workspace)",
+  "workspaceDefault": "Select organization workspace",
   "browse": "Browse",
-  "created": "Project created",
-  "createFailed": "Failed to create project",
-  "deleted": "Project deleted",
-  "deleteFailed": "Failed to delete project",
-  "updateFailed": "Failed to update project",
-  "noProjects": "No projects yet",
-  "tasks": "tasks"
+  "created": "Organization created",
+  "createFailed": "Failed to create organization",
+  "deleted": "Organization deleted",
+  "deleteFailed": "Failed to delete organization",
+  "updateFailed": "Failed to update organization",
+  "noProjects": "No organizations yet",
+  "organizationBadge": "Organization Workspace",
+  "tasks": "tasks",
+  "console": {
+    "back": "Back",
+    "organizationEyebrow": "Organization",
+    "mainEyebrow": "Organization Console",
+    "navAriaLabel": "Organization views",
+    "nav": {
+      "overview": "Overview",
+      "tasks": "Task Contracts",
+      "runs": "Runs",
+      "artifacts": "Artifacts",
+      "memory": "Memory",
+      "evalSpecs": "Eval Specs",
+      "skills": "Skills",
+      "genomePatches": "Genome Patches",
+      "governance": "Governance"
+    },
+    "overview": {
+      "stats": {
+        "tasks": "Task Contracts",
+        "runs": "Runs",
+        "artifacts": "Artifacts",
+        "pendingGovernance": "Pending Governance"
+      },
+      "controlLoopTitle": "Control Loop",
+      "controlLoopDescription": "Task Contract -> Run -> Artifact -> Eval -> MemoryCard -> GenomePatch -> Governance"
+    },
+    "tower": {
+      "aiTitle": "Organization AI",
+      "aiPlaceholder": "Organization-level control conversation will be connected in the next iteration.",
+      "aiAgentHint": "Select an agent for the organization AI manager",
+      "actionsTitle": "Structured Actions",
+      "inspectorTitle": "Object Inspector",
+      "unsupportedAgentType": "This agent type is not yet supported in organization mode",
+      "inspector": {
+        "organization": "Organization",
+        "workspace": "Workspace",
+        "currentView": "Current View",
+        "pendingGovernance": "Pending Governance"
+      }
+    },
+    "actions": {
+      "createTask": "Create Task Contract",
+      "startRun": "Start Run",
+      "executeEval": "Execute Eval",
+      "promoteMemory": "Promote Memory",
+      "proposePatch": "Propose Patch"
+    },
+    "empty": {
+      "tasks": "No task contracts yet",
+      "runs": "No runs yet",
+      "artifacts": "No artifacts yet",
+      "memory": "No memory cards yet",
+      "evalSpecs": "No eval specs yet",
+      "skills": "No skills yet",
+      "genomePatches": "No genome patches yet",
+      "governance": "No pending governance items"
+    },
+    "run": {
+      "status": "Status: {{status}}"
+    },
+    "evalSpec": {
+      "commandsCount": "{{count}} commands"
+    },
+    "genomePatch": {
+      "status": "Status: {{status}}"
+    },
+    "messages": {
+      "createTaskFailed": "Failed to create task",
+      "noTaskAvailable": "No task contract available",
+      "startRunFailed": "Failed to start run",
+      "missingEvalRequirements": "Task, run, and eval spec are required",
+      "executeEvalFailed": "Failed to execute eval",
+      "noRunAvailable": "No run available",
+      "promoteMemoryFailed": "Failed to promote memory",
+      "proposePatchFailed": "Failed to propose patch",
+      "promoteMemoryTitle": "Memory from {{runId}}",
+      "promoteMemoryKnowledgeFallback": "Capture the latest run learning for future reuse."
+    }
+  }
 }

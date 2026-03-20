@@ -10,6 +10,21 @@
 
 ---
 
+## 执行进展
+
+- 2026-03-20：Task 1 已完成，已建立 `organization.ts` 与 `org` IPC 契约，并补齐基础单测保护。
+- 2026-03-20：Task 2 已完成，数据库升级到 v21，并落地 9 张 Organization OS 核心表及对应仓储 CRUD/list/query。
+- 2026-03-20：Task 2 审查修复已完成，补齐 `associateConversationWithOrgRun` 组织一致性校验、增强 `organizationDatabase` 覆盖，并将 `migration_v21.down` 明确为有损回滚且保留映射痕迹。
+- 2026-03-20：Task 3 已完成，新增 `organizationContextService`、`organizationOpsWatcher`、`organizationBridge`，打通 `.aionui-org` 上下文投影、`org/*` 控制面 provider、artifact register 别名和 organization system prompt provider。
+- 2026-03-20：Task 3 审查修复已完成，补齐跨组织隔离、`run -> task` 血缘一致性校验、watcher 同名文件重试、workspace 迁移重挂载、治理审计失败补偿，并将旧 `workTask` 路径标记为迁移期兼容层。
+- 2026-03-20：Task 4 已完成，`org/run/start` 现会创建执行会话并绑定 `conversation_id / organization_id / run_id`，执行态元数据落入 conversation extra，`org/run/close` 会回写执行摘要并收敛 run 状态。
+- 2026-03-20：Task 5 已完成，新增 `organizationEvalService` 与 `organizationEvolutionService`，打通 `Artifact -> Eval -> MemoryCard -> GenomePatch` 服务闭环，`org/eval/execute` 会真实执行命令并推进 run 进入 `reviewing/verifying`，`org/memory/promote` 与 `org/evolution/*` 已收敛到基于 `run_id` 的可追溯路径。
+- 2026-03-20：Task 6 已完成，组织上下文投影目录已切换到 `.aionui-org/`，`organizationContextService` 会输出七类对象快照与组织控制面 system prompt，供 control plane 与 run executor 共用但语义分层。
+- 2026-03-20：Task 7 已完成第一版控制台骨架，`ProjectList` 已切换为 `Organization` 列表语义，`ProjectDetail` 已重构为三栏 `Organization Console`，包含对象导航、工作区主视图与 `Organization AI / Structured Actions / Object Inspector` 控制塔。
+- 2026-03-20：Task 8 已完成对象视图与关键动作接线，中栏现可切换 `Tasks / Runs / Artifacts / Memory / Eval Specs / Skills / Genome Patches` 并展示组织数据，右栏动作区已打通 `create task / start run / execute eval / promote memory / propose patch` 到真实 `org/*` provider。
+- 2026-03-20：Task 9 已完成多语言与收尾校验，`Organization Console` 的导航、概览、对象空态、控制塔与动作消息已统一接入 `project.console.*`，六种语言资源已补齐；`node scripts/check-i18n.js`、`bun run i18n:types`、`bun run format`、`bun run lint:fix` 与核心 Organization 测试集通过，`bunx tsc --noEmit` 仍只剩仓库既有 `cookie` 类型缺失。
+- 2026-03-20：Task 9 收尾补丁已完成，右栏 `Organization AI` 现已接入真实组织级会话面板，基于 `conversation.extra.organizationId + organizationRole=control_plane` 复用会话，并在 grouped history 中隐藏组织控制/执行会话，避免污染全局侧栏。
+
 ### Task 1: 定义组织领域类型与 IPC 草案
 
 **Files:**
@@ -512,3 +527,9 @@ Expected: 仅包含本次 Organization OS 相关变更。
 git add src/renderer/i18n/locales docs/plans
 git commit -m "docs(org): finalize organization os panel plan and i18n"
 ```
+
+**Completion Note**
+
+- 2026-03-20：Task 9 实际收敛到 `project.json` 六种语言资源与 Organization Console 相关组件，无需改动 `task.json`。
+- 2026-03-20：`node scripts/check-i18n.js` 通过，但仓库仍存在若干历史 `Unknown i18n key` warning；本次新增的 Organization Console 资源已补齐。
+- 2026-03-20：`bunx tsc --noEmit` 未完全通过，仍为既有 `src/webserver/auth/middleware/TokenMiddleware.ts` 与 `src/webserver/middleware/csrfClient.ts` 的 `cookie` 类型声明缺失。

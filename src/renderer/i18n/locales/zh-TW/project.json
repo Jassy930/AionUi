@@ -1,20 +1,101 @@
 {
-  "listTitle": "專案",
-  "create": "新建專案",
-  "edit": "編輯專案",
-  "name": "專案名稱",
-  "namePlaceholder": "請輸入專案名稱...",
-  "nameRequired": "專案名稱不能為空",
+  "listTitle": "組織列表",
+  "create": "新建組織",
+  "edit": "編輯組織",
+  "name": "組織名稱",
+  "namePlaceholder": "請輸入組織名稱...",
+  "nameRequired": "組織名稱不能為空",
+  "workspaceRequired": "工作空間不能為空",
   "description": "描述",
   "descriptionPlaceholder": "請輸入描述（可選）...",
   "workspace": "工作空間",
-  "workspaceDefault": "預設（AionUi 工作空間）",
+  "workspaceDefault": "選擇組織工作空間",
   "browse": "瀏覽",
-  "created": "專案已建立",
-  "createFailed": "建立專案失敗",
-  "deleted": "專案已刪除",
-  "deleteFailed": "刪除專案失敗",
-  "updateFailed": "更新專案失敗",
-  "noProjects": "暫無專案",
-  "tasks": "個任務"
+  "created": "組織已建立",
+  "createFailed": "建立組織失敗",
+  "deleted": "組織已刪除",
+  "deleteFailed": "刪除組織失敗",
+  "updateFailed": "更新組織失敗",
+  "noProjects": "暫無組織",
+  "organizationBadge": "組織工作空間",
+  "tasks": "個任務",
+  "console": {
+    "back": "返回",
+    "organizationEyebrow": "組織",
+    "mainEyebrow": "組織控制台",
+    "navAriaLabel": "組織視圖",
+    "nav": {
+      "overview": "概覽",
+      "tasks": "任務契約",
+      "runs": "執行實例",
+      "artifacts": "產物",
+      "memory": "組織記憶",
+      "evalSpecs": "評估規範",
+      "skills": "技能",
+      "genomePatches": "基因補丁",
+      "governance": "治理"
+    },
+    "overview": {
+      "stats": {
+        "tasks": "任務契約",
+        "runs": "執行實例",
+        "artifacts": "產物",
+        "pendingGovernance": "待處理治理"
+      },
+      "controlLoopTitle": "控制閉環",
+      "controlLoopDescription": "任務契約 -> 執行實例 -> 產物 -> 評估 -> MemoryCard -> 基因補丁 -> 治理"
+    },
+    "tower": {
+      "aiTitle": "組織 AI",
+      "aiPlaceholder": "組織層級控制對話將在下一輪迭代接入。",
+      "aiAgentHint": "為組織 AI 管理器選擇一個代理",
+      "actionsTitle": "結構化動作",
+      "inspectorTitle": "物件檢查器",
+      "unsupportedAgentType": "該代理類型暫不支援組織模式",
+      "inspector": {
+        "organization": "組織",
+        "workspace": "工作空間",
+        "currentView": "目前視圖",
+        "pendingGovernance": "待處理治理"
+      }
+    },
+    "actions": {
+      "createTask": "建立任務契約",
+      "startRun": "啟動執行",
+      "executeEval": "執行評估",
+      "promoteMemory": "提升記憶",
+      "proposePatch": "提交補丁提案"
+    },
+    "empty": {
+      "tasks": "暫無任務契約",
+      "runs": "暫無執行實例",
+      "artifacts": "暫無產物",
+      "memory": "暫無組織記憶",
+      "evalSpecs": "暫無評估規範",
+      "skills": "暫無技能",
+      "genomePatches": "暫無基因補丁",
+      "governance": "暫無待處理治理項"
+    },
+    "run": {
+      "status": "狀態：{{status}}"
+    },
+    "evalSpec": {
+      "commandsCount": "{{count}} 條命令"
+    },
+    "genomePatch": {
+      "status": "狀態：{{status}}"
+    },
+    "messages": {
+      "createTaskFailed": "建立任務失敗",
+      "noTaskAvailable": "暫無可用任務契約",
+      "startRunFailed": "啟動執行失敗",
+      "missingEvalRequirements": "執行評估需要任務、執行實例與評估規範",
+      "executeEvalFailed": "執行評估失敗",
+      "noRunAvailable": "暫無可用執行實例",
+      "promoteMemoryFailed": "提升記憶失敗",
+      "proposePatchFailed": "提交補丁提案失敗",
+      "promoteMemoryTitle": "來自 {{runId}} 的記憶",
+      "promoteMemoryKnowledgeFallback": "記錄最新執行中的關鍵經驗，供後續重用。"
+    }
+  }
 }
