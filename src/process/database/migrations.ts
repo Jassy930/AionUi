@@ -1358,6 +1358,324 @@ const migration_v20: IMigration = {
 };
 
 /**
+ * Migration v20 -> v21: Add Organization OS core tables and conversation mapping
+ *
+ * Introduces organization-first storage model while keeping legacy projects/tasks
+ * for compatibility during transition.
+ */
+const migration_v21: IMigration = {
+  version: 21,
+  name: 'Add Organization OS core tables and conversation mappings',
+  up: (db) => {
+    // Core organization container
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS organizations (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        workspace TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_organizations_user_id ON organizations(user_id);
+      CREATE INDEX IF NOT EXISTS idx_organizations_updated_at ON organizations(updated_at DESC);
+    `);
+
+    // Task contracts in Organization OS
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_tasks (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        objective TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        done_criteria TEXT NOT NULL,
+        budget TEXT NOT NULL,
+        risk_tier TEXT NOT NULL CHECK(risk_tier IN ('low', 'normal', 'high', 'critical')),
+        validators TEXT NOT NULL,
+        deliverable_schema TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'ready', 'scheduled', 'running', 'completed', 'blocked', 'archived')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_tasks_org_id ON org_tasks(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_org_tasks_org_status ON org_tasks(organization_id, status);
+      CREATE INDEX IF NOT EXISTS idx_org_tasks_updated_at ON org_tasks(updated_at DESC);
+    `);
+
+    // Execution runs
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_runs (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('created', 'active', 'verifying', 'reviewing', 'closed')),
+        workspace TEXT NOT NULL,
+        environment TEXT NOT NULL,
+        context_policy TEXT,
+        execution TEXT,
+        conversation_id TEXT,
+        execution_logs TEXT,
+        started_at INTEGER,
+        ended_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (task_id) REFERENCES org_tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_runs_org_id ON org_runs(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_org_runs_task_id ON org_runs(task_id);
+      CREATE INDEX IF NOT EXISTS idx_org_runs_org_status ON org_runs(organization_id, status);
+      CREATE INDEX IF NOT EXISTS idx_org_runs_updated_at ON org_runs(updated_at DESC);
+    `);
+
+    // Artifacts
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_artifacts (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        summary TEXT,
+        content_ref TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (task_id) REFERENCES org_tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (run_id) REFERENCES org_runs(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_artifacts_run_id ON org_artifacts(run_id);
+      CREATE INDEX IF NOT EXISTS idx_org_artifacts_task_id ON org_artifacts(task_id);
+      CREATE INDEX IF NOT EXISTS idx_org_artifacts_org_type ON org_artifacts(organization_id, type);
+    `);
+
+    // Memory cards
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_memory_cards (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        knowledge_unit TEXT NOT NULL,
+        traceability TEXT NOT NULL,
+        tags TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_memory_cards_org_type ON org_memory_cards(organization_id, type);
+      CREATE INDEX IF NOT EXISTS idx_org_memory_cards_updated_at ON org_memory_cards(updated_at DESC);
+    `);
+
+    // Eval specs
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_eval_specs (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        test_commands TEXT NOT NULL,
+        quality_gates TEXT NOT NULL,
+        baseline_comparison TEXT,
+        thresholds TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_eval_specs_org_name ON org_eval_specs(organization_id, name);
+      CREATE INDEX IF NOT EXISTS idx_org_eval_specs_updated_at ON org_eval_specs(updated_at DESC);
+    `);
+
+    // Skills
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_skills (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        workflow_unit TEXT NOT NULL,
+        instructions TEXT,
+        resources TEXT,
+        version INTEGER NOT NULL DEFAULT 1,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_skills_org_name ON org_skills(organization_id, name);
+      CREATE INDEX IF NOT EXISTS idx_org_skills_updated_at ON org_skills(updated_at DESC);
+    `);
+
+    // Evolution patches
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_genome_patches (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        mutation_target TEXT NOT NULL CHECK(mutation_target IN ('skill', 'eval_spec', 'routing_policy', 'task_template')),
+        based_on TEXT NOT NULL,
+        proposal TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('proposed', 'offline_eval', 'canary', 'adopted', 'rejected')),
+        offline_eval_result TEXT,
+        canary_result TEXT,
+        decision TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_genome_patches_org_status ON org_genome_patches(organization_id, status);
+      CREATE INDEX IF NOT EXISTS idx_org_genome_patches_updated_at ON org_genome_patches(updated_at DESC);
+    `);
+
+    // Governance/Audit
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_audit_logs (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        detail TEXT,
+        at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_audit_logs_org_at ON org_audit_logs(organization_id, at DESC);
+      CREATE INDEX IF NOT EXISTS idx_org_audit_logs_target ON org_audit_logs(target_type, target_id);
+    `);
+
+    // conversations.organization_id and conversations.run_id for organization execution mapping
+    const conversationColumns = db.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>;
+    const hasOrganizationId = conversationColumns.some((col) => col.name === 'organization_id');
+    const hasRunId = conversationColumns.some((col) => col.name === 'run_id');
+
+    if (!hasOrganizationId) {
+      db.exec(
+        `ALTER TABLE conversations ADD COLUMN organization_id TEXT REFERENCES organizations(id) ON DELETE SET NULL`
+      );
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_organization_id ON conversations(organization_id)`);
+    }
+
+    if (!hasRunId) {
+      db.exec(`ALTER TABLE conversations ADD COLUMN run_id TEXT REFERENCES org_runs(id) ON DELETE SET NULL`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_conversations_run_id ON conversations(run_id)`);
+    }
+
+    console.log('[Migration v21] Added Organization OS core tables and conversation mapping');
+  },
+  down: (db) => {
+    // Recreate conversations table without organization_id/run_id
+    const conversationColumns = db.prepare('PRAGMA table_info(conversations)').all() as Array<{ name: string }>;
+    const hasOrganizationId = conversationColumns.some((col) => col.name === 'organization_id');
+    const hasRunId = conversationColumns.some((col) => col.name === 'run_id');
+
+    if (hasOrganizationId || hasRunId) {
+      console.warn(
+        '[Migration v21] Rollback is lossy: conversations.organization_id/run_id columns will be removed; mapping snapshot is persisted into conversations.extra.__org_os_v21_mapping__.'
+      );
+      db.exec(`
+        CREATE TABLE conversations_v20 (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          type TEXT NOT NULL CHECK(type IN ('gemini', 'acp', 'codex', 'openclaw-gateway', 'nanobot')),
+          extra TEXT NOT NULL,
+          model TEXT,
+          status TEXT CHECK(status IN ('pending', 'running', 'finished')),
+          source TEXT,
+          channel_chat_id TEXT,
+          task_id TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+        );
+
+        INSERT INTO conversations_v20 (
+          id, user_id, name, type, extra, model, status, source, channel_chat_id, task_id, created_at, updated_at
+        )
+        SELECT
+          id,
+          user_id,
+          name,
+          type,
+          CASE
+            WHEN organization_id IS NULL AND run_id IS NULL THEN extra
+            WHEN json_valid(extra) THEN
+              json_set(
+                extra,
+                '$.__org_os_v21_mapping__',
+                json_object(
+                  'organization_id', organization_id,
+                  'run_id', run_id,
+                  'rolled_back_at', (CAST(strftime('%s','now') AS INTEGER) * 1000)
+                )
+              )
+            ELSE
+              json_object(
+                '__legacy_extra_text__', extra,
+                '__org_os_v21_mapping__',
+                json_object(
+                  'organization_id', organization_id,
+                  'run_id', run_id,
+                  'rolled_back_at', (CAST(strftime('%s','now') AS INTEGER) * 1000)
+                )
+              )
+          END,
+          model,
+          status,
+          source,
+          channel_chat_id,
+          task_id,
+          created_at,
+          updated_at
+        FROM conversations;
+
+        DROP TABLE conversations;
+        ALTER TABLE conversations_v20 RENAME TO conversations;
+
+        CREATE INDEX IF NOT EXISTS idx_conversations_user_id ON conversations(user_id);
+        CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at);
+        CREATE INDEX IF NOT EXISTS idx_conversations_type ON conversations(type);
+        CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+        CREATE INDEX IF NOT EXISTS idx_conversations_source_updated ON conversations(source, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_conversations_source_chat ON conversations(source, channel_chat_id, updated_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_conversations_task_id ON conversations(task_id);
+      `);
+    }
+
+    db.exec(`
+      DROP TABLE IF EXISTS org_audit_logs;
+      DROP TABLE IF EXISTS org_genome_patches;
+      DROP TABLE IF EXISTS org_skills;
+      DROP TABLE IF EXISTS org_eval_specs;
+      DROP TABLE IF EXISTS org_memory_cards;
+      DROP TABLE IF EXISTS org_artifacts;
+      DROP TABLE IF EXISTS org_runs;
+      DROP TABLE IF EXISTS org_tasks;
+      DROP TABLE IF EXISTS organizations;
+    `);
+
+    console.log('[Migration v21] Rolled back with known loss: removed Organization OS tables and conversation columns');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1365,7 +1683,7 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19, migration_v20,
+  migration_v19, migration_v20, migration_v21,
 ];
 
 /**

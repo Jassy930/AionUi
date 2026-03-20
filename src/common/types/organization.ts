@@ -348,6 +348,10 @@ export type TOrgGovernanceAuditLog = {
   detail?: string;
 };
 
+export type TOrgGovernanceAuditLogRecord = TOrgGovernanceAuditLog & {
+  organization_id: string;
+};
+
 export type IOrgGovernanceApproveParams = {
   target_type: GovernanceTargetType;
   target_id: string;

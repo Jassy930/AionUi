@@ -49,6 +49,26 @@ import type {
   PluginStatus,
 } from '@/channels/types';
 import type { ConversationSource, TProviderWithModel } from '@/common/storage';
+import type {
+  IUpdateOrganizationParams,
+  IListOrgArtifactParams,
+  IListOrgEvalSpecParams,
+  IListOrgGenomePatchParams,
+  IListOrgMemoryCardParams,
+  IListOrgRunParams,
+  IListOrgSkillParams,
+  IListOrgTaskParams,
+  TOrganization,
+  TOrgArtifact,
+  TOrgEvalSpec,
+  TOrgGenomePatch,
+  TOrgGovernanceAuditLog,
+  TOrgGovernanceAuditLogRecord,
+  TOrgMemoryCard,
+  TOrgRun,
+  TOrgSkill,
+  TOrgTask,
+} from '@/common/types/organization';
 import { rowToChannelUser, rowToChannelSession, rowToPairingRequest } from '@/channels/types';
 import { encryptCredentials, decryptCredentials } from '@/channels/utils/credentialCrypto';
 
@@ -59,7 +79,67 @@ type IConversationMessageSearchRow = IConversationRow & {
   message_created_at: number;
 };
 
+type IOrgTaskRow = Omit<TOrgTask, 'scope' | 'done_criteria' | 'budget' | 'validators' | 'deliverable_schema'> & {
+  scope: string;
+  done_criteria: string;
+  budget: string;
+  validators: string;
+  deliverable_schema: string;
+};
+
+type IOrgRunRow = Omit<TOrgRun, 'workspace' | 'environment' | 'context_policy' | 'execution' | 'execution_logs'> & {
+  workspace: string;
+  environment: string;
+  context_policy: string | null;
+  execution: string | null;
+  execution_logs: string | null;
+};
+
+type IOrgArtifactRow = Omit<TOrgArtifact, 'metadata'> & {
+  metadata: string | null;
+};
+
+type IOrgMemoryCardRow = Omit<TOrgMemoryCard, 'traceability' | 'tags'> & {
+  traceability: string;
+  tags: string | null;
+};
+
+type IOrgEvalSpecRow = Omit<TOrgEvalSpec, 'test_commands' | 'quality_gates' | 'baseline_comparison' | 'thresholds'> & {
+  test_commands: string;
+  quality_gates: string;
+  baseline_comparison: string | null;
+  thresholds: string | null;
+};
+
+type IOrgSkillRow = Omit<TOrgSkill, 'resources'> & {
+  resources: string | null;
+};
+
+type IOrgGenomePatchRow = Omit<
+  TOrgGenomePatch,
+  'based_on' | 'proposal' | 'offline_eval_result' | 'canary_result' | 'decision'
+> & {
+  based_on: string;
+  proposal: string;
+  offline_eval_result: string | null;
+  canary_result: string | null;
+  decision: string | null;
+};
+
 const escapeLikePattern = (value: string): string => value.replace(/[\\%_]/g, (match) => `\\${match}`);
+
+const toJson = (value: unknown): string => JSON.stringify(value ?? null);
+
+const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
+  if (!value) {
+    return fallback;
+  }
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+};
 
 const extractSearchPreviewText = (rawContent: string): string => {
   const collectStrings = (value: unknown, bucket: string[]): void => {
@@ -1398,6 +1478,1271 @@ export class AionUIDatabase {
       return { success: true, data: result.changes };
     } catch (error: any) {
       return { success: false, error: error.message, data: 0 };
+    }
+  }
+
+  /**
+   * ==================
+   * Organization OS operations
+   * Organization OS 操作
+   * ==================
+   */
+
+  createOrganization(organization: TOrganization): IQueryResult<TOrganization> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO organizations (id, name, description, workspace, user_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          organization.id,
+          organization.name,
+          organization.description ?? null,
+          organization.workspace,
+          organization.user_id,
+          organization.created_at,
+          organization.updated_at
+        );
+      return { success: true, data: organization };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrganization(organizationId: string): IQueryResult<TOrganization> {
+    try {
+      const row = this.db.prepare('SELECT * FROM organizations WHERE id = ?').get(organizationId) as
+        | TOrganization
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization not found' };
+      }
+      return { success: true, data: row };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrganizations(userId?: string): IQueryResult<TOrganization[]> {
+    try {
+      const finalUserId = userId || this.defaultUserId;
+      const rows = this.db
+        .prepare('SELECT * FROM organizations WHERE user_id = ? ORDER BY updated_at DESC')
+        .all(finalUserId) as TOrganization[];
+      return { success: true, data: rows };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrganization(params: IUpdateOrganizationParams): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrganization(params.id);
+      if (!existing.success) {
+        return { success: false, error: 'Organization not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: (string | number | null)[] = [now];
+
+      if (params.updates.name !== undefined) {
+        setClauses.push('name = ?');
+        sqlParams.push(params.updates.name);
+      }
+      if (params.updates.description !== undefined) {
+        setClauses.push('description = ?');
+        sqlParams.push(params.updates.description ?? null);
+      }
+      if (params.updates.workspace !== undefined) {
+        setClauses.push('workspace = ?');
+        sqlParams.push(params.updates.workspace);
+      }
+
+      sqlParams.push(params.id);
+      this.db.prepare(`UPDATE organizations SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrganization(organizationId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM organizations WHERE id = ?').run(organizationId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgTask(task: TOrgTask): IQueryResult<TOrgTask> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_tasks (
+            id, organization_id, title, objective, scope, done_criteria, budget, risk_tier,
+            validators, deliverable_schema, status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          task.id,
+          task.organization_id,
+          task.title,
+          task.objective,
+          toJson(task.scope),
+          toJson(task.done_criteria),
+          toJson(task.budget),
+          task.risk_tier,
+          toJson(task.validators),
+          toJson(task.deliverable_schema),
+          task.status,
+          task.created_at,
+          task.updated_at
+        );
+      return { success: true, data: task };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgTask(taskId: string): IQueryResult<TOrgTask> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_tasks WHERE id = ?').get(taskId) as IOrgTaskRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization task not found' };
+      }
+
+      const task: TOrgTask = {
+        ...row,
+        scope: parseJson<string[]>(row.scope, []),
+        done_criteria: parseJson<string[]>(row.done_criteria, []),
+        budget: parseJson(row.budget, {}),
+        validators: parseJson(row.validators, []),
+        deliverable_schema: parseJson(row.deliverable_schema, {}),
+      };
+      return { success: true, data: task };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrganizationTasks(params: string | IListOrgTaskParams): IQueryResult<TOrgTask[]> {
+    try {
+      const organizationId = typeof params === 'string' ? params : params.organization_id;
+      const rows = this.db
+        .prepare('SELECT * FROM org_tasks WHERE organization_id = ? ORDER BY updated_at DESC')
+        .all(organizationId) as IOrgTaskRow[];
+
+      const tasks: TOrgTask[] = rows.map((row) => ({
+        ...row,
+        scope: parseJson<string[]>(row.scope, []),
+        done_criteria: parseJson<string[]>(row.done_criteria, []),
+        budget: parseJson(row.budget, {}),
+        validators: parseJson(row.validators, []),
+        deliverable_schema: parseJson(row.deliverable_schema, {}),
+      }));
+      return { success: true, data: tasks };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgTask(
+    taskId: string,
+    updates: Partial<
+      Pick<
+        TOrgTask,
+        | 'title'
+        | 'objective'
+        | 'scope'
+        | 'done_criteria'
+        | 'budget'
+        | 'risk_tier'
+        | 'validators'
+        | 'deliverable_schema'
+        | 'status'
+      >
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgTask(taskId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization task not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: (string | number | null)[] = [now];
+
+      if (updates.title !== undefined) {
+        setClauses.push('title = ?');
+        sqlParams.push(updates.title);
+      }
+      if (updates.objective !== undefined) {
+        setClauses.push('objective = ?');
+        sqlParams.push(updates.objective);
+      }
+      if (updates.scope !== undefined) {
+        setClauses.push('scope = ?');
+        sqlParams.push(toJson(updates.scope));
+      }
+      if (updates.done_criteria !== undefined) {
+        setClauses.push('done_criteria = ?');
+        sqlParams.push(toJson(updates.done_criteria));
+      }
+      if (updates.budget !== undefined) {
+        setClauses.push('budget = ?');
+        sqlParams.push(toJson(updates.budget));
+      }
+      if (updates.risk_tier !== undefined) {
+        setClauses.push('risk_tier = ?');
+        sqlParams.push(updates.risk_tier);
+      }
+      if (updates.validators !== undefined) {
+        setClauses.push('validators = ?');
+        sqlParams.push(toJson(updates.validators));
+      }
+      if (updates.deliverable_schema !== undefined) {
+        setClauses.push('deliverable_schema = ?');
+        sqlParams.push(toJson(updates.deliverable_schema));
+      }
+      if (updates.status !== undefined) {
+        setClauses.push('status = ?');
+        sqlParams.push(updates.status);
+      }
+
+      sqlParams.push(taskId);
+      this.db.prepare(`UPDATE org_tasks SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgTask(taskId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_tasks WHERE id = ?').run(taskId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgRun(run: TOrgRun): IQueryResult<TOrgRun> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_runs (
+            id, organization_id, task_id, status, workspace, environment, context_policy, execution,
+            conversation_id, execution_logs, started_at, ended_at, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          run.id,
+          run.organization_id,
+          run.task_id,
+          run.status,
+          toJson(run.workspace),
+          toJson(run.environment),
+          run.context_policy !== undefined ? toJson(run.context_policy) : null,
+          run.execution !== undefined ? toJson(run.execution) : null,
+          run.conversation_id ?? null,
+          run.execution_logs !== undefined ? toJson(run.execution_logs) : null,
+          run.started_at ?? null,
+          run.ended_at ?? null,
+          run.created_at,
+          run.updated_at
+        );
+      return { success: true, data: run };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgRun(runId: string): IQueryResult<TOrgRun> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_runs WHERE id = ?').get(runId) as IOrgRunRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization run not found' };
+      }
+
+      const run: TOrgRun = {
+        ...row,
+        workspace: parseJson(row.workspace, { mode: 'isolated' }),
+        environment: parseJson(row.environment, {}),
+        context_policy: parseJson(row.context_policy, undefined),
+        execution: parseJson(row.execution, undefined),
+        execution_logs: parseJson(row.execution_logs, undefined),
+      };
+      return { success: true, data: run };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgRuns(params: IListOrgRunParams = {}): IQueryResult<TOrgRun[]> {
+    try {
+      const where: string[] = [];
+      const sqlParams: Array<string | number> = [];
+
+      if (params.organization_id) {
+        where.push('organization_id = ?');
+        sqlParams.push(params.organization_id);
+      }
+      if (params.task_id) {
+        where.push('task_id = ?');
+        sqlParams.push(params.task_id);
+      }
+      if (params.status) {
+        where.push('status = ?');
+        sqlParams.push(params.status);
+      }
+
+      const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+      const rows = this.db
+        .prepare(`SELECT * FROM org_runs ${whereClause} ORDER BY created_at DESC`)
+        .all(...sqlParams) as IOrgRunRow[];
+
+      const runs: TOrgRun[] = rows.map((row) => ({
+        ...row,
+        workspace: parseJson(row.workspace, { mode: 'isolated' }),
+        environment: parseJson(row.environment, {}),
+        context_policy: parseJson(row.context_policy, undefined),
+        execution: parseJson(row.execution, undefined),
+        execution_logs: parseJson(row.execution_logs, undefined),
+      }));
+
+      return { success: true, data: runs };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgRun(
+    runId: string,
+    updates: Partial<
+      Pick<
+        TOrgRun,
+        | 'status'
+        | 'workspace'
+        | 'environment'
+        | 'context_policy'
+        | 'execution'
+        | 'conversation_id'
+        | 'execution_logs'
+        | 'started_at'
+        | 'ended_at'
+      >
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgRun(runId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization run not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: (string | number | null)[] = [now];
+
+      if (updates.status !== undefined) {
+        setClauses.push('status = ?');
+        sqlParams.push(updates.status);
+      }
+      if (updates.workspace !== undefined) {
+        setClauses.push('workspace = ?');
+        sqlParams.push(toJson(updates.workspace));
+      }
+      if (updates.environment !== undefined) {
+        setClauses.push('environment = ?');
+        sqlParams.push(toJson(updates.environment));
+      }
+      if (updates.context_policy !== undefined) {
+        setClauses.push('context_policy = ?');
+        sqlParams.push(toJson(updates.context_policy));
+      }
+      if (updates.execution !== undefined) {
+        setClauses.push('execution = ?');
+        sqlParams.push(toJson(updates.execution));
+      }
+      if (updates.conversation_id !== undefined) {
+        setClauses.push('conversation_id = ?');
+        sqlParams.push(updates.conversation_id ?? null);
+      }
+      if (updates.execution_logs !== undefined) {
+        setClauses.push('execution_logs = ?');
+        sqlParams.push(toJson(updates.execution_logs));
+      }
+      if (updates.started_at !== undefined) {
+        setClauses.push('started_at = ?');
+        sqlParams.push(updates.started_at ?? null);
+      }
+      if (updates.ended_at !== undefined) {
+        setClauses.push('ended_at = ?');
+        sqlParams.push(updates.ended_at ?? null);
+      }
+
+      sqlParams.push(runId);
+      this.db.prepare(`UPDATE org_runs SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgRun(runId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_runs WHERE id = ?').run(runId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  associateConversationWithOrgRun(
+    conversationId: string,
+    organizationId: string | null,
+    runId: string | null
+  ): IQueryResult<boolean> {
+    try {
+      const conversationExists = this.db.prepare('SELECT id FROM conversations WHERE id = ?').get(conversationId) as
+        | { id: string }
+        | undefined;
+      if (!conversationExists) {
+        return { success: false, error: 'Conversation not found' };
+      }
+
+      let resolvedOrganizationId = organizationId;
+      if (runId) {
+        const runResult = this.getOrgRun(runId);
+        if (!runResult.success || !runResult.data) {
+          return { success: false, error: 'Organization run not found' };
+        }
+
+        const runOrganizationId = runResult.data.organization_id;
+        if (organizationId && organizationId !== runOrganizationId) {
+          return {
+            success: false,
+            error: 'Organization mismatch: organizationId does not match run.organization_id',
+          };
+        }
+
+        // When run is provided, always derive organization from the run to avoid cross-org drift.
+        resolvedOrganizationId = runOrganizationId;
+      }
+
+      const now = Date.now();
+      const result = this.db
+        .prepare('UPDATE conversations SET organization_id = ?, run_id = ?, updated_at = ? WHERE id = ?')
+        .run(resolvedOrganizationId, runId, now, conversationId);
+
+      if (result.changes === 0) {
+        return { success: false, error: 'Conversation not found' };
+      }
+
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getRunConversations(runId: string): IQueryResult<TChatConversation[]> {
+    try {
+      const rows = this.db
+        .prepare('SELECT * FROM conversations WHERE run_id = ? ORDER BY updated_at DESC')
+        .all(runId) as IConversationRow[];
+      return { success: true, data: rows.map(rowToConversation) };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  createOrgArtifact(artifact: TOrgArtifact): IQueryResult<TOrgArtifact> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_artifacts (
+            id, organization_id, task_id, run_id, type, title, summary, content_ref, metadata, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          artifact.id,
+          artifact.organization_id,
+          artifact.task_id,
+          artifact.run_id,
+          artifact.type,
+          artifact.title,
+          artifact.summary ?? null,
+          artifact.content_ref ?? null,
+          artifact.metadata !== undefined ? toJson(artifact.metadata) : null,
+          artifact.created_at,
+          artifact.updated_at
+        );
+      return { success: true, data: artifact };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgArtifact(artifactId: string): IQueryResult<TOrgArtifact> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_artifacts WHERE id = ?').get(artifactId) as
+        | IOrgArtifactRow
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization artifact not found' };
+      }
+      return {
+        success: true,
+        data: {
+          ...row,
+          metadata: parseJson(row.metadata, undefined),
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgArtifacts(params: IListOrgArtifactParams = {}): IQueryResult<TOrgArtifact[]> {
+    try {
+      const where: string[] = [];
+      const sqlParams: string[] = [];
+
+      if (params.run_id) {
+        where.push('run_id = ?');
+        sqlParams.push(params.run_id);
+      }
+      if (params.task_id) {
+        where.push('task_id = ?');
+        sqlParams.push(params.task_id);
+      }
+      if (params.type) {
+        where.push('type = ?');
+        sqlParams.push(params.type);
+      }
+
+      const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+      const rows = this.db
+        .prepare(`SELECT * FROM org_artifacts ${whereClause} ORDER BY created_at DESC`)
+        .all(...sqlParams) as IOrgArtifactRow[];
+
+      return {
+        success: true,
+        data: rows.map((row) => ({
+          ...row,
+          metadata: parseJson(row.metadata, undefined),
+        })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgArtifact(
+    artifactId: string,
+    updates: Partial<Pick<TOrgArtifact, 'type' | 'title' | 'summary' | 'content_ref' | 'metadata'>>
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgArtifact(artifactId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization artifact not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: (string | number | null)[] = [now];
+
+      if (updates.type !== undefined) {
+        setClauses.push('type = ?');
+        sqlParams.push(updates.type);
+      }
+      if (updates.title !== undefined) {
+        setClauses.push('title = ?');
+        sqlParams.push(updates.title);
+      }
+      if (updates.summary !== undefined) {
+        setClauses.push('summary = ?');
+        sqlParams.push(updates.summary ?? null);
+      }
+      if (updates.content_ref !== undefined) {
+        setClauses.push('content_ref = ?');
+        sqlParams.push(updates.content_ref ?? null);
+      }
+      if (updates.metadata !== undefined) {
+        setClauses.push('metadata = ?');
+        sqlParams.push(toJson(updates.metadata));
+      }
+
+      sqlParams.push(artifactId);
+      this.db.prepare(`UPDATE org_artifacts SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgArtifact(artifactId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_artifacts WHERE id = ?').run(artifactId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgMemoryCard(memoryCard: TOrgMemoryCard): IQueryResult<TOrgMemoryCard> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_memory_cards (
+            id, organization_id, type, title, knowledge_unit, traceability, tags, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          memoryCard.id,
+          memoryCard.organization_id,
+          memoryCard.type,
+          memoryCard.title,
+          memoryCard.knowledge_unit,
+          toJson(memoryCard.traceability),
+          memoryCard.tags !== undefined ? toJson(memoryCard.tags) : null,
+          memoryCard.created_at,
+          memoryCard.updated_at
+        );
+      return { success: true, data: memoryCard };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgMemoryCard(cardId: string): IQueryResult<TOrgMemoryCard> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_memory_cards WHERE id = ?').get(cardId) as
+        | IOrgMemoryCardRow
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization memory card not found' };
+      }
+      return {
+        success: true,
+        data: {
+          ...row,
+          traceability: parseJson(row.traceability, { source_run_ids: [] }),
+          tags: parseJson(row.tags, undefined),
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgMemoryCards(params: IListOrgMemoryCardParams): IQueryResult<TOrgMemoryCard[]> {
+    try {
+      const where: string[] = ['organization_id = ?'];
+      const sqlParams: string[] = [params.organization_id];
+      if (params.type) {
+        where.push('type = ?');
+        sqlParams.push(params.type);
+      }
+
+      const rows = this.db
+        .prepare(`SELECT * FROM org_memory_cards WHERE ${where.join(' AND ')} ORDER BY updated_at DESC`)
+        .all(...sqlParams) as IOrgMemoryCardRow[];
+
+      return {
+        success: true,
+        data: rows.map((row) => ({
+          ...row,
+          traceability: parseJson(row.traceability, { source_run_ids: [] }),
+          tags: parseJson(row.tags, undefined),
+        })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgMemoryCard(
+    cardId: string,
+    updates: Partial<Pick<TOrgMemoryCard, 'type' | 'title' | 'knowledge_unit' | 'traceability' | 'tags'>>
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgMemoryCard(cardId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization memory card not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: (string | number | null)[] = [now];
+
+      if (updates.type !== undefined) {
+        setClauses.push('type = ?');
+        sqlParams.push(updates.type);
+      }
+      if (updates.title !== undefined) {
+        setClauses.push('title = ?');
+        sqlParams.push(updates.title);
+      }
+      if (updates.knowledge_unit !== undefined) {
+        setClauses.push('knowledge_unit = ?');
+        sqlParams.push(updates.knowledge_unit);
+      }
+      if (updates.traceability !== undefined) {
+        setClauses.push('traceability = ?');
+        sqlParams.push(toJson(updates.traceability));
+      }
+      if (updates.tags !== undefined) {
+        setClauses.push('tags = ?');
+        sqlParams.push(toJson(updates.tags));
+      }
+
+      sqlParams.push(cardId);
+      this.db.prepare(`UPDATE org_memory_cards SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgMemoryCard(cardId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_memory_cards WHERE id = ?').run(cardId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgEvalSpec(evalSpec: TOrgEvalSpec): IQueryResult<TOrgEvalSpec> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_eval_specs (
+            id, organization_id, name, description, test_commands, quality_gates,
+            baseline_comparison, thresholds, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          evalSpec.id,
+          evalSpec.organization_id,
+          evalSpec.name,
+          evalSpec.description ?? null,
+          toJson(evalSpec.test_commands),
+          toJson(evalSpec.quality_gates),
+          evalSpec.baseline_comparison !== undefined ? toJson(evalSpec.baseline_comparison) : null,
+          evalSpec.thresholds !== undefined ? toJson(evalSpec.thresholds) : null,
+          evalSpec.created_at,
+          evalSpec.updated_at
+        );
+      return { success: true, data: evalSpec };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgEvalSpec(evalSpecId: string): IQueryResult<TOrgEvalSpec> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_eval_specs WHERE id = ?').get(evalSpecId) as
+        | IOrgEvalSpecRow
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization eval spec not found' };
+      }
+      return {
+        success: true,
+        data: {
+          ...row,
+          test_commands: parseJson(row.test_commands, []),
+          quality_gates: parseJson(row.quality_gates, []),
+          baseline_comparison: parseJson(row.baseline_comparison, undefined),
+          thresholds: parseJson(row.thresholds, undefined),
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgEvalSpecs(params: IListOrgEvalSpecParams): IQueryResult<TOrgEvalSpec[]> {
+    try {
+      const rows = this.db
+        .prepare('SELECT * FROM org_eval_specs WHERE organization_id = ? ORDER BY updated_at DESC')
+        .all(params.organization_id) as IOrgEvalSpecRow[];
+
+      return {
+        success: true,
+        data: rows.map((row) => ({
+          ...row,
+          test_commands: parseJson(row.test_commands, []),
+          quality_gates: parseJson(row.quality_gates, []),
+          baseline_comparison: parseJson(row.baseline_comparison, undefined),
+          thresholds: parseJson(row.thresholds, undefined),
+        })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgEvalSpec(
+    evalSpecId: string,
+    updates: Partial<
+      Pick<
+        TOrgEvalSpec,
+        'name' | 'description' | 'test_commands' | 'quality_gates' | 'baseline_comparison' | 'thresholds'
+      >
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgEvalSpec(evalSpecId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization eval spec not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: (string | number | null)[] = [now];
+
+      if (updates.name !== undefined) {
+        setClauses.push('name = ?');
+        sqlParams.push(updates.name);
+      }
+      if (updates.description !== undefined) {
+        setClauses.push('description = ?');
+        sqlParams.push(updates.description ?? null);
+      }
+      if (updates.test_commands !== undefined) {
+        setClauses.push('test_commands = ?');
+        sqlParams.push(toJson(updates.test_commands));
+      }
+      if (updates.quality_gates !== undefined) {
+        setClauses.push('quality_gates = ?');
+        sqlParams.push(toJson(updates.quality_gates));
+      }
+      if (updates.baseline_comparison !== undefined) {
+        setClauses.push('baseline_comparison = ?');
+        sqlParams.push(toJson(updates.baseline_comparison));
+      }
+      if (updates.thresholds !== undefined) {
+        setClauses.push('thresholds = ?');
+        sqlParams.push(toJson(updates.thresholds));
+      }
+
+      sqlParams.push(evalSpecId);
+      this.db.prepare(`UPDATE org_eval_specs SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgEvalSpec(evalSpecId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_eval_specs WHERE id = ?').run(evalSpecId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgSkill(skill: TOrgSkill): IQueryResult<TOrgSkill> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_skills (
+            id, organization_id, name, description, workflow_unit, instructions, resources, version, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          skill.id,
+          skill.organization_id,
+          skill.name,
+          skill.description ?? null,
+          skill.workflow_unit,
+          skill.instructions ?? null,
+          skill.resources !== undefined ? toJson(skill.resources) : null,
+          skill.version,
+          skill.created_at,
+          skill.updated_at
+        );
+      return { success: true, data: skill };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgSkill(skillId: string): IQueryResult<TOrgSkill> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_skills WHERE id = ?').get(skillId) as IOrgSkillRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization skill not found' };
+      }
+      return { success: true, data: { ...row, resources: parseJson(row.resources, undefined) } };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgSkills(params: IListOrgSkillParams): IQueryResult<TOrgSkill[]> {
+    try {
+      const rows = this.db
+        .prepare('SELECT * FROM org_skills WHERE organization_id = ? ORDER BY updated_at DESC')
+        .all(params.organization_id) as IOrgSkillRow[];
+      return {
+        success: true,
+        data: rows.map((row) => ({ ...row, resources: parseJson(row.resources, undefined) })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgSkill(
+    skillId: string,
+    updates: Partial<
+      Pick<TOrgSkill, 'name' | 'description' | 'workflow_unit' | 'instructions' | 'resources' | 'version'>
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgSkill(skillId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization skill not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: (string | number | null)[] = [now];
+
+      if (updates.name !== undefined) {
+        setClauses.push('name = ?');
+        sqlParams.push(updates.name);
+      }
+      if (updates.description !== undefined) {
+        setClauses.push('description = ?');
+        sqlParams.push(updates.description ?? null);
+      }
+      if (updates.workflow_unit !== undefined) {
+        setClauses.push('workflow_unit = ?');
+        sqlParams.push(updates.workflow_unit);
+      }
+      if (updates.instructions !== undefined) {
+        setClauses.push('instructions = ?');
+        sqlParams.push(updates.instructions ?? null);
+      }
+      if (updates.resources !== undefined) {
+        setClauses.push('resources = ?');
+        sqlParams.push(toJson(updates.resources));
+      }
+      if (updates.version !== undefined) {
+        setClauses.push('version = ?');
+        sqlParams.push(updates.version);
+      }
+
+      sqlParams.push(skillId);
+      this.db.prepare(`UPDATE org_skills SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgSkill(skillId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_skills WHERE id = ?').run(skillId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgGenomePatch(patch: TOrgGenomePatch): IQueryResult<TOrgGenomePatch> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_genome_patches (
+            id, organization_id, mutation_target, based_on, proposal, status,
+            offline_eval_result, canary_result, decision, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          patch.id,
+          patch.organization_id,
+          patch.mutation_target,
+          toJson(patch.based_on),
+          toJson(patch.proposal),
+          patch.status,
+          patch.offline_eval_result !== undefined ? toJson(patch.offline_eval_result) : null,
+          patch.canary_result !== undefined ? toJson(patch.canary_result) : null,
+          patch.decision !== undefined ? toJson(patch.decision) : null,
+          patch.created_at,
+          patch.updated_at
+        );
+
+      return { success: true, data: patch };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgGenomePatch(patchId: string): IQueryResult<TOrgGenomePatch> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_genome_patches WHERE id = ?').get(patchId) as
+        | IOrgGenomePatchRow
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization genome patch not found' };
+      }
+      return {
+        success: true,
+        data: {
+          ...row,
+          based_on: parseJson(row.based_on, []),
+          proposal: parseJson(row.proposal, {}),
+          offline_eval_result: parseJson(row.offline_eval_result, undefined),
+          canary_result: parseJson(row.canary_result, undefined),
+          decision: parseJson(row.decision, undefined),
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgGenomePatches(params: IListOrgGenomePatchParams): IQueryResult<TOrgGenomePatch[]> {
+    try {
+      const where: string[] = ['organization_id = ?'];
+      const sqlParams: string[] = [params.organization_id];
+      if (params.status) {
+        where.push('status = ?');
+        sqlParams.push(params.status);
+      }
+
+      const rows = this.db
+        .prepare(`SELECT * FROM org_genome_patches WHERE ${where.join(' AND ')} ORDER BY updated_at DESC`)
+        .all(...sqlParams) as IOrgGenomePatchRow[];
+
+      return {
+        success: true,
+        data: rows.map((row) => ({
+          ...row,
+          based_on: parseJson(row.based_on, []),
+          proposal: parseJson(row.proposal, {}),
+          offline_eval_result: parseJson(row.offline_eval_result, undefined),
+          canary_result: parseJson(row.canary_result, undefined),
+          decision: parseJson(row.decision, undefined),
+        })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgGenomePatch(
+    patchId: string,
+    updates: Partial<
+      Pick<
+        TOrgGenomePatch,
+        'mutation_target' | 'based_on' | 'proposal' | 'status' | 'offline_eval_result' | 'canary_result' | 'decision'
+      >
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgGenomePatch(patchId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization genome patch not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: (string | number | null)[] = [now];
+
+      if (updates.mutation_target !== undefined) {
+        setClauses.push('mutation_target = ?');
+        sqlParams.push(updates.mutation_target);
+      }
+      if (updates.based_on !== undefined) {
+        setClauses.push('based_on = ?');
+        sqlParams.push(toJson(updates.based_on));
+      }
+      if (updates.proposal !== undefined) {
+        setClauses.push('proposal = ?');
+        sqlParams.push(toJson(updates.proposal));
+      }
+      if (updates.status !== undefined) {
+        setClauses.push('status = ?');
+        sqlParams.push(updates.status);
+      }
+      if (updates.offline_eval_result !== undefined) {
+        setClauses.push('offline_eval_result = ?');
+        sqlParams.push(toJson(updates.offline_eval_result));
+      }
+      if (updates.canary_result !== undefined) {
+        setClauses.push('canary_result = ?');
+        sqlParams.push(toJson(updates.canary_result));
+      }
+      if (updates.decision !== undefined) {
+        setClauses.push('decision = ?');
+        sqlParams.push(toJson(updates.decision));
+      }
+
+      sqlParams.push(patchId);
+      this.db.prepare(`UPDATE org_genome_patches SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgGenomePatch(patchId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_genome_patches WHERE id = ?').run(patchId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgAuditLog(log: TOrgGovernanceAuditLogRecord): IQueryResult<TOrgGovernanceAuditLogRecord> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_audit_logs (id, organization_id, action, actor, target_type, target_id, detail, at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          log.id,
+          log.organization_id,
+          log.action,
+          log.actor,
+          log.target_type ?? null,
+          log.target_id ?? null,
+          log.detail ?? null,
+          log.at
+        );
+      return { success: true, data: log };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgAuditLog(logId: string): IQueryResult<TOrgGovernanceAuditLogRecord> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_audit_logs WHERE id = ?').get(logId) as
+        | TOrgGovernanceAuditLogRecord
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization audit log not found' };
+      }
+      return { success: true, data: row };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgAuditLogs(params: {
+    organization_id: string;
+    target_type?: string;
+    target_id?: string;
+    action?: string;
+    limit?: number;
+  }): IQueryResult<TOrgGovernanceAuditLogRecord[]> {
+    try {
+      const where: string[] = ['organization_id = ?'];
+      const sqlParams: Array<string | number> = [params.organization_id];
+
+      if (params.target_type) {
+        where.push('target_type = ?');
+        sqlParams.push(params.target_type);
+      }
+      if (params.target_id) {
+        where.push('target_id = ?');
+        sqlParams.push(params.target_id);
+      }
+      if (params.action) {
+        where.push('action = ?');
+        sqlParams.push(params.action);
+      }
+
+      const limit = params.limit && params.limit > 0 ? params.limit : 100;
+      sqlParams.push(limit);
+
+      const rows = this.db
+        .prepare(`SELECT * FROM org_audit_logs WHERE ${where.join(' AND ')} ORDER BY at DESC LIMIT ?`)
+        .all(...sqlParams) as TOrgGovernanceAuditLogRecord[];
+      return { success: true, data: rows };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgAuditLog(
+    logId: string,
+    updates: Partial<Pick<TOrgGovernanceAuditLog, 'detail' | 'target_type' | 'target_id'>>
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgAuditLog(logId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization audit log not found' };
+      }
+
+      const setClauses: string[] = [];
+      const sqlParams: Array<string | null> = [];
+      if (updates.detail !== undefined) {
+        setClauses.push('detail = ?');
+        sqlParams.push(updates.detail ?? null);
+      }
+      if (updates.target_type !== undefined) {
+        setClauses.push('target_type = ?');
+        sqlParams.push(updates.target_type ?? null);
+      }
+      if (updates.target_id !== undefined) {
+        setClauses.push('target_id = ?');
+        sqlParams.push(updates.target_id ?? null);
+      }
+
+      if (setClauses.length === 0) {
+        return { success: true, data: true };
+      }
+
+      sqlParams.push(logId);
+      this.db.prepare(`UPDATE org_audit_logs SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgAuditLog(logId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_audit_logs WHERE id = ?').run(logId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   }
 
