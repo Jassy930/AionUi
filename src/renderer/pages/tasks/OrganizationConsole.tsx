@@ -312,18 +312,59 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
           <h2 className='organization-console__main-title'>{selectedViewLabel}</h2>
         </header>
         <section className='organization-console__content'>{renderViewContent()}</section>
+        <section className='organization-console__footer'>
+          <section className='organization-console__main-card'>
+            <h3 className='organization-console__section-title'>
+              {t('project.console.tower.actionsTitle', { defaultValue: 'Structured Actions' })}
+            </h3>
+            <div className='organization-console__action-list'>
+              <button type='button' className='organization-console__action' onClick={handleCreateTask}>
+                {t('project.console.actions.createTask', { defaultValue: 'Create Task Contract' })}
+              </button>
+              <button type='button' className='organization-console__action' onClick={handleStartRun}>
+                {t('project.console.actions.startRun', { defaultValue: 'Start Run' })}
+              </button>
+              <button type='button' className='organization-console__action' onClick={handleExecuteEval}>
+                {t('project.console.actions.executeEval', { defaultValue: 'Execute Eval' })}
+              </button>
+              <button type='button' className='organization-console__action' onClick={handlePromoteMemory}>
+                {t('project.console.actions.promoteMemory', { defaultValue: 'Promote Memory' })}
+              </button>
+              <button type='button' className='organization-console__action' onClick={handleProposePatch}>
+                {t('project.console.actions.proposePatch', { defaultValue: 'Propose Patch' })}
+              </button>
+            </div>
+          </section>
+
+          <section className='organization-console__main-card'>
+            <h3 className='organization-console__section-title'>
+              {t('project.console.tower.inspectorTitle', { defaultValue: 'Object Inspector' })}
+            </h3>
+            <dl className='organization-console__inspector'>
+              <div>
+                <dt>{t('project.console.tower.inspector.organization', { defaultValue: 'Organization' })}</dt>
+                <dd>{organization.name}</dd>
+              </div>
+              <div>
+                <dt>{t('project.console.tower.inspector.workspace', { defaultValue: 'Workspace' })}</dt>
+                <dd>{organization.workspace}</dd>
+              </div>
+              <div>
+                <dt>{t('project.console.tower.inspector.currentView', { defaultValue: 'Current View' })}</dt>
+                <dd>{selectedViewLabel}</dd>
+              </div>
+              <div>
+                <dt>
+                  {t('project.console.tower.inspector.pendingGovernance', { defaultValue: 'Pending Governance' })}
+                </dt>
+                <dd>{pendingGovernanceCount}</dd>
+              </div>
+            </dl>
+          </section>
+        </section>
       </main>
 
-      <OrganizationControlTower
-        organization={organization}
-        selectedViewLabel={selectedViewLabel}
-        pendingGovernanceCount={pendingGovernanceCount}
-        onCreateTask={handleCreateTask}
-        onStartRun={handleStartRun}
-        onExecuteEval={handleExecuteEval}
-        onPromoteMemory={handlePromoteMemory}
-        onProposePatch={handleProposePatch}
-      >
+      <OrganizationControlTower>
         <OrganizationConversationPanel organization={organization} />
       </OrganizationControlTower>
     </div>

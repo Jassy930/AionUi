@@ -359,4 +359,33 @@ describe('Organization Console Shell', () => {
     expect(mockSetSiderCollapsed).toHaveBeenCalledWith(true);
     expect(mockSetSiderCollapsed).not.toHaveBeenCalledWith(false);
   });
+
+  it('keeps only organization ai in the right tower and moves actions and inspector to the main footer', async () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/tasks/org_alpha']}>
+        <Routes>
+          <Route path='/tasks/:projectId' element={<ProjectDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('概览').length).toBeGreaterThan(0);
+    });
+
+    const tower = container.querySelector('.organization-console__tower');
+    const footer = container.querySelector('.organization-console__footer');
+    const actionsHeading = screen.getByRole('heading', { name: '结构化动作' });
+    const inspectorHeading = screen.getByRole('heading', { name: /Object Inspector|对象检查器/ });
+
+    expect(tower).toBeInTheDocument();
+    expect(footer).toBeInTheDocument();
+    expect(tower?.textContent).toContain('组织 AI');
+    expect(tower?.textContent).not.toContain('结构化动作');
+    expect(tower?.textContent).not.toContain('对象检查器');
+    expect(actionsHeading.closest('section')).toHaveClass('organization-console__main-card');
+    expect(inspectorHeading.closest('section')).toHaveClass('organization-console__main-card');
+    expect(footer).toContainElement(actionsHeading);
+    expect(footer).toContainElement(inspectorHeading);
+  });
 });
