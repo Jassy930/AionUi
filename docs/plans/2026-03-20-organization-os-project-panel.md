@@ -24,6 +24,9 @@
 - 2026-03-20：Task 8 已完成对象视图与关键动作接线，中栏现可切换 `Tasks / Runs / Artifacts / Memory / Eval Specs / Skills / Genome Patches` 并展示组织数据，右栏动作区已打通 `create task / start run / execute eval / promote memory / propose patch` 到真实 `org/*` provider。
 - 2026-03-20：Task 9 已完成多语言与收尾校验，`Organization Console` 的导航、概览、对象空态、控制塔与动作消息已统一接入 `project.console.*`，六种语言资源已补齐；`node scripts/check-i18n.js`、`bun run i18n:types`、`bun run format`、`bun run lint:fix` 与核心 Organization 测试集通过，`bunx tsc --noEmit` 仍只剩仓库既有 `cookie` 类型缺失。
 - 2026-03-20：Task 9 收尾补丁已完成，右栏 `Organization AI` 现已接入真实组织级会话面板，基于 `conversation.extra.organizationId + organizationRole=control_plane` 复用会话，并在 grouped history 中隐藏组织控制/执行会话，避免污染全局侧栏。
+- 2026-03-20：主工作区 `develop/task_driven` 已补回 `feat/org-os-panel` 的完整 9 个提交链；同时增强 `devStartPreflight`，即使 Electron native rebuild stamp 已存在，也会探测 `better-sqlite3` 的实际 ABI 兼容性，不兼容时自动重建，避免 `bun run start` 因旧原生产物直接失败。
+- 2026-03-21：修复 Organization Console 左侧疯狂闪动问题。根因是组织页 `ProjectDetail` 仍错误进入旧 `project mode`，导致全局 `Sider` 切到遗留 `ProjectSider`；现已移除该状态切换，并补充单测保护，确保组织页不再触发 legacy project mode。
+- 2026-03-21：继续修复 Organization Console 左侧闪动。进一步确认 `ProjectDetail` 中用于自动折叠全局侧栏的 effect 依赖了整个 `layout` 对象，组织数据加载造成重复 render 时会反复执行 cleanup 与 restore，形成 `setSiderCollapsed(true/false)` 抖动；现已改为仅基于稳定 setter 依赖、并缓存首次进入时的折叠状态，避免加载期间来回切换。
 
 ### Task 1: 定义组织领域类型与 IPC 草案
 

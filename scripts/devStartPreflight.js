@@ -7,6 +7,10 @@ const fs = require('fs');
 const path = require('path');
 
 const BOOTSTRAP_CACHE_DIRS = new Set(['.vite', '.cache']);
+const BETTER_SQLITE3_ELECTRON_CHECK = [
+  '-e',
+  "const Database=require('better-sqlite3'); const db=new Database(':memory:'); db.close();",
+];
 
 function shouldBootstrapLocalNodeModules(entries) {
   const remainingEntries = entries.filter((entry) => !BOOTSTRAP_CACHE_DIRS.has(entry));
@@ -94,16 +98,37 @@ function getNativeModulesStampPath(nodeModulesDir, electronVersion) {
   return path.join(nodeModulesDir, `.aionui-electron-${electronVersion}-${process.platform}-${process.arch}.stamp`);
 }
 
-function ensureElectronNativeModules(cwd, nodeModulesDir) {
-  const electronVersion = getElectronVersion(cwd);
+function canUseBetterSqliteInElectron(cwd, nodeModulesDir, execFileSyncImpl = execFileSync) {
+  try {
+    execFileSyncImpl(getElectronBinary(nodeModulesDir), BETTER_SQLITE3_ELECTRON_CHECK, {
+      cwd,
+      stdio: ['ignore', 'ignore', 'ignore'],
+      env: buildElectronCheckEnv(process.env),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ensureElectronNativeModules(cwd, nodeModulesDir, options = {}) {
+  const {
+    canUseBetterSqliteInElectronImpl = canUseBetterSqliteInElectron,
+    execSyncImpl = execSync,
+    getElectronVersionImpl = getElectronVersion,
+    pathExists = fs.existsSync,
+    writeFileImpl = fs.writeFileSync,
+  } = options;
+
+  const electronVersion = getElectronVersionImpl(cwd);
   const stampPath = getNativeModulesStampPath(nodeModulesDir, electronVersion);
 
-  if (fs.existsSync(stampPath)) {
-    return { rebuilt: false, checked: false };
+  if (pathExists(stampPath) && canUseBetterSqliteInElectronImpl(cwd, nodeModulesDir)) {
+    return { rebuilt: false, checked: true };
   }
 
   console.warn('[dev-start-preflight] Preparing Electron native modules...');
-  execSync('bun x electron-builder install-app-deps', {
+  execSyncImpl('bun x electron-builder install-app-deps', {
     cwd,
     stdio: 'inherit',
     env: {
@@ -111,7 +136,7 @@ function ensureElectronNativeModules(cwd, nodeModulesDir) {
       npm_config_build_from_source: 'true',
     },
   });
-  fs.writeFileSync(stampPath, `${Date.now()}\n`, 'utf8');
+  writeFileImpl(stampPath, `${Date.now()}\n`, 'utf8');
   return { rebuilt: true, checked: true };
 }
 
@@ -141,6 +166,8 @@ if (require.main === module) {
 
 module.exports = {
   buildElectronCheckEnv,
+  canUseBetterSqliteInElectron,
+  ensureElectronNativeModules,
   resolveSharedNodeModulesDir,
   runDevStartPreflight,
   shouldBootstrapLocalNodeModules,

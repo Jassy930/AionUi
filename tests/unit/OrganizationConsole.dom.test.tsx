@@ -21,6 +21,9 @@ const mockOrgMemoryList = vi.fn();
 const mockOrgEvalList = vi.fn();
 const mockOrgSkillList = vi.fn();
 const mockOrgEvolutionList = vi.fn();
+const mockEnterProjectMode = vi.fn();
+const mockExitProjectMode = vi.fn();
+const mockSetSiderCollapsed = vi.fn();
 
 const translations: Record<string, string> = {
   'project.listTitle': '组织列表',
@@ -89,15 +92,15 @@ vi.mock('@/renderer/pages/conversation/hooks/useConversationAgents', () => ({
 
 vi.mock('@/renderer/context/ProjectModeContext', () => ({
   useProjectMode: () => ({
-    enterProjectMode: vi.fn(),
-    exitProjectMode: vi.fn(),
+    enterProjectMode: mockEnterProjectMode,
+    exitProjectMode: mockExitProjectMode,
   }),
 }));
 
 vi.mock('@/renderer/context/LayoutContext', () => ({
   useLayoutContext: () => ({
     siderCollapsed: false,
-    setSiderCollapsed: vi.fn(),
+    setSiderCollapsed: mockSetSiderCollapsed,
   }),
 }));
 
@@ -321,5 +324,39 @@ describe('Organization Console Shell', () => {
     await waitFor(() => {
       expect(screen.getByText('暂无任务契约')).toBeInTheDocument();
     });
+  });
+
+  it('does not enter legacy project mode when rendering organization console', async () => {
+    render(
+      <MemoryRouter initialEntries={['/tasks/org_alpha']}>
+        <Routes>
+          <Route path='/tasks/:projectId' element={<ProjectDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('概览').length).toBeGreaterThan(0);
+    });
+
+    expect(mockEnterProjectMode).not.toHaveBeenCalled();
+    expect(mockExitProjectMode).not.toHaveBeenCalled();
+  });
+
+  it('does not bounce the global sider collapsed state while organization data is loading', async () => {
+    render(
+      <MemoryRouter initialEntries={['/tasks/org_alpha']}>
+        <Routes>
+          <Route path='/tasks/:projectId' element={<ProjectDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('概览').length).toBeGreaterThan(0);
+    });
+
+    expect(mockSetSiderCollapsed).toHaveBeenCalledWith(true);
+    expect(mockSetSiderCollapsed).not.toHaveBeenCalledWith(false);
   });
 });

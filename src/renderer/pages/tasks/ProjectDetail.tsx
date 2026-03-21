@@ -19,14 +19,12 @@ import type {
   TOrgTask,
 } from '@/common/types/organization';
 import { useLayoutContext } from '@/renderer/context/LayoutContext';
-import { useProjectMode } from '@/renderer/context/ProjectModeContext';
 import OrganizationConsole from './OrganizationConsole';
 import './TaskBoard.css';
 
 const ProjectDetail: React.FC = () => {
   const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
-  const { enterProjectMode, exitProjectMode } = useProjectMode();
   const layout = useLayoutContext();
 
   const [organization, setOrganization] = useState<TOrganization | null>(null);
@@ -39,6 +37,7 @@ const ProjectDetail: React.FC = () => {
   const [genomePatches, setGenomePatches] = useState<TOrgGenomePatch[]>([]);
   const [pendingGovernanceCount, setPendingGovernanceCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const initialSiderCollapsedRef = React.useRef<boolean | null>(null);
 
   const loadArtifacts = useCallback(async (taskIds: string[], runIds: string[]) => {
     const artifactMap = new Map<string, TOrgArtifact>();
@@ -58,26 +57,25 @@ const ProjectDetail: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const wasSiderCollapsed = layout.siderCollapsed;
-    if (!wasSiderCollapsed) {
-      layout.setSiderCollapsed(true);
-    }
-    return () => {
-      if (!wasSiderCollapsed) {
-        layout.setSiderCollapsed(false);
-      }
-    };
-  }, [layout]);
-
-  useEffect(() => {
-    if (!projectId) {
+    if (!layout) {
       return;
     }
-    enterProjectMode(projectId);
+
+    if (initialSiderCollapsedRef.current === null) {
+      initialSiderCollapsedRef.current = layout.siderCollapsed;
+    }
+
+    if (!initialSiderCollapsedRef.current) {
+      layout.setSiderCollapsed(true);
+    }
+
     return () => {
-      exitProjectMode();
+      if (initialSiderCollapsedRef.current === false) {
+        layout.setSiderCollapsed(false);
+      }
+      initialSiderCollapsedRef.current = null;
     };
-  }, [enterProjectMode, exitProjectMode, projectId]);
+  }, [layout?.setSiderCollapsed]);
 
   const loadOrganizationConsole = useCallback(async () => {
     if (!projectId) {
