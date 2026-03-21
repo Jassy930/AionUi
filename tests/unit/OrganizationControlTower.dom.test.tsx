@@ -29,6 +29,7 @@ describe('OrganizationControlTower', () => {
     const aiBody = container.querySelector('.organization-console__tower-body');
 
     expect(aiCard).toHaveClass('organization-console__tower-card--ai');
+    expect(aiCard).toHaveClass('organization-console__tower-card--ai-flat');
     expect(aiBody).toHaveClass('organization-console__tower-body--chat');
   });
 });

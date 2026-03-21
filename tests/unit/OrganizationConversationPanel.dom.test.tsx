@@ -115,7 +115,7 @@ describe('OrganizationConversationPanel', () => {
       },
     ]);
 
-    render(<OrganizationConversationPanel organization={organization} />);
+    const { container } = render(<OrganizationConversationPanel organization={organization} />);
 
     await waitFor(() => {
       expect(screen.getByText('Ops Lead')).toBeInTheDocument();
@@ -124,6 +124,9 @@ describe('OrganizationConversationPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Chat:conv_org')).toBeInTheDocument();
     });
+    expect(container.querySelector('.project-conv-panel__header')).toBeNull();
+    expect(container.querySelector('.organization-conv-panel__toolbar')).toBeInTheDocument();
+    expect(screen.getByTitle('Switch agent')).toBeInTheDocument();
     expect(mockInitContext).toHaveBeenCalledWith({ organizationId: 'org_alpha' });
     expect(mockCreateConversation).not.toHaveBeenCalled();
   });
@@ -144,11 +147,12 @@ describe('OrganizationConversationPanel', () => {
       },
     });
 
-    render(<OrganizationConversationPanel organization={organization} />);
+    const { container } = render(<OrganizationConversationPanel organization={organization} />);
 
     await waitFor(() => {
       expect(screen.getByText('Select an agent for the organization AI manager')).toBeInTheDocument();
     });
+    expect(container.querySelector('.project-conv-panel__header')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Codex' }));
 

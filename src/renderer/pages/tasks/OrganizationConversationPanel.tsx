@@ -21,6 +21,7 @@ import {
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
 import { getAgentLogo } from '@/renderer/utils/agentLogo';
 import './ProjectConversationPanel.css';
+import './OrganizationConversationPanel.css';
 
 const AcpChat = React.lazy(() => import('@/renderer/pages/conversation/acp/AcpChat'));
 
@@ -158,12 +159,8 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
 
   if (!conversation && !loading) {
     return (
-      <div className='project-conv-panel'>
-        <div className='project-conv-panel__header'>
-          <Robot theme='outline' size={16} />
-          <span>{panelTitle}</span>
-        </div>
-        <div className='project-conv-panel__body'>
+      <div className='organization-conv-panel'>
+        <div className='organization-conv-panel__content organization-conv-panel__content--picker'>
           {isAgentsLoading ? (
             <div className='project-conv-panel__loading'>
               <Spin />
@@ -233,11 +230,7 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
 
   if (loading) {
     return (
-      <div className='project-conv-panel'>
-        <div className='project-conv-panel__header'>
-          <Robot theme='outline' size={16} />
-          <span>{panelTitle}</span>
-        </div>
+      <div className='organization-conv-panel'>
         <div className='project-conv-panel__loading'>
           <Spin />
         </div>
@@ -248,19 +241,21 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
   const extra = conversation?.extra as Record<string, unknown> | undefined;
 
   return (
-    <div className='project-conv-panel'>
-      <div className='project-conv-panel__header'>
-        <Robot theme='outline' size={16} />
-        <span className='project-conv-panel__header-name'>{(extra?.agentName as string) || panelTitle}</span>
+    <div className='organization-conv-panel'>
+      <div className='organization-conv-panel__toolbar'>
+        <div className='organization-conv-panel__agent'>
+          <Robot theme='outline' size={16} />
+          <span className='organization-conv-panel__agent-name'>{(extra?.agentName as string) || panelTitle}</span>
+        </div>
         <button
-          className='project-conv-panel__reset-btn'
+          className='organization-conv-panel__switch-btn'
           onClick={() => void handleSwitchAgent()}
           title={t('task.resetConversation', { defaultValue: 'Switch agent' })}
         >
           <RefreshOne theme='outline' size={14} />
         </button>
       </div>
-      <div className='project-conv-panel__chat'>
+      <div className='organization-conv-panel__chat'>
         {conversation?.type === 'acp' ? (
           <React.Suspense fallback={<Spin className='m-auto' />}>
             <AcpChat
@@ -273,7 +268,7 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
             />
           </React.Suspense>
         ) : (
-          <div className='project-conv-panel__unsupported'>
+          <div className='organization-conv-panel__unsupported'>
             <p>
               {t('project.console.tower.unsupportedAgentType', {
                 defaultValue: 'This agent type is not yet supported in organization mode',

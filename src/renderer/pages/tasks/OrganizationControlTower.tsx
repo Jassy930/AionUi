@@ -16,7 +16,7 @@ const OrganizationControlTower: React.FC<OrganizationControlTowerProps> = ({ chi
 
   return (
     <aside className='organization-console__tower'>
-      <section className='organization-console__tower-card organization-console__tower-card--ai'>
+      <section className='organization-console__tower-card organization-console__tower-card--ai organization-console__tower-card--ai-flat'>
         <h3 className='organization-console__tower-title'>
           {t('project.console.tower.aiTitle', { defaultValue: 'Organization AI' })}
         </h3>

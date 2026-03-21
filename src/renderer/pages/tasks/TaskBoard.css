@@ -624,6 +624,14 @@
   overflow: hidden;
 }
 
+.organization-console__tower-card--ai-flat {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .organization-console__tower-body--chat {
   display: flex;
   flex: 1;
