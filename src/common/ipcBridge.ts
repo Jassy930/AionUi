@@ -1026,8 +1026,17 @@ import type {
   ArtifactType,
   MemoryCardType,
   GovernanceTargetType,
+  OrganizationControlPhase,
+  OrgBriefStatus,
+  OrgPlanSnapshotStatus,
+  OrgApprovalScope,
+  OrgApprovalStatus,
   ICreateOrganizationParams,
   IUpdateOrganizationParams,
+  TOrgControlState,
+  TOrgBrief,
+  TOrgPlanSnapshot,
+  TOrgApprovalRecord,
   ICreateOrgTaskParams,
   IListOrgTaskParams,
   IUpdateOrgTaskParams,
@@ -1052,6 +1061,9 @@ import type {
   IOrgGovernanceRejectParams,
   IOrgGovernanceListPendingParams,
   IOrgGovernanceGetAuditLogsParams,
+  IOrgGetControlStateParams,
+  IOrgListApprovalsParams,
+  IOrgRespondApprovalParams,
   TOrgGovernancePendingItem,
   TOrgGovernanceAuditLog,
   TaskStatus as OrgTaskStatus,
@@ -1062,6 +1074,11 @@ import type {
   GENOME_PATCH_STATUS_VALUES,
   MUTATION_TARGET_VALUES as ORG_MUTATION_TARGET_VALUES,
   GOVERNANCE_TARGET_TYPE_VALUES as ORG_GOVERNANCE_TARGET_TYPE_VALUES,
+  ORGANIZATION_CONTROL_PHASE_VALUES as ORG_ORGANIZATION_CONTROL_PHASE_VALUES,
+  ORG_BRIEF_STATUS_VALUES,
+  ORG_PLAN_SNAPSHOT_STATUS_VALUES,
+  ORG_APPROVAL_SCOPE_VALUES,
+  ORG_APPROVAL_STATUS_VALUES,
 } from '@/common/types/organization';
 
 export type {
@@ -1088,8 +1105,17 @@ export type {
   ArtifactType,
   MemoryCardType,
   GovernanceTargetType,
+  OrganizationControlPhase,
+  OrgBriefStatus,
+  OrgPlanSnapshotStatus,
+  OrgApprovalScope,
+  OrgApprovalStatus,
   ICreateOrganizationParams,
   IUpdateOrganizationParams,
+  TOrgControlState,
+  TOrgBrief,
+  TOrgPlanSnapshot,
+  TOrgApprovalRecord,
   ICreateOrgTaskParams,
   IListOrgTaskParams,
   IUpdateOrgTaskParams,
@@ -1114,6 +1140,9 @@ export type {
   IOrgGovernanceRejectParams,
   IOrgGovernanceListPendingParams,
   IOrgGovernanceGetAuditLogsParams,
+  IOrgGetControlStateParams,
+  IOrgListApprovalsParams,
+  IOrgRespondApprovalParams,
   TOrgGovernancePendingItem,
   TOrgGovernanceAuditLog,
   OrgTaskStatus,
@@ -1127,6 +1156,11 @@ export {
   GENOME_PATCH_STATUS_VALUES,
   ORG_MUTATION_TARGET_VALUES,
   ORG_GOVERNANCE_TARGET_TYPE_VALUES,
+  ORG_ORGANIZATION_CONTROL_PHASE_VALUES,
+  ORG_BRIEF_STATUS_VALUES,
+  ORG_PLAN_SNAPSHOT_STATUS_VALUES,
+  ORG_APPROVAL_SCOPE_VALUES,
+  ORG_APPROVAL_STATUS_VALUES,
 };
 
 export const project = {
@@ -1191,6 +1225,15 @@ export const org = {
     ),
     getSystemPrompt: bridge.buildProvider<IBridgeResponse<string>, { organizationId: string }>(
       'org.organization.get-system-prompt'
+    ),
+    getControlState: bridge.buildProvider<IBridgeResponse<TOrgControlState>, IOrgGetControlStateParams>(
+      'org.organization.get-control-state'
+    ),
+    listApprovals: bridge.buildProvider<IBridgeResponse<TOrgApprovalRecord[]>, IOrgListApprovalsParams>(
+      'org.organization.list-approvals'
+    ),
+    respondApproval: bridge.buildProvider<IBridgeResponse<boolean>, IOrgRespondApprovalParams>(
+      'org.organization.respond-approval'
     ),
     created: bridge.buildEmitter<TOrganization>('org.organization.created'),
     updated: bridge.buildEmitter<TOrganization>('org.organization.updated'),

@@ -36,6 +36,30 @@ export const GOVERNANCE_TARGET_TYPE_VALUES = [
 ] as const;
 export type GovernanceTargetType = (typeof GOVERNANCE_TARGET_TYPE_VALUES)[number];
 
+export const ORGANIZATION_CONTROL_PHASE_VALUES = [
+  'intake',
+  'brainstorming',
+  'awaiting_human_decision',
+  'drafting_plan',
+  'awaiting_plan_approval',
+  'dispatching',
+  'monitoring',
+  'blocked',
+] as const;
+export type OrganizationControlPhase = (typeof ORGANIZATION_CONTROL_PHASE_VALUES)[number];
+
+export const ORG_BRIEF_STATUS_VALUES = ['draft', 'confirmed'] as const;
+export type OrgBriefStatus = (typeof ORG_BRIEF_STATUS_VALUES)[number];
+
+export const ORG_PLAN_SNAPSHOT_STATUS_VALUES = ['draft', 'approved', 'superseded'] as const;
+export type OrgPlanSnapshotStatus = (typeof ORG_PLAN_SNAPSHOT_STATUS_VALUES)[number];
+
+export const ORG_APPROVAL_SCOPE_VALUES = ['tier1_decision', 'tier2_decision', 'plan_gate'] as const;
+export type OrgApprovalScope = (typeof ORG_APPROVAL_SCOPE_VALUES)[number];
+
+export const ORG_APPROVAL_STATUS_VALUES = ['pending', 'approved', 'rejected', 'needs_more_info'] as const;
+export type OrgApprovalStatus = (typeof ORG_APPROVAL_STATUS_VALUES)[number];
+
 export type RiskTier = 'low' | 'normal' | 'high' | 'critical';
 
 export type TTaskBudget = {
@@ -216,6 +240,64 @@ export type TOrgGenomePatch = {
   updated_at: number;
 };
 
+export type TOrgControlState = {
+  id: string;
+  organization_id: string;
+  conversation_id?: string;
+  phase: OrganizationControlPhase;
+  active_brief_id?: string;
+  active_plan_id?: string;
+  needs_human_input: boolean;
+  pending_approval_count: number;
+  last_human_touch_at?: number;
+  updated_at: number;
+};
+
+export type TOrgBrief = {
+  id: string;
+  organization_id: string;
+  title: string;
+  summary: string;
+  status: OrgBriefStatus;
+  tier1_open_questions: string[];
+  tier2_pending_items: string[];
+  constraints?: string[];
+  risk_notes?: string[];
+  created_at: number;
+  updated_at: number;
+};
+
+export type TOrgPlanSnapshot = {
+  id: string;
+  organization_id: string;
+  brief_id?: string;
+  title: string;
+  objective: string;
+  content: Record<string, unknown>;
+  status: OrgPlanSnapshotStatus;
+  approved_by?: string;
+  approved_at?: number;
+  created_at: number;
+  updated_at: number;
+};
+
+export type TOrgApprovalRecord = {
+  id: string;
+  organization_id: string;
+  scope: OrgApprovalScope;
+  status: OrgApprovalStatus;
+  target_type?: GovernanceTargetType;
+  target_id?: string;
+  title: string;
+  detail?: string;
+  requested_by: string;
+  decided_by?: string;
+  decided_at?: number;
+  decision_comment?: string;
+  created_at: number;
+  updated_at: number;
+};
+
 export type ICreateOrganizationParams = {
   name: string;
   description?: string;
@@ -371,4 +453,22 @@ export type IOrgGovernanceListPendingParams = {
 export type IOrgGovernanceGetAuditLogsParams = {
   organization_id: string;
   limit?: number;
+};
+
+export type IOrgGetControlStateParams = {
+  organizationId: string;
+};
+
+export type IOrgListApprovalsParams = {
+  organizationId: string;
+  status?: OrgApprovalStatus;
+  limit?: number;
+};
+
+export type IOrgRespondApprovalParams = {
+  organizationId: string;
+  approvalId: string;
+  decision: Extract<OrgApprovalStatus, 'approved' | 'rejected' | 'needs_more_info'>;
+  actor: string;
+  comment?: string;
 };
