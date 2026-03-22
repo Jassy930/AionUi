@@ -35,7 +35,7 @@
 - 2026-03-22：`Organization Control Plane Governance` Task 1 / Task 2 已完成。当前已补齐控制面领域模型与 IPC 契约，并把控制状态、brainstorming brief、plan snapshot、approval record 落库到 v22；repository 已具备 CRUD / list / latest，且新增控制状态引用完整性与审批状态一致性约束，为后续状态机与审批门提供稳定底座。
 - 2026-03-22：`Organization Control Plane Governance` Task 3 已完成。组织控制面 prompt 已切换为 authority tiers + coordinator-only 模式，明确“先问人类、再 brief/plan、再 approval gate、最后启动 run”；`.aionui-org/context/` 现新增 `control_state.json`、`briefs.json`、`plan_snapshots.json`、`approvals.json`，为后续状态机与审批门落地提供完整上下文投影。
 - 2026-03-22：`Organization Control Plane Governance` Task 4 已完成。组织 bridge 现已接通 `getControlState / listApprovals / respondApproval`，watcher 会在 `org/task/create / org/run/start` 前强制检查 Tier 1 决策与 approved plan snapshot，并将 phase 推进到 `awaiting_human_decision / awaiting_plan_approval / dispatching / monitoring`；`run close` 后会回收控制状态进入下一轮规划，审批响应也会同步写入 approval record 与 audit log。
-- 2026-03-22：`Organization Control Plane Governance` Task 5 已完成。组织控制会话在前端创建时默认落到更安全的 `sessionMode=default`，控制台主区现已自取组织 `controlState + pending approvals`，展示当前 phase、人类审批提醒，并在审批门未满足或治理状态未加载完成前禁用“启动运行”；六种语言资源已补齐治理文案。
+- 2026-03-22：`Organization Control Plane Governance` Task 5 / Task 6 已完成。组织控制会话在前端创建时默认落到更安全的 `sessionMode=default`，控制台主区现已自取组织 `controlState + pending approvals`，展示当前 phase、人类审批提醒，并在审批门未满足或治理状态未加载完成前禁用“启动运行”；随后已完成多语言、文档、全量验证与收尾提交，这条治理增强计划现已闭环。
 
 ### Task 1: 定义组织领域类型与 IPC 草案
 

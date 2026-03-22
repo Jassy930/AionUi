@@ -17,6 +17,7 @@
 - 2026-03-22：Task 3 已完成实现与审查，`organizationContextService` 已切换到治理感知的控制面 prompt，明确复用 authority tiers + coordinator-only 模式，并新增 `control_state.json`、`briefs.json`、`plan_snapshots.json`、`approvals.json` 投影与控制阶段/审批门 schema 声明；`bunx vitest --run tests/unit/organizationContextService.test.ts` 通过。
 - 2026-03-22：Task 4 已完成实现，bridge 已新增 `getControlState / listApprovals / respondApproval` provider，watcher 已对 `org/task/create` / `org/run/start` 强制执行 Tier 1 与 plan gate 检查，并在 `run close` 后把控制状态收敛回下一轮规划阶段；`bunx vitest --run tests/unit/organizationBridge.test.ts tests/unit/organizationOpsWatcher.test.ts` 通过。
 - 2026-03-22：Task 5 已完成实现与本地审查，组织控制会话默认使用更安全的 `sessionMode=default`，`OrganizationConsole` 已接通 `getControlState / listApprovals` 并展示 phase / 审批提醒 / run gate disabled 状态；`bunx vitest --run tests/unit/OrganizationConversationPanel.dom.test.tsx tests/unit/OrganizationConsole.dom.test.tsx`、`bunx eslint --fix ...`、`bun run i18n:types`、`node scripts/check-i18n.js` 通过，`bunx tsc --noEmit` 仍只剩仓库既有 `cookie` 类型声明缺失。
+- 2026-03-22：Task 6 已完成，已同步更新组织主计划与治理计划文档、补齐六种语言治理文案，并完成提交前全量验证与收尾提交；`bunx vitest --run tests/unit/organizationIpcBridge.test.ts tests/unit/organizationDatabase.test.ts tests/unit/organizationContextService.test.ts tests/unit/organizationBridge.test.ts tests/unit/organizationOpsWatcher.test.ts tests/unit/OrganizationConversationPanel.dom.test.tsx tests/unit/OrganizationConsole.dom.test.tsx` 通过，`bunx prettier --check ...` 与 `node scripts/check-i18n.js` 通过，`bunx tsc --noEmit` 仍只剩仓库既有 `cookie` 类型声明缺失。
 
 ---
 
