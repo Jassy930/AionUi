@@ -14,6 +14,8 @@ const mockProjectGet = vi.fn();
 const mockTaskList = vi.fn();
 const mockOrgList = vi.fn();
 const mockOrgGet = vi.fn();
+const mockOrgControlStateGet = vi.fn();
+const mockOrgApprovalList = vi.fn();
 const mockOrgTaskList = vi.fn();
 const mockOrgRunList = vi.fn();
 const mockOrgArtifactList = vi.fn();
@@ -21,6 +23,8 @@ const mockOrgMemoryList = vi.fn();
 const mockOrgEvalList = vi.fn();
 const mockOrgSkillList = vi.fn();
 const mockOrgEvolutionList = vi.fn();
+const mockOrgTaskCreate = vi.fn();
+const mockOrgRunStart = vi.fn();
 const mockEnterProjectMode = vi.fn();
 const mockExitProjectMode = vi.fn();
 const mockSetSiderCollapsed = vi.fn();
@@ -45,6 +49,12 @@ const translations: Record<string, string> = {
   'project.console.tower.aiTitle': '组织 AI',
   'project.console.tower.actionsTitle': '结构化动作',
   'project.console.empty.tasks': '暂无任务契约',
+  'project.console.governance.phaseLabel': '当前阶段',
+  'project.console.governance.pendingApproval': '等待人类审批',
+  'project.console.governance.awaitingPlanApproval': '计划待批准后才可启动运行',
+  'project.console.governance.awaitingHumanDecision': '请先补齐人类专属决策',
+  'project.console.actions.startRun': '启动运行',
+  'project.console.actions.createTask': '创建任务契约',
 };
 
 vi.mock('react-i18next', () => ({
@@ -146,12 +156,15 @@ vi.mock('@/common', () => ({
       organization: {
         list: { invoke: (...args: any[]) => mockOrgList(...args) },
         get: { invoke: (...args: any[]) => mockOrgGet(...args) },
+        getControlState: { invoke: (...args: any[]) => mockOrgControlStateGet(...args) },
+        listApprovals: { invoke: (...args: any[]) => mockOrgApprovalList(...args) },
         created: { on: vi.fn(() => vi.fn()) },
         updated: { on: vi.fn(() => vi.fn()) },
         deleted: { on: vi.fn(() => vi.fn()) },
       },
       task: {
         list: { invoke: (...args: any[]) => mockOrgTaskList(...args) },
+        create: { invoke: (...args: any[]) => mockOrgTaskCreate(...args) },
         created: { on: vi.fn(() => vi.fn()) },
         updated: { on: vi.fn(() => vi.fn()) },
         deleted: { on: vi.fn(() => vi.fn()) },
@@ -159,6 +172,7 @@ vi.mock('@/common', () => ({
       },
       run: {
         list: { invoke: (...args: any[]) => mockOrgRunList(...args) },
+        start: { invoke: (...args: any[]) => mockOrgRunStart(...args) },
         created: { on: vi.fn(() => vi.fn()) },
         updated: { on: vi.fn(() => vi.fn()) },
         statusChanged: { on: vi.fn(() => vi.fn()) },
@@ -263,6 +277,16 @@ describe('Organization Console Shell', () => {
         updated_at: Date.now(),
       },
     });
+    mockOrgControlStateGet.mockResolvedValue({
+      success: true,
+      data: {
+        organization_id: 'org_alpha',
+        phase: 'drafting_plan',
+        needs_human_input: false,
+        pending_approval_count: 0,
+      },
+    });
+    mockOrgApprovalList.mockResolvedValue({ success: true, data: [] });
     mockOrgTaskList.mockResolvedValue({ success: true, data: [] });
     mockOrgRunList.mockResolvedValue({ success: true, data: [] });
     mockOrgArtifactList.mockResolvedValue({ success: true, data: [] });
@@ -270,6 +294,8 @@ describe('Organization Console Shell', () => {
     mockOrgEvalList.mockResolvedValue({ success: true, data: [] });
     mockOrgSkillList.mockResolvedValue({ success: true, data: [] });
     mockOrgEvolutionList.mockResolvedValue({ success: true, data: [] });
+    mockOrgTaskCreate.mockResolvedValue({ success: true, data: { id: 'task_created' } });
+    mockOrgRunStart.mockResolvedValue({ success: true, data: { id: 'run_created' } });
   });
 
   it('renders organization list semantics instead of legacy project wording', async () => {
@@ -387,5 +413,73 @@ describe('Organization Console Shell', () => {
     expect(inspectorHeading.closest('section')).toHaveClass('organization-console__main-card');
     expect(footer).toContainElement(actionsHeading);
     expect(footer).toContainElement(inspectorHeading);
+  });
+
+  it('shows the current control phase and pending human approval reminder', async () => {
+    mockOrgControlStateGet.mockResolvedValue({
+      success: true,
+      data: {
+        organization_id: 'org_alpha',
+        phase: 'awaiting_plan_approval',
+        needs_human_input: true,
+        pending_approval_count: 1,
+      },
+    });
+    mockOrgApprovalList.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          id: 'approval_1',
+          scope: 'plan_gate',
+          status: 'pending',
+          title: 'Approve latest plan',
+          requested_by: 'organization_control_plane',
+          created_at: Date.now(),
+          updated_at: Date.now(),
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/tasks/org_alpha']}>
+        <Routes>
+          <Route path='/tasks/:projectId' element={<ProjectDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('当前阶段')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('awaiting_plan_approval')).toBeInTheDocument();
+    expect(screen.getByText('等待人类审批')).toBeInTheDocument();
+    expect(screen.getByText('计划待批准后才可启动运行')).toBeInTheDocument();
+  });
+
+  it('disables start run while the organization is still behind an approval gate', async () => {
+    mockOrgControlStateGet.mockResolvedValue({
+      success: true,
+      data: {
+        organization_id: 'org_alpha',
+        phase: 'awaiting_plan_approval',
+        needs_human_input: true,
+        pending_approval_count: 1,
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/tasks/org_alpha']}>
+        <Routes>
+          <Route path='/tasks/:projectId' element={<ProjectDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    const button = await screen.findByRole('button', { name: '启动运行' });
+    expect(button).toBeDisabled();
+
+    fireEvent.click(button);
+    expect(mockOrgRunStart).not.toHaveBeenCalled();
   });
 });

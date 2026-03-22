@@ -10,6 +10,7 @@ import type {
   ICreateOrgEvalSpecParams,
   ICreateOrgSkillParams,
   ICreateOrganizationParams,
+  IOrgRespondApprovalParams,
   IStartOrgRunParams,
   TOrgEvalSpec,
   TOrgGenomePatch,
@@ -27,7 +28,9 @@ import {
   syncOrganizationContext,
 } from '@process/services/organizationContextService';
 import {
+  ensureOrganizationControlState,
   executeOrganizationOperation,
+  reconcileOrganizationControlState,
   startOrganizationWatcher,
   stopOrganizationWatcher,
 } from '@process/services/organizationOpsWatcher';
@@ -61,6 +64,7 @@ function requireTask(taskId: string) {
 
 function ensureOrganizationRuntime(organization: TOrganization): void {
   initOrganizationContext(organization);
+  ensureOrganizationControlState(organization.id);
   syncOrganizationContext(organization.id);
   startOrganizationWatcher(organization.id, organization.workspace);
 }
@@ -232,6 +236,55 @@ export function initOrganizationBridge(): void {
     return wrapResult(true, generateOrganizationSystemPrompt(organizationId));
   });
 
+  ipcBridge.org.organization.getControlState.provider(async ({ organizationId }) => {
+    const organization = requireOrganization(organizationId);
+    if (!organization) {
+      return wrapResult(false, undefined, 'Organization not found');
+    }
+
+    const controlState = ensureOrganizationControlState(organizationId) || db.getOrgControlState(organizationId).data;
+    return controlState
+      ? wrapResult(true, controlState)
+      : wrapResult(false, undefined, 'Organization control state not found');
+  });
+
+  ipcBridge.org.organization.listApprovals.provider(async ({ organizationId, status, limit }) => {
+    const organization = requireOrganization(organizationId);
+    if (!organization) {
+      return wrapResult(false, [], 'Organization not found');
+    }
+
+    const result = db.listOrgApprovalRecords({
+      organization_id: organizationId,
+      status,
+      limit,
+    });
+    return result.success ? wrapResult(true, result.data || []) : wrapResult(false, [], result.error);
+  });
+
+  ipcBridge.org.organization.respondApproval.provider(async (params: IOrgRespondApprovalParams) => {
+    const organization = requireOrganization(params.organizationId);
+    if (!organization) {
+      return wrapResult(false, undefined, 'Organization not found');
+    }
+
+    const result = await invokeOrganizationOperation<boolean>(
+      organization.id,
+      organization.workspace,
+      'org/approval/respond',
+      {
+        approval_id: params.approvalId,
+        decision: params.decision,
+        actor: params.actor,
+        comment: params.comment,
+      }
+    );
+    if (result.success) {
+      syncOrganizationContext(organization.id);
+    }
+    return result;
+  });
+
   ipcBridge.org.organization.delete.provider(async ({ id }) => {
     const result = db.deleteOrganization(id);
     if (!result.success) {
@@ -355,6 +408,7 @@ export function initOrganizationBridge(): void {
       if (!conversationResult.success || !conversationResult.conversation) {
         db.deleteOrgRun(result.data.id);
         db.updateOrgTask(task.id, { status: previousTaskStatus });
+        reconcileOrganizationControlState(organization.id);
         syncOrganizationContext(organization.id);
         return wrapResult(
           false,
@@ -372,6 +426,7 @@ export function initOrganizationBridge(): void {
         db.deleteConversation(conversationResult.conversation.id);
         db.deleteOrgRun(result.data.id);
         db.updateOrgTask(task.id, { status: previousTaskStatus });
+        reconcileOrganizationControlState(organization.id);
         syncOrganizationContext(organization.id);
         return wrapResult(
           false,
@@ -385,6 +440,7 @@ export function initOrganizationBridge(): void {
         db.deleteConversation(conversationResult.conversation.id);
         db.deleteOrgRun(result.data.id);
         db.updateOrgTask(task.id, { status: previousTaskStatus });
+        reconcileOrganizationControlState(organization.id);
         syncOrganizationContext(organization.id);
         return wrapResult(false, undefined, bindResult.error || 'Failed to bind conversation to organization run');
       }
@@ -470,6 +526,8 @@ export function initOrganizationBridge(): void {
       }
     }
 
+    reconcileOrganizationControlState(run.organization_id);
+
     ipcBridge.org.run.closed.emit({ id });
     ipcBridge.org.run.statusChanged.emit({ id, status: 'closed' });
     syncOrganizationContext(run.organization_id);
@@ -498,6 +556,8 @@ export function initOrganizationBridge(): void {
     if (!result.success) {
       return wrapResult(false, undefined, result.error);
     }
+
+    reconcileOrganizationControlState(run.organization_id);
 
     ipcBridge.org.run.closed.emit({ id });
     ipcBridge.org.run.statusChanged.emit({ id, status: 'closed' });

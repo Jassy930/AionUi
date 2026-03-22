@@ -118,6 +118,7 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
           ...params.extra,
           workspace: organization.workspace,
           customWorkspace: true,
+          sessionMode: params.extra.sessionMode || 'default',
           organizationId: organization.id,
           organizationRole: 'control_plane',
         };

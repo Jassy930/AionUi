@@ -14,6 +14,7 @@ const mockRemoveConversation = vi.fn();
 const mockInitContext = vi.fn();
 const mockSyncContext = vi.fn();
 const mockGetSystemPrompt = vi.fn();
+const mockGetControlState = vi.fn();
 const mockBuildCliAgentParams = vi.fn();
 
 vi.mock('react-i18next', () => ({
@@ -62,6 +63,7 @@ vi.mock('@/common', () => ({
         initContext: { invoke: (...args: any[]) => mockInitContext(...args) },
         syncContext: { invoke: (...args: any[]) => mockSyncContext(...args) },
         getSystemPrompt: { invoke: (...args: any[]) => mockGetSystemPrompt(...args) },
+        getControlState: { invoke: (...args: any[]) => mockGetControlState(...args) },
       },
     },
   },
@@ -87,6 +89,15 @@ describe('OrganizationConversationPanel', () => {
     mockInitContext.mockResolvedValue({ success: true });
     mockSyncContext.mockResolvedValue({ success: true });
     mockGetSystemPrompt.mockResolvedValue({ success: true, data: 'ORG_PROMPT' });
+    mockGetControlState.mockResolvedValue({
+      success: true,
+      data: {
+        organization_id: 'org_alpha',
+        phase: 'drafting_plan',
+        needs_human_input: false,
+        pending_approval_count: 0,
+      },
+    });
     mockBuildCliAgentParams.mockResolvedValue({
       type: 'acp',
       model: {} as any,
@@ -94,6 +105,41 @@ describe('OrganizationConversationPanel', () => {
         backend: 'codex',
         agentName: 'Codex',
       },
+    });
+  });
+
+  it('creates the organization control conversation in a safer planning mode', async () => {
+    mockCreateConversation.mockResolvedValue({
+      id: 'conv_created',
+      type: 'acp',
+      name: 'Organization Alpha - Organization AI',
+      createTime: 1,
+      modifyTime: 2,
+      extra: {
+        backend: 'codex',
+        workspace: '/tmp/org-alpha',
+        agentName: 'Codex',
+        organizationId: 'org_alpha',
+        organizationRole: 'control_plane',
+      },
+    });
+
+    render(<OrganizationConversationPanel organization={organization} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Select an agent for the organization AI manager')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Codex' }));
+
+    await waitFor(() => {
+      expect(mockCreateConversation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          extra: expect.objectContaining({
+            sessionMode: 'default',
+          }),
+        })
+      );
     });
   });
 

@@ -66,6 +66,12 @@
       "promoteMemory": "메모리 승격",
       "proposePatch": "패치 제안 제출"
     },
+    "governance": {
+      "phaseLabel": "현재 단계",
+      "pendingApproval": "사람 승인 대기 중",
+      "awaitingPlanApproval": "실행을 시작하기 전에 최신 계획을 승인해야 합니다",
+      "awaitingHumanDecision": "사람 전용 의사결정을 먼저 보완하세요"
+    },
     "empty": {
       "tasks": "작업 계약이 없습니다",
       "runs": "실행 인스턴스가 없습니다",

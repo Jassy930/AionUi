@@ -8,7 +8,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TOrganization, TOrgTask, TOrgEvalSpec } from '@/common/types/organization';
+import type {
+  TOrgApprovalRecord,
+  TOrgBrief,
+  TOrganization,
+  TOrgEvalSpec,
+  TOrgPlanSnapshot,
+  TOrgTask,
+} from '@/common/types/organization';
 
 const { safeExecFileMock } = vi.hoisted(() => ({
   safeExecFileMock: vi.fn(),
@@ -64,6 +71,9 @@ function createOrgIpcMock(handlers: Record<string, ProviderHandler>) {
       initContext: createCommandMock('org.organization.init-context'),
       syncContext: createCommandMock('org.organization.sync-context'),
       getSystemPrompt: createCommandMock('org.organization.get-system-prompt'),
+      getControlState: createCommandMock('org.organization.get-control-state'),
+      listApprovals: createCommandMock('org.organization.list-approvals'),
+      respondApproval: createCommandMock('org.organization.respond-approval'),
       created: { emit: vi.fn() },
       updated: { emit: vi.fn() },
       deleted: { emit: vi.fn() },
@@ -159,6 +169,73 @@ function createOrgIpcMock(handlers: Record<string, ProviderHandler>) {
       rejected: { emit: vi.fn() },
     },
   };
+}
+
+function seedConfirmedBrief(db: AionUIDatabase, organizationId: string, overrides: Partial<TOrgBrief> = {}) {
+  const now = Date.now();
+  const brief: TOrgBrief = {
+    id: overrides.id || `org_bridge_brief_${now}`,
+    organization_id: organizationId,
+    title: overrides.title || 'Confirmed brief',
+    summary: overrides.summary || 'Tier 1 decisions are confirmed.',
+    status: overrides.status || 'confirmed',
+    tier1_open_questions: overrides.tier1_open_questions || [],
+    tier2_pending_items: overrides.tier2_pending_items || [],
+    constraints: overrides.constraints,
+    risk_notes: overrides.risk_notes,
+    created_at: overrides.created_at || now,
+    updated_at: overrides.updated_at || now,
+  };
+  expect(db.createOrgBrief(brief).success).toBe(true);
+  return brief;
+}
+
+function seedPlanSnapshot(
+  db: AionUIDatabase,
+  organizationId: string,
+  briefId: string,
+  overrides: Partial<TOrgPlanSnapshot> = {}
+) {
+  const now = Date.now();
+  const snapshot: TOrgPlanSnapshot = {
+    id: overrides.id || `org_bridge_plan_${now}`,
+    organization_id: organizationId,
+    brief_id: overrides.brief_id === undefined ? briefId : overrides.brief_id,
+    title: overrides.title || 'Approved execution plan',
+    objective: overrides.objective || 'Dispatch approved work',
+    content: overrides.content || {
+      milestones: [{ id: 'm1', title: 'Create task contracts' }],
+    },
+    status: overrides.status || 'approved',
+    approved_by: overrides.approved_by || 'human_reviewer',
+    approved_at: overrides.approved_at || now,
+    created_at: overrides.created_at || now,
+    updated_at: overrides.updated_at || now,
+  };
+  expect(db.createOrgPlanSnapshot(snapshot).success).toBe(true);
+  return snapshot;
+}
+
+function seedApprovalRecord(db: AionUIDatabase, organizationId: string, overrides: Partial<TOrgApprovalRecord> = {}) {
+  const now = Date.now();
+  const record: TOrgApprovalRecord = {
+    id: overrides.id || `org_bridge_approval_${now}`,
+    organization_id: organizationId,
+    scope: overrides.scope || 'plan_gate',
+    status: overrides.status || 'pending',
+    target_type: overrides.target_type || 'organization',
+    target_id: overrides.target_id,
+    title: overrides.title || 'Approve execution plan',
+    detail: overrides.detail,
+    requested_by: overrides.requested_by || 'organization_control_plane',
+    decided_by: overrides.decided_by,
+    decided_at: overrides.decided_at,
+    decision_comment: overrides.decision_comment,
+    created_at: overrides.created_at || now,
+    updated_at: overrides.updated_at || now,
+  };
+  expect(db.createOrgApprovalRecord(record).success).toBe(true);
+  return record;
 }
 
 describe('organizationBridge', () => {
@@ -289,10 +366,15 @@ describe('organizationBridge', () => {
 
   it('registers org providers and wires core control plane flows to the database', async () => {
     const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
     initOrganizationBridge();
 
     expect(handlers['org.task.create']).toBeTypeOf('function');
     expect(handlers['org.run.start']).toBeTypeOf('function');
+    expect(handlers['org.organization.get-control-state']).toBeTypeOf('function');
+    expect(handlers['org.organization.list-approvals']).toBeTypeOf('function');
+    expect(handlers['org.organization.respond-approval']).toBeTypeOf('function');
     expect(handlers['org.artifact.create']).toBeTypeOf('function');
     expect(handlers['org.artifact.register']).toBeTypeOf('function');
     expect(handlers['org.eval.execute']).toBeTypeOf('function');
@@ -380,8 +462,275 @@ describe('organizationBridge', () => {
     expect(promptResult.data).toContain('Organization Control Plane AI');
   });
 
+  it('initializes a persisted control state for existing organizations', async () => {
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const result = await handlers['org.organization.get-control-state']({
+      organizationId: organization.id,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual(
+      expect.objectContaining({
+        organization_id: organization.id,
+        phase: 'awaiting_human_decision',
+        needs_human_input: true,
+        pending_approval_count: 0,
+      })
+    );
+    expect(db.getOrgControlState(organization.id).data?.phase).toBe('awaiting_human_decision');
+  });
+
+  it('lists approvals and applies approval responses through the bridge', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    const plan = seedPlanSnapshot(db, organization.id, brief.id, {
+      status: 'draft',
+      approved_by: undefined,
+      approved_at: undefined,
+    });
+    const approval = seedApprovalRecord(db, organization.id, {
+      target_id: plan.id,
+      detail: 'Need explicit human approval before dispatch.',
+    });
+    const staleApproval = seedApprovalRecord(db, organization.id, {
+      id: 'org_bridge_approval_stale',
+      target_id: 'org_bridge_plan_stale',
+      detail: 'Stale plan approval should be superseded.',
+    });
+
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const approvalsResult = await handlers['org.organization.list-approvals']({
+      organizationId: organization.id,
+      status: 'pending',
+      limit: 10,
+    });
+    expect(approvalsResult.success).toBe(true);
+    expect(approvalsResult.data).toHaveLength(2);
+    expect(approvalsResult.data.map((item: { id: string }) => item.id)).toContain(approval.id);
+
+    const respondResult = await handlers['org.organization.respond-approval']({
+      organizationId: organization.id,
+      approvalId: approval.id,
+      decision: 'approved',
+      actor: 'human_reviewer',
+      comment: 'Proceed with this plan.',
+    });
+    expect(respondResult.success).toBe(true);
+
+    expect(db.getOrgApprovalRecord(approval.id).data).toEqual(
+      expect.objectContaining({
+        status: 'approved',
+        decided_by: 'human_reviewer',
+        decision_comment: 'Proceed with this plan.',
+      })
+    );
+    expect(db.getOrgApprovalRecord(staleApproval.id).data).toEqual(
+      expect.objectContaining({
+        status: 'rejected',
+        decided_by: 'human_reviewer',
+      })
+    );
+    expect(db.getOrgPlanSnapshot(plan.id).data).toEqual(
+      expect.objectContaining({
+        status: 'approved',
+        approved_by: 'human_reviewer',
+      })
+    );
+    const auditLogs = db.listOrgAuditLogs({ organization_id: organization.id }).data || [];
+    expect(auditLogs).toHaveLength(1);
+    expect(auditLogs[0]).toEqual(
+      expect.objectContaining({
+        action: 'approve',
+        actor: 'human_reviewer',
+      })
+    );
+
+    const controlState = await handlers['org.organization.get-control-state']({
+      organizationId: organization.id,
+    });
+    expect(controlState.success).toBe(true);
+    expect(controlState.data).toEqual(
+      expect.objectContaining({
+        phase: 'drafting_plan',
+        pending_approval_count: 0,
+      })
+    );
+  });
+
+  it('records needs_more_info approval responses in the audit log', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    const plan = seedPlanSnapshot(db, organization.id, brief.id, {
+      status: 'draft',
+      approved_by: undefined,
+      approved_at: undefined,
+    });
+    const approval = seedApprovalRecord(db, organization.id, {
+      target_id: plan.id,
+    });
+
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const respondResult = await handlers['org.organization.respond-approval']({
+      organizationId: organization.id,
+      approvalId: approval.id,
+      decision: 'needs_more_info',
+      actor: 'human_reviewer',
+      comment: 'Need more detail on rollback strategy.',
+    });
+    expect(respondResult.success).toBe(true);
+
+    const auditLogs = db.listOrgAuditLogs({ organization_id: organization.id }).data || [];
+    expect(auditLogs).toHaveLength(1);
+    expect(auditLogs[0]).toEqual(
+      expect.objectContaining({
+        action: 'needs_more_info',
+        actor: 'human_reviewer',
+      })
+    );
+  });
+
+  it('rejects repeated responses for the same approval record', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    const plan = seedPlanSnapshot(db, organization.id, brief.id, {
+      status: 'draft',
+      approved_by: undefined,
+      approved_at: undefined,
+    });
+    const approval = seedApprovalRecord(db, organization.id, {
+      target_id: plan.id,
+    });
+
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const firstResponse = await handlers['org.organization.respond-approval']({
+      organizationId: organization.id,
+      approvalId: approval.id,
+      decision: 'approved',
+      actor: 'human_reviewer',
+      comment: 'First decision.',
+    });
+    expect(firstResponse.success).toBe(true);
+
+    const secondResponse = await handlers['org.organization.respond-approval']({
+      organizationId: organization.id,
+      approvalId: approval.id,
+      decision: 'rejected',
+      actor: 'human_reviewer',
+      comment: 'Should be blocked.',
+    });
+    expect(secondResponse.success).toBe(false);
+
+    expect(db.getOrgApprovalRecord(approval.id).data).toEqual(
+      expect.objectContaining({
+        status: 'approved',
+        decision_comment: 'First decision.',
+      })
+    );
+    expect(db.listOrgAuditLogs({ organization_id: organization.id }).data).toHaveLength(1);
+  });
+
+  it('moves control phase from monitoring back to planning when a run is closed', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const createdTaskResult = await handlers['org.task.create']({
+      organization_id: organization.id,
+      title: 'Bridge close loop task',
+      objective: 'Verify control phase rollback after run close',
+      scope: ['src/process/bridge/'],
+      done_criteria: ['run closes'],
+      budget: { max_runs: 1 },
+      risk_tier: 'low',
+      validators: [],
+      deliverable_schema: {},
+    });
+    expect(createdTaskResult.success).toBe(true);
+
+    const createdRunResult = await handlers['org.run.start']({
+      task_id: createdTaskResult.data.id,
+      workspace: { mode: 'isolated', type: 'worktree', path: path.join(organization.workspace, 'runs/run-close') },
+      environment: { kind: 'cloud', env_id: 'ts-ci' },
+      execution: { model: 'gpt-5.4', effort: 'medium' },
+    });
+    expect(createdRunResult.success).toBe(true);
+
+    const monitoringState = await handlers['org.organization.get-control-state']({
+      organizationId: organization.id,
+    });
+    expect(monitoringState.data.phase).toBe('monitoring');
+
+    const closeResult = await handlers['org.run.close']({
+      id: createdRunResult.data.id,
+    });
+    expect(closeResult.success).toBe(true);
+
+    const closedState = await handlers['org.organization.get-control-state']({
+      organizationId: organization.id,
+    });
+    expect(closedState.success).toBe(true);
+    expect(closedState.data).toEqual(
+      expect.objectContaining({
+        phase: 'drafting_plan',
+        needs_human_input: false,
+        pending_approval_count: 0,
+      })
+    );
+  });
+
+  it('reconciles control phase when run setup rolls back after watcher success', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
+    const { ConversationService } = await import('@process/services/conversationService');
+    vi.mocked(ConversationService.createConversation).mockResolvedValueOnce({
+      success: false,
+      error: 'conversation bootstrap failed',
+    } as never);
+
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const createdTaskResult = await handlers['org.task.create']({
+      organization_id: organization.id,
+      title: 'Rollback task',
+      objective: 'Ensure monitoring phase rolls back when run setup fails',
+      scope: ['src/process/bridge/'],
+      done_criteria: ['state reconciled'],
+      budget: { max_runs: 1 },
+      risk_tier: 'low',
+      validators: [],
+      deliverable_schema: {},
+    });
+    expect(createdTaskResult.success).toBe(true);
+
+    const createdRunResult = await handlers['org.run.start']({
+      task_id: createdTaskResult.data.id,
+      workspace: { mode: 'isolated', type: 'worktree', path: path.join(organization.workspace, 'runs/run-rollback') },
+      environment: { kind: 'cloud', env_id: 'ts-ci' },
+      execution: { model: 'gpt-5.4', effort: 'medium' },
+    });
+    expect(createdRunResult.success).toBe(false);
+
+    const controlState = await handlers['org.organization.get-control-state']({
+      organizationId: organization.id,
+    });
+    expect(controlState.success).toBe(true);
+    expect(controlState.data.phase).toBe('drafting_plan');
+    expect(db.listOrgRuns({ organization_id: organization.id, status: 'active' }).data).toHaveLength(0);
+  });
+
   it('moves watcher activity to the new workspace after organization workspace update', async () => {
     const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
     initOrganizationBridge();
 
     const nextWorkspace = path.join(TEST_DATA_PATH, 'workspace-next');

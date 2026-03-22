@@ -645,6 +645,54 @@
   gap: 8px;
 }
 
+.organization-console__governance-status {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.organization-console__governance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.organization-console__governance-label {
+  font-size: 12px;
+  color: var(--color-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.organization-console__governance-value {
+  font-size: 13px;
+  color: var(--color-text-1);
+  word-break: break-word;
+}
+
+.organization-console__governance-alert {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid rgba(255, 125, 0, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 125, 0, 0.08);
+  color: var(--color-text-1);
+}
+
+.organization-console__governance-alert strong {
+  font-size: 13px;
+}
+
+.organization-console__governance-alert span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-2);
+}
+
 .organization-console__action {
   width: 100%;
   padding: 10px 12px;
@@ -658,6 +706,19 @@
 
 .organization-console__action:hover {
   border-color: var(--color-primary-light-4);
+}
+
+.organization-console__action:disabled,
+.organization-console__action--disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+  background: var(--color-fill-1);
+  color: var(--color-text-3);
+}
+
+.organization-console__action:disabled:hover,
+.organization-console__action--disabled:hover {
+  border-color: var(--color-border);
 }
 
 .organization-console__inspector {

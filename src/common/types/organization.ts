@@ -422,7 +422,7 @@ export type TOrgGovernancePendingItem = {
 
 export type TOrgGovernanceAuditLog = {
   id: string;
-  action: 'approve' | 'reject';
+  action: 'approve' | 'reject' | 'needs_more_info';
   actor: string;
   at: number;
   target_type?: GovernanceTargetType;

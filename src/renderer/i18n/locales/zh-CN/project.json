@@ -66,6 +66,12 @@
       "promoteMemory": "提升记忆",
       "proposePatch": "提交补丁提案"
     },
+    "governance": {
+      "phaseLabel": "当前阶段",
+      "pendingApproval": "等待人类审批",
+      "awaitingPlanApproval": "计划待批准后才可启动运行",
+      "awaitingHumanDecision": "请先补齐人类专属决策"
+    },
     "empty": {
       "tasks": "暂无任务契约",
       "runs": "暂无运行实例",

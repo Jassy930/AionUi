@@ -12,11 +12,17 @@ import type {
   GenomePatchStatus,
   IOrgGovernanceApproveParams,
   IOrgGovernanceRejectParams,
+  OrgApprovalStatus,
+  OrganizationControlPhase,
   TOrgArtifact,
+  TOrgApprovalRecord,
+  TOrgBrief,
+  TOrgControlState,
   TOrgEvalExecutionResult,
   TOrgGenomePatch,
   TOrgGovernanceAuditLogRecord,
   TOrgMemoryCard,
+  TOrgPlanSnapshot,
   TOrgRun,
   TOrgTask,
 } from '@/common/types/organization';
@@ -45,6 +51,179 @@ type WatcherState = {
 };
 
 const activeWatchers = new Map<string, WatcherState>();
+const ALL_APPROVALS_LIMIT = 1_000;
+
+function getLatestRelevantBrief(db: ReturnType<typeof getDatabase>, organizationId: string): TOrgBrief | null {
+  const briefs = db.listOrgBriefs(organizationId).data || [];
+  return briefs[0] || null;
+}
+
+function hasTier1Gap(brief: TOrgBrief | null): boolean {
+  if (!brief) {
+    return true;
+  }
+
+  return brief.status !== 'confirmed' || (brief.tier1_open_questions?.length || 0) > 0;
+}
+
+function getLatestRelevantPlanSnapshot(
+  db: ReturnType<typeof getDatabase>,
+  organizationId: string
+): TOrgPlanSnapshot | null {
+  return db.getLatestOrgPlanSnapshot(organizationId).data || null;
+}
+
+function listPendingApprovals(db: ReturnType<typeof getDatabase>, organizationId: string): TOrgApprovalRecord[] {
+  return (
+    db.listOrgApprovalRecords({
+      organization_id: organizationId,
+      status: 'pending',
+      limit: ALL_APPROVALS_LIMIT,
+    }).data || []
+  );
+}
+
+function buildControlStateSnapshot(
+  organizationId: string,
+  phase?: OrganizationControlPhase
+): Omit<TOrgControlState, 'id' | 'organization_id'> {
+  const db = getDatabase();
+  const brief = getLatestRelevantBrief(db, organizationId);
+  const planSnapshot = getLatestRelevantPlanSnapshot(db, organizationId);
+  const pendingApprovals = listPendingApprovals(db, organizationId);
+  const activeRuns = (db.listOrgRuns({ organization_id: organizationId }).data || []).filter(
+    (run) => run.status !== 'closed'
+  );
+
+  let nextPhase = phase;
+  if (!nextPhase) {
+    if (activeRuns.length > 0) {
+      nextPhase = 'monitoring';
+    } else if (hasTier1Gap(brief)) {
+      nextPhase = 'awaiting_human_decision';
+    } else if (pendingApprovals.some((approval) => approval.scope === 'plan_gate')) {
+      nextPhase = 'awaiting_plan_approval';
+    } else {
+      nextPhase = 'drafting_plan';
+    }
+  }
+
+  return {
+    conversation_id: undefined,
+    phase: nextPhase,
+    active_brief_id: brief?.id,
+    active_plan_id: planSnapshot?.id,
+    needs_human_input: nextPhase === 'awaiting_human_decision' || nextPhase === 'awaiting_plan_approval',
+    pending_approval_count: pendingApprovals.length,
+    last_human_touch_at: undefined,
+    updated_at: Date.now(),
+  };
+}
+
+export function ensureOrganizationControlState(organizationId: string): TOrgControlState | null {
+  const db = getDatabase();
+  const existing = db.getOrgControlState(organizationId).data;
+  if (existing) {
+    return existing;
+  }
+
+  const snapshot = buildControlStateSnapshot(organizationId);
+  const controlState: TOrgControlState = {
+    id: `org_control_${nanoid()}`,
+    organization_id: organizationId,
+    ...snapshot,
+  };
+  const result = db.createOrgControlState(controlState);
+  return result.success ? controlState : null;
+}
+
+export function reconcileOrganizationControlState(
+  organizationId: string,
+  phase?: OrganizationControlPhase,
+  overrides?: Partial<Pick<TOrgControlState, 'last_human_touch_at'>>
+): TOrgControlState | null {
+  const db = getDatabase();
+  const existing = ensureOrganizationControlState(organizationId);
+  if (!existing) {
+    return null;
+  }
+
+  const snapshot = buildControlStateSnapshot(organizationId, phase);
+  const result = db.updateOrgControlState(organizationId, {
+    conversation_id: existing.conversation_id,
+    phase: snapshot.phase,
+    active_brief_id: snapshot.active_brief_id,
+    active_plan_id: snapshot.active_plan_id,
+    needs_human_input: snapshot.needs_human_input,
+    pending_approval_count: snapshot.pending_approval_count,
+    last_human_touch_at:
+      overrides?.last_human_touch_at !== undefined ? overrides.last_human_touch_at : existing.last_human_touch_at,
+  });
+
+  return result.success ? db.getOrgControlState(organizationId).data || null : existing;
+}
+
+function ensureTier1DecisionReady(organizationId: string): { success: true } | { success: false; message: string } {
+  const db = getDatabase();
+  const brief = getLatestRelevantBrief(db, organizationId);
+  if (!hasTier1Gap(brief)) {
+    return { success: true };
+  }
+
+  reconcileOrganizationControlState(organizationId, 'awaiting_human_decision');
+  return {
+    success: false,
+    message: 'Missing required tier 1 human decisions before dispatching organization work',
+  };
+}
+
+function ensurePlanGateApproval(planSnapshot: TOrgPlanSnapshot): void {
+  const db = getDatabase();
+  const pendingApprovals = listPendingApprovals(db, planSnapshot.organization_id);
+  const existing = pendingApprovals.find(
+    (approval) => approval.scope === 'plan_gate' && approval.target_id === planSnapshot.id
+  );
+  if (existing) {
+    return;
+  }
+
+  const now = Date.now();
+  db.createOrgApprovalRecord({
+    id: `org_approval_${nanoid()}`,
+    organization_id: planSnapshot.organization_id,
+    scope: 'plan_gate',
+    status: 'pending',
+    target_type: 'organization',
+    target_id: planSnapshot.id,
+    title: `Approve plan snapshot: ${planSnapshot.title}`,
+    detail: 'Run dispatch is blocked until a human approves this plan snapshot.',
+    requested_by: 'organization_control_plane',
+    created_at: now,
+    updated_at: now,
+  });
+}
+
+function ensureApprovedPlanReady(
+  organizationId: string
+): { success: true; planSnapshot: TOrgPlanSnapshot } | { success: false; message: string } {
+  const db = getDatabase();
+  const latestPlan = db.getLatestOrgPlanSnapshot(organizationId).data;
+  if (latestPlan?.status === 'approved') {
+    return { success: true, planSnapshot: latestPlan };
+  }
+
+  if (latestPlan?.status === 'draft') {
+    ensurePlanGateApproval(latestPlan);
+    reconcileOrganizationControlState(organizationId, 'awaiting_plan_approval');
+  } else {
+    reconcileOrganizationControlState(organizationId, 'drafting_plan');
+  }
+
+  return {
+    success: false,
+    message: 'Organization run dispatch requires an approved plan snapshot',
+  };
+}
 
 function resolveMethod(payload: OperationPayload): string | null {
   return payload.method || payload.operation || null;
@@ -141,7 +320,8 @@ function buildGenomePatch(params: Record<string, unknown>): TOrgGenomePatch {
 
 function buildAuditLog(params: {
   organization_id: string;
-  action: 'approve' | 'reject';
+  action: TOrgGovernanceAuditLogRecord['action'];
+  actor?: string;
   target_id: string;
   target_type: TOrgGovernanceAuditLogRecord['target_type'];
   detail?: string;
@@ -150,7 +330,7 @@ function buildAuditLog(params: {
     id: `org_audit_${nanoid()}`,
     organization_id: params.organization_id,
     action: params.action,
-    actor: 'organization_control_plane',
+    actor: params.actor || 'organization_control_plane',
     target_id: params.target_id,
     target_type: params.target_type,
     detail: params.detail,
@@ -180,11 +360,31 @@ async function handleCreateTask(
     return { success: false, method: 'org/task/create', message: 'Organization not found' };
   }
 
+  const tier1Result = ensureTier1DecisionReady(organizationId);
+  if (!tier1Result.success) {
+    return {
+      success: false,
+      method: 'org/task/create',
+      message: 'message' in tier1Result ? tier1Result.message : 'Tier 1 gate failed',
+    };
+  }
+
+  const planGateResult = ensureApprovedPlanReady(organizationId);
+  if (!planGateResult.success) {
+    return {
+      success: false,
+      method: 'org/task/create',
+      message: 'message' in planGateResult ? planGateResult.message : 'Plan approval gate failed',
+    };
+  }
+
   const task = buildTask(params);
   const result = db.createOrgTask(task);
   if (!result.success) {
     return { success: false, method: 'org/task/create', message: result.error || 'Failed to create task' };
   }
+
+  reconcileOrganizationControlState(organizationId, 'dispatching');
 
   return { success: true, method: 'org/task/create', message: 'Organization task created', data: task };
 }
@@ -245,6 +445,24 @@ async function handleStartRun(
     return { success: false, method: 'org/run/start', message: 'Task does not belong to this organization' };
   }
 
+  const tier1Result = ensureTier1DecisionReady(currentOrganizationId);
+  if (!tier1Result.success) {
+    return {
+      success: false,
+      method: 'org/run/start',
+      message: 'message' in tier1Result ? tier1Result.message : 'Tier 1 gate failed',
+    };
+  }
+
+  const planGateResult = ensureApprovedPlanReady(currentOrganizationId);
+  if (!planGateResult.success) {
+    return {
+      success: false,
+      method: 'org/run/start',
+      message: 'message' in planGateResult ? planGateResult.message : 'Plan approval gate failed',
+    };
+  }
+
   const run = buildRun(taskResult.data, params);
   const runResult = db.createOrgRun(run);
   if (!runResult.success) {
@@ -260,7 +478,157 @@ async function handleStartRun(
       message: taskUpdateResult.error || 'Failed to update task status after run creation',
     };
   }
+
+  reconcileOrganizationControlState(currentOrganizationId, 'monitoring');
   return { success: true, method: 'org/run/start', message: 'Organization run started', data: run };
+}
+
+async function handleRespondApproval(
+  currentOrganizationId: string,
+  params: {
+    approval_id?: string;
+    decision?: OrgApprovalStatus;
+    actor?: string;
+    comment?: string;
+  }
+): Promise<OperationResult> {
+  if (!params.approval_id || !params.decision || !params.actor) {
+    return {
+      success: false,
+      method: 'org/approval/respond',
+      message: 'Missing required approval_id, decision or actor',
+    };
+  }
+
+  const db = getDatabase();
+  const approvalResult = db.getOrgApprovalRecord(params.approval_id);
+  if (
+    !approvalResult.success ||
+    !approvalResult.data ||
+    approvalResult.data.organization_id !== currentOrganizationId
+  ) {
+    return { success: false, method: 'org/approval/respond', message: 'Organization approval record not found' };
+  }
+
+  const approval = approvalResult.data;
+  if (approval.status !== 'pending') {
+    return {
+      success: false,
+      method: 'org/approval/respond',
+      message: 'Only pending approvals can be responded to',
+    };
+  }
+
+  const now = Date.now();
+  const previousPlan = approval.target_id ? db.getOrgPlanSnapshot(approval.target_id).data : undefined;
+  const supersededPendingApprovals =
+    params.decision === 'approved' && approval.scope === 'plan_gate'
+      ? (
+          db.listOrgApprovalRecords({
+            organization_id: currentOrganizationId,
+            status: 'pending',
+            scope: 'plan_gate',
+            limit: ALL_APPROVALS_LIMIT,
+          }).data || []
+        ).filter((record) => record.id !== approval.id)
+      : [];
+  const previousApprovedPlans =
+    params.decision === 'approved'
+      ? (db.listOrgPlanSnapshots({ organization_id: currentOrganizationId, status: 'approved' }).data || []).filter(
+          (plan) => plan.id !== approval.target_id
+        )
+      : [];
+
+  const updateApprovalResult = db.updateOrgApprovalRecord(approval.id, {
+    status: params.decision,
+    decided_by: params.actor,
+    decided_at: now,
+    decision_comment: params.comment,
+  });
+  if (!updateApprovalResult.success) {
+    return {
+      success: false,
+      method: 'org/approval/respond',
+      message: updateApprovalResult.error || 'Failed to persist approval response',
+    };
+  }
+
+  if (approval.scope === 'plan_gate' && previousPlan) {
+    if (params.decision === 'approved') {
+      for (const pendingApproval of supersededPendingApprovals) {
+        db.updateOrgApprovalRecord(pendingApproval.id, {
+          status: 'rejected',
+          decided_by: params.actor,
+          decided_at: now,
+          decision_comment: `Superseded by approved plan ${previousPlan.id}`,
+        });
+      }
+      for (const plan of previousApprovedPlans) {
+        db.updateOrgPlanSnapshot(plan.id, {
+          status: 'superseded',
+        });
+      }
+      db.updateOrgPlanSnapshot(previousPlan.id, {
+        status: 'approved',
+        approved_by: params.actor,
+        approved_at: now,
+      });
+    }
+  }
+
+  if (params.decision === 'approved' || params.decision === 'rejected' || params.decision === 'needs_more_info') {
+    const auditResult = db.createOrgAuditLog(
+      buildAuditLog({
+        organization_id: currentOrganizationId,
+        action:
+          params.decision === 'approved' ? 'approve' : params.decision === 'rejected' ? 'reject' : 'needs_more_info',
+        actor: params.actor,
+        target_type: approval.target_type || 'organization',
+        target_id: approval.target_id || approval.id,
+        detail: params.comment,
+      })
+    );
+
+    if (!auditResult.success) {
+      db.updateOrgApprovalRecord(approval.id, {
+        status: approval.status,
+        decided_by: approval.decided_by,
+        decided_at: approval.decided_at,
+        decision_comment: approval.decision_comment,
+      });
+      if (approval.scope === 'plan_gate' && previousPlan) {
+        for (const pendingApproval of supersededPendingApprovals) {
+          db.updateOrgApprovalRecord(pendingApproval.id, {
+            status: pendingApproval.status,
+            decided_by: pendingApproval.decided_by,
+            decided_at: pendingApproval.decided_at,
+            decision_comment: pendingApproval.decision_comment,
+          });
+        }
+        db.updateOrgPlanSnapshot(previousPlan.id, {
+          status: previousPlan.status,
+          approved_by: previousPlan.approved_by,
+          approved_at: previousPlan.approved_at,
+        });
+        for (const plan of previousApprovedPlans) {
+          db.updateOrgPlanSnapshot(plan.id, {
+            status: 'approved',
+          });
+        }
+      }
+      return {
+        success: false,
+        method: 'org/approval/respond',
+        message: auditResult.error || 'Failed to persist organization approval audit log',
+      };
+    }
+  }
+
+  reconcileOrganizationControlState(currentOrganizationId, undefined, {
+    last_human_touch_at: now,
+  });
+
+  return { success: true, method: 'org/approval/respond', message: 'Approval response recorded', data: true };
 }
 
 async function handleRegisterArtifact(
@@ -581,6 +949,13 @@ export async function executeOrganizationOperation(
       return handlePromoteMemory(organizationId, payload.params);
     case 'org/evolution/propose':
       return handleProposeEvolution(organizationId, payload.params);
+    case 'org/approval/respond':
+      return handleRespondApproval(organizationId, {
+        approval_id: payload.params.approval_id as string | undefined,
+        decision: payload.params.decision as OrgApprovalStatus | undefined,
+        actor: payload.params.actor as string | undefined,
+        comment: payload.params.comment as string | undefined,
+      });
     case 'org/governance/approve':
       return handleGovernanceApprove(organizationId, payload.params as unknown as IOrgGovernanceApproveParams);
     case 'org/governance/reject':

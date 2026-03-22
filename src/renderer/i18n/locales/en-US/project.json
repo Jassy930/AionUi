@@ -66,6 +66,12 @@
       "promoteMemory": "Promote Memory",
       "proposePatch": "Propose Patch"
     },
+    "governance": {
+      "phaseLabel": "Current Phase",
+      "pendingApproval": "Waiting for human approval",
+      "awaitingPlanApproval": "Approve the latest plan before starting a run",
+      "awaitingHumanDecision": "Complete the human-only decisions first"
+    },
     "empty": {
       "tasks": "No task contracts yet",
       "runs": "No runs yet",

@@ -66,6 +66,12 @@
       "promoteMemory": "メモリを昇格",
       "proposePatch": "パッチ提案を送信"
     },
+    "governance": {
+      "phaseLabel": "現在のフェーズ",
+      "pendingApproval": "人間の承認待ち",
+      "awaitingPlanApproval": "Run を開始する前に最新プランを承認してください",
+      "awaitingHumanDecision": "人間専用の意思決定を先に補完してください"
+    },
     "empty": {
       "tasks": "タスク契約がありません",
       "runs": "実行インスタンスがありません",

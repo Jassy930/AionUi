@@ -66,6 +66,12 @@
       "promoteMemory": "Bellegi Yukselt",
       "proposePatch": "Yama Oner"
     },
+    "governance": {
+      "phaseLabel": "Gecerli Asama",
+      "pendingApproval": "Insan onayi bekleniyor",
+      "awaitingPlanApproval": "Bir calistirma baslatmadan once en son plani onaylayin",
+      "awaitingHumanDecision": "Once insana ozel kararlari tamamlayin"
+    },
     "empty": {
       "tasks": "Henuz gorev sozlesmesi yok",
       "runs": "Henuz calistirma yok",

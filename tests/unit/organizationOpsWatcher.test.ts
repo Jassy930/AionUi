@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TOrganization, TOrgTask, TOrgEvalSpec } from '@/common/types/organization';
+import type { TOrgBrief, TOrganization, TOrgEvalSpec, TOrgPlanSnapshot, TOrgTask } from '@/common/types/organization';
 
 let currentDb: import('@/process/database').AionUIDatabase;
 const { safeExecFileMock } = vi.hoisted(() => ({
@@ -48,6 +48,51 @@ import {
   executeOrganizationOperation,
   processOrganizationOperationFile,
 } from '@/process/services/organizationOpsWatcher';
+
+function seedConfirmedBrief(db: AionUIDatabase, organizationId: string, overrides: Partial<TOrgBrief> = {}) {
+  const now = Date.now();
+  const brief: TOrgBrief = {
+    id: overrides.id || `org_watcher_brief_${now}`,
+    organization_id: organizationId,
+    title: overrides.title || 'Confirmed brief',
+    summary: overrides.summary || 'Tier 1 decisions are confirmed.',
+    status: overrides.status || 'confirmed',
+    tier1_open_questions: overrides.tier1_open_questions || [],
+    tier2_pending_items: overrides.tier2_pending_items || [],
+    constraints: overrides.constraints,
+    risk_notes: overrides.risk_notes,
+    created_at: overrides.created_at || now,
+    updated_at: overrides.updated_at || now,
+  };
+  expect(db.createOrgBrief(brief).success).toBe(true);
+  return brief;
+}
+
+function seedPlanSnapshot(
+  db: AionUIDatabase,
+  organizationId: string,
+  briefId: string,
+  overrides: Partial<TOrgPlanSnapshot> = {}
+) {
+  const now = Date.now();
+  const snapshot: TOrgPlanSnapshot = {
+    id: overrides.id || `org_watcher_plan_${now}`,
+    organization_id: organizationId,
+    brief_id: overrides.brief_id === undefined ? briefId : overrides.brief_id,
+    title: overrides.title || 'Watcher execution plan',
+    objective: overrides.objective || 'Dispatch approved watcher work',
+    content: overrides.content || {
+      milestones: [{ id: 'm1', title: 'Dispatch task contracts' }],
+    },
+    status: overrides.status || 'approved',
+    approved_by: overrides.approved_by || 'human_reviewer',
+    approved_at: overrides.approved_at || now,
+    created_at: overrides.created_at || now,
+    updated_at: overrides.updated_at || now,
+  };
+  expect(db.createOrgPlanSnapshot(snapshot).success).toBe(true);
+  return snapshot;
+}
 
 describe('organizationOpsWatcher', () => {
   let db: AionUIDatabase;
@@ -120,6 +165,9 @@ describe('organizationOpsWatcher', () => {
   });
 
   it('executes core org operations against the database', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
     const taskCreateResult = await executeOrganizationOperation(organization.id, organization.workspace, {
       method: 'org/task/create',
       params: {
@@ -224,6 +272,182 @@ describe('organizationOpsWatcher', () => {
     expect(db.listOrgAuditLogs({ organization_id: organization.id }).data).toHaveLength(1);
   });
 
+  it('moves control state to awaiting_human_decision when tier 1 information is missing', async () => {
+    const taskCreateResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/task/create',
+      params: {
+        organization_id: organization.id,
+        title: 'Blocked task',
+        objective: 'Should require human clarification first',
+        scope: ['docs/'],
+        done_criteria: ['blocked'],
+        budget: {},
+        risk_tier: 'low',
+        validators: [],
+        deliverable_schema: {},
+      },
+    });
+
+    expect(taskCreateResult.success).toBe(false);
+    expect(taskCreateResult.message).toContain('tier 1');
+    expect(db.getOrgControlState(organization.id).data).toEqual(
+      expect.objectContaining({
+        phase: 'awaiting_human_decision',
+        needs_human_input: true,
+      })
+    );
+  });
+
+  it('blocks dispatch when a newer brief reopens tier 1 questions', async () => {
+    const now = Date.now();
+    seedConfirmedBrief(db, organization.id, {
+      id: 'org_watcher_brief_confirmed_old',
+      created_at: now - 1000,
+      updated_at: now - 1000,
+    });
+    seedPlanSnapshot(db, organization.id, 'org_watcher_brief_confirmed_old');
+    seedConfirmedBrief(db, organization.id, {
+      id: 'org_watcher_brief_latest_draft',
+      status: 'draft',
+      tier1_open_questions: ['Who is the real target user for this workflow?'],
+      created_at: now,
+      updated_at: now,
+    });
+
+    const taskCreateResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/task/create',
+      params: {
+        organization_id: organization.id,
+        title: 'Should be blocked by latest brief',
+        objective: 'Latest draft brief must reopen tier 1 gate',
+        scope: ['docs/'],
+        done_criteria: ['blocked'],
+        budget: {},
+        risk_tier: 'low',
+        validators: [],
+        deliverable_schema: {},
+      },
+    });
+
+    expect(taskCreateResult.success).toBe(false);
+    expect(db.getOrgControlState(organization.id).data).toEqual(
+      expect.objectContaining({
+        phase: 'awaiting_human_decision',
+        active_brief_id: 'org_watcher_brief_latest_draft',
+      })
+    );
+  });
+
+  it('rejects run start without an approved plan snapshot and creates a plan approval gate', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    const plan = seedPlanSnapshot(db, organization.id, brief.id, {
+      status: 'draft',
+      approved_by: undefined,
+      approved_at: undefined,
+    });
+
+    const runStartResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/run/start',
+      params: {
+        task_id: task.id,
+        workspace: { mode: 'isolated', type: 'worktree', path: path.join(WORKSPACE_PATH, 'runs/run-gated') },
+        environment: { kind: 'cloud', env_id: 'ts-ci' },
+      },
+    });
+
+    expect(runStartResult.success).toBe(false);
+    expect(runStartResult.message).toContain('approved plan snapshot');
+    expect(db.getOrgControlState(organization.id).data).toEqual(
+      expect.objectContaining({
+        phase: 'awaiting_plan_approval',
+        active_plan_id: plan.id,
+        needs_human_input: true,
+        pending_approval_count: 1,
+      })
+    );
+    expect(db.listOrgApprovalRecords({ organization_id: organization.id, status: 'pending', limit: 10 }).data).toEqual([
+      expect.objectContaining({
+        scope: 'plan_gate',
+        status: 'pending',
+        target_type: 'organization',
+        target_id: plan.id,
+      }),
+    ]);
+  });
+
+  it('blocks dispatch when a newer draft plan exists after an older approved plan', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id, {
+      id: 'org_watcher_plan_old_approved',
+      status: 'approved',
+      created_at: Date.now() - 1000,
+      updated_at: Date.now() - 1000,
+    });
+    const latestDraftPlan = seedPlanSnapshot(db, organization.id, brief.id, {
+      id: 'org_watcher_plan_latest_draft',
+      status: 'draft',
+      approved_by: undefined,
+      approved_at: undefined,
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    });
+
+    const runStartResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/run/start',
+      params: {
+        task_id: task.id,
+        workspace: { mode: 'isolated', type: 'worktree', path: path.join(WORKSPACE_PATH, 'runs/run-latest-draft') },
+        environment: { kind: 'cloud', env_id: 'ts-ci' },
+      },
+    });
+
+    expect(runStartResult.success).toBe(false);
+    expect(db.getOrgControlState(organization.id).data).toEqual(
+      expect.objectContaining({
+        phase: 'awaiting_plan_approval',
+        active_plan_id: latestDraftPlan.id,
+      })
+    );
+    expect(db.listOrgApprovalRecords({ organization_id: organization.id, status: 'pending', limit: 10 }).data).toEqual([
+      expect.objectContaining({
+        target_id: latestDraftPlan.id,
+      }),
+    ]);
+  });
+
+  it('updates control phase to dispatching and monitoring for task and run execution', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
+    const taskCreateResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/task/create',
+      params: {
+        organization_id: organization.id,
+        title: 'Dispatch task',
+        objective: 'Advance control state into dispatching',
+        scope: ['src/process/'],
+        done_criteria: ['task dispatched'],
+        budget: {},
+        risk_tier: 'low',
+        validators: [],
+        deliverable_schema: {},
+      },
+    });
+    expect(taskCreateResult.success).toBe(true);
+    expect(db.getOrgControlState(organization.id).data?.phase).toBe('dispatching');
+
+    const runStartResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/run/start',
+      params: {
+        task_id: (taskCreateResult.data as { id: string }).id,
+        workspace: { mode: 'isolated', type: 'worktree', path: path.join(WORKSPACE_PATH, 'runs/run-monitoring') },
+        environment: { kind: 'cloud', env_id: 'ts-ci' },
+      },
+    });
+    expect(runStartResult.success).toBe(true);
+    expect(db.getOrgControlState(organization.id).data?.phase).toBe('monitoring');
+  });
+
   it('rejects cross-organization operations from the current watcher context', async () => {
     const now = Date.now();
     const foreignOrganization: TOrganization = {
@@ -257,6 +481,9 @@ describe('organizationOpsWatcher', () => {
   });
 
   it('allows the same file path to be retried after malformed input', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
     const contextDir = getOrganizationContextDir(organization.workspace);
     const operationsDir = path.join(contextDir, 'control', 'operations');
     const filePath = path.join(operationsDir, 'retry-task.json');
@@ -297,6 +524,9 @@ describe('organizationOpsWatcher', () => {
   });
 
   it('rolls back a created run when task status update fails', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
     const updateSpy = vi.spyOn(db, 'updateOrgTask').mockReturnValueOnce({
       success: false,
       error: 'task status update failed',
@@ -317,6 +547,9 @@ describe('organizationOpsWatcher', () => {
   });
 
   it('rejects artifact and eval requests when run does not belong to the given task', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
     const now = Date.now();
     const secondTask: TOrgTask = {
       id: 'org_watcher_task_2',
@@ -370,6 +603,9 @@ describe('organizationOpsWatcher', () => {
   });
 
   it('reverts governance approval when audit persistence fails', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
     const runStartResult = await executeOrganizationOperation(organization.id, organization.workspace, {
       method: 'org/run/start',
       params: {
@@ -413,6 +649,9 @@ describe('organizationOpsWatcher', () => {
   });
 
   it('parses operation files and writes result files into .aionui-org', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+
     const contextDir = getOrganizationContextDir(organization.workspace);
     const operationsDir = path.join(contextDir, 'control', 'operations');
     const filePath = path.join(operationsDir, 'create-task.json');

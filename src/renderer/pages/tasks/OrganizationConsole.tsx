@@ -4,14 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Empty, Message } from '@arco-design/web-react';
 import { Left } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import type {
+  TOrgApprovalRecord,
   TOrganization,
   TOrgArtifact,
+  TOrgControlState,
   TOrgEvalSpec,
   TOrgGenomePatch,
   TOrgMemoryCard,
@@ -61,6 +63,44 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
 }) => {
   const { t } = useTranslation();
   const [activeView, setActiveView] = useState<OrganizationConsoleView>('overview');
+  const [controlState, setControlState] = useState<TOrgControlState | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<TOrgApprovalRecord[]>([]);
+  const [governanceLoading, setGovernanceLoading] = useState(true);
+
+  const loadGovernanceState = useCallback(async () => {
+    if (!organization.id) {
+      setControlState(null);
+      setPendingApprovals([]);
+      setGovernanceLoading(false);
+      return;
+    }
+
+    setGovernanceLoading(true);
+
+    try {
+      const [controlResult, approvalsResult] = await Promise.all([
+        ipcBridge.org.organization.getControlState.invoke({ organizationId: organization.id }),
+        ipcBridge.org.organization.listApprovals.invoke({
+          organizationId: organization.id,
+          status: 'pending',
+          limit: 100,
+        }),
+      ]);
+
+      setControlState(controlResult.success ? (controlResult.data ?? null) : null);
+      setPendingApprovals(approvalsResult.success ? (approvalsResult.data ?? []) : []);
+    } catch (error) {
+      console.error('[OrganizationConsole] Failed to load governance state:', error);
+      setControlState(null);
+      setPendingApprovals([]);
+    } finally {
+      setGovernanceLoading(false);
+    }
+  }, [organization.id]);
+
+  useEffect(() => {
+    void loadGovernanceState();
+  }, [loadGovernanceState]);
 
   const navItems = useMemo<OrganizationNavItem[]>(
     () => [
@@ -107,6 +147,30 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
     navItems.find((item) => item.id === activeView)?.label ||
     t('project.console.nav.overview', { defaultValue: 'Overview' });
 
+  const governanceHint = useMemo(() => {
+    if (controlState?.phase === 'awaiting_plan_approval') {
+      return t('project.console.governance.awaitingPlanApproval', {
+        defaultValue: '计划待批准后才可启动运行',
+      });
+    }
+
+    if (controlState?.phase === 'awaiting_human_decision' || controlState?.needs_human_input) {
+      return t('project.console.governance.awaitingHumanDecision', {
+        defaultValue: '请先补齐人类专属决策',
+      });
+    }
+
+    return '';
+  }, [controlState?.needs_human_input, controlState?.phase, t]);
+
+  const isRunStartBlocked =
+    governanceLoading ||
+    controlState?.phase === 'awaiting_plan_approval' ||
+    controlState?.phase === 'awaiting_human_decision' ||
+    Boolean(controlState?.needs_human_input) ||
+    (controlState?.pending_approval_count ?? 0) > 0 ||
+    pendingApprovals.length > 0;
+
   const handleCreateTask = async () => {
     const result = await ipcBridge.org.task.create.invoke({
       organization_id: organization.id,
@@ -126,9 +190,20 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
       return;
     }
     await onRefresh();
+    await loadGovernanceState();
   };
 
   const handleStartRun = async () => {
+    if (isRunStartBlocked) {
+      Message.warning(
+        governanceHint ||
+          t('project.console.governance.pendingApproval', {
+            defaultValue: '等待人类审批',
+          })
+      );
+      return;
+    }
+
     const task = tasks[0];
     if (!task) {
       Message.warning(t('project.console.messages.noTaskAvailable', { defaultValue: 'No task contract available' }));
@@ -154,6 +229,7 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
       return;
     }
     await onRefresh();
+    await loadGovernanceState();
   };
 
   const handleExecuteEval = async () => {
@@ -181,6 +257,7 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
       return;
     }
     await onRefresh();
+    await loadGovernanceState();
   };
 
   const handlePromoteMemory = async () => {
@@ -216,6 +293,7 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
       return;
     }
     await onRefresh();
+    await loadGovernanceState();
   };
 
   const handleProposePatch = async () => {
@@ -241,6 +319,7 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
       return;
     }
     await onRefresh();
+    await loadGovernanceState();
   };
 
   const renderViewContent = () => {
@@ -317,11 +396,37 @@ const OrganizationConsole: React.FC<OrganizationConsoleProps> = ({
             <h3 className='organization-console__section-title'>
               {t('project.console.tower.actionsTitle', { defaultValue: 'Structured Actions' })}
             </h3>
+            <div className='organization-console__governance-status'>
+              <div className='organization-console__governance-row'>
+                <span className='organization-console__governance-label'>
+                  {t('project.console.governance.phaseLabel', { defaultValue: '当前阶段' })}
+                </span>
+                <strong className='organization-console__governance-value'>
+                  {governanceLoading ? '--' : controlState?.phase || 'drafting_plan'}
+                </strong>
+              </div>
+              {!governanceLoading && isRunStartBlocked ? (
+                <div className='organization-console__governance-alert' role='status'>
+                  <strong>
+                    {t('project.console.governance.pendingApproval', {
+                      defaultValue: '等待人类审批',
+                    })}
+                  </strong>
+                  <span>{governanceHint}</span>
+                </div>
+              ) : null}
+            </div>
             <div className='organization-console__action-list'>
               <button type='button' className='organization-console__action' onClick={handleCreateTask}>
                 {t('project.console.actions.createTask', { defaultValue: 'Create Task Contract' })}
               </button>
-              <button type='button' className='organization-console__action' onClick={handleStartRun}>
+              <button
+                type='button'
+                className={`organization-console__action${isRunStartBlocked ? ' organization-console__action--disabled' : ''}`}
+                onClick={handleStartRun}
+                disabled={isRunStartBlocked}
+                title={isRunStartBlocked && governanceHint ? governanceHint : undefined}
+              >
                 {t('project.console.actions.startRun', { defaultValue: 'Start Run' })}
               </button>
               <button type='button' className='organization-console__action' onClick={handleExecuteEval}>
