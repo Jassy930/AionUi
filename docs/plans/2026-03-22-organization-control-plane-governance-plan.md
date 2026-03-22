@@ -10,6 +10,13 @@
 
 ---
 
+## 执行进展
+
+- 2026-03-22：Task 1 已完成并提交，已补齐组织控制面领域模型、审批相关类型与 IPC provider 契约。
+- 2026-03-22：Task 2 已完成实现与审查，数据库新增控制状态 / brief / plan snapshot / approval record 持久化，repository 已补齐 CRUD / list / latest，补充了引用完整性与审批状态一致性约束；`bunx vitest --run tests/unit/organizationDatabase.test.ts` 通过。
+
+---
+
 ### Task 1: 定义组织控制面领域模型
 
 **Files:**

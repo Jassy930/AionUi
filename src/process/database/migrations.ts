@@ -1676,6 +1676,237 @@ const migration_v21: IMigration = {
 };
 
 /**
+ * Migration v21 -> v22: Add Organization Control Plane governance persistence tables
+ */
+const migration_v22: IMigration = {
+  version: 22,
+  name: 'Add Organization Control Plane governance persistence tables',
+  up: (db) => {
+    // Organization briefs
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_briefs (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'confirmed')),
+        tier1_open_questions TEXT NOT NULL,
+        tier2_pending_items TEXT NOT NULL,
+        constraints TEXT,
+        risk_notes TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_briefs_org_status ON org_briefs(organization_id, status);
+      CREATE INDEX IF NOT EXISTS idx_org_briefs_updated_at ON org_briefs(updated_at DESC);
+    `);
+
+    // Plan snapshots
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_plan_snapshots (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        brief_id TEXT,
+        title TEXT NOT NULL,
+        objective TEXT NOT NULL,
+        content TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('draft', 'approved', 'superseded')),
+        approved_by TEXT,
+        approved_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (brief_id) REFERENCES org_briefs(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_plan_snapshots_org_status_created
+        ON org_plan_snapshots(organization_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_org_plan_snapshots_brief_id ON org_plan_snapshots(brief_id);
+    `);
+
+    // Human approval records
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_approval_records (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        scope TEXT NOT NULL CHECK(scope IN ('tier1_decision', 'tier2_decision', 'plan_gate')),
+        status TEXT NOT NULL CHECK(status IN ('pending', 'approved', 'rejected', 'needs_more_info')),
+        target_type TEXT CHECK(
+          target_type IS NULL OR target_type IN (
+            'organization', 'task', 'run', 'artifact', 'memory_card', 'eval_spec', 'skill', 'genome_patch'
+          )
+        ),
+        target_id TEXT,
+        title TEXT NOT NULL,
+        detail TEXT,
+        requested_by TEXT NOT NULL,
+        decided_by TEXT,
+        decided_at INTEGER,
+        decision_comment TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        CHECK (
+          (
+            status = 'pending'
+            AND decided_by IS NULL
+            AND decided_at IS NULL
+            AND decision_comment IS NULL
+          )
+          OR (
+            status IN ('approved', 'rejected', 'needs_more_info')
+            AND decided_by IS NOT NULL
+            AND decided_at IS NOT NULL
+          )
+        ),
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_approval_records_org_status_created
+        ON org_approval_records(organization_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_org_approval_records_org_scope
+        ON org_approval_records(organization_id, scope);
+    `);
+
+    // Control state (single active record per organization)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS org_control_states (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL UNIQUE,
+        conversation_id TEXT,
+        phase TEXT NOT NULL CHECK(phase IN (
+          'intake',
+          'brainstorming',
+          'awaiting_human_decision',
+          'drafting_plan',
+          'awaiting_plan_approval',
+          'dispatching',
+          'monitoring',
+          'blocked'
+        )),
+        active_brief_id TEXT,
+        active_plan_id TEXT,
+        needs_human_input INTEGER NOT NULL CHECK(needs_human_input IN (0, 1)),
+        pending_approval_count INTEGER NOT NULL DEFAULT 0,
+        last_human_touch_at INTEGER,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
+        FOREIGN KEY (active_brief_id) REFERENCES org_briefs(id) ON DELETE SET NULL,
+        FOREIGN KEY (active_plan_id) REFERENCES org_plan_snapshots(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_org_control_states_phase ON org_control_states(phase);
+      CREATE INDEX IF NOT EXISTS idx_org_control_states_updated_at ON org_control_states(updated_at DESC);
+    `);
+
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS trg_org_plan_snapshots_brief_scope_insert
+      BEFORE INSERT ON org_plan_snapshots
+      FOR EACH ROW
+      WHEN NEW.brief_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM org_briefs
+          WHERE id = NEW.brief_id
+            AND organization_id = NEW.organization_id
+        )
+      BEGIN
+        SELECT RAISE(ABORT, 'Organization brief reference must belong to the same organization');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_org_plan_snapshots_brief_scope_update
+      BEFORE UPDATE OF brief_id, organization_id ON org_plan_snapshots
+      FOR EACH ROW
+      WHEN NEW.brief_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM org_briefs
+          WHERE id = NEW.brief_id
+            AND organization_id = NEW.organization_id
+        )
+      BEGIN
+        SELECT RAISE(ABORT, 'Organization brief reference must belong to the same organization');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_org_control_states_brief_scope_insert
+      BEFORE INSERT ON org_control_states
+      FOR EACH ROW
+      WHEN NEW.active_brief_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM org_briefs
+          WHERE id = NEW.active_brief_id
+            AND organization_id = NEW.organization_id
+        )
+      BEGIN
+        SELECT RAISE(ABORT, 'Organization control brief must belong to the same organization');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_org_control_states_brief_scope_update
+      BEFORE UPDATE OF active_brief_id, organization_id ON org_control_states
+      FOR EACH ROW
+      WHEN NEW.active_brief_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM org_briefs
+          WHERE id = NEW.active_brief_id
+            AND organization_id = NEW.organization_id
+        )
+      BEGIN
+        SELECT RAISE(ABORT, 'Organization control brief must belong to the same organization');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_org_control_states_plan_scope_insert
+      BEFORE INSERT ON org_control_states
+      FOR EACH ROW
+      WHEN NEW.active_plan_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM org_plan_snapshots
+          WHERE id = NEW.active_plan_id
+            AND organization_id = NEW.organization_id
+        )
+      BEGIN
+        SELECT RAISE(ABORT, 'Organization control plan must belong to the same organization');
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_org_control_states_plan_scope_update
+      BEFORE UPDATE OF active_plan_id, organization_id ON org_control_states
+      FOR EACH ROW
+      WHEN NEW.active_plan_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM org_plan_snapshots
+          WHERE id = NEW.active_plan_id
+            AND organization_id = NEW.organization_id
+        )
+      BEGIN
+        SELECT RAISE(ABORT, 'Organization control plan must belong to the same organization');
+      END;
+    `);
+
+    console.log('[Migration v22] Added Organization Control Plane governance tables');
+  },
+  down: (db) => {
+    db.exec(`
+      DROP TRIGGER IF EXISTS trg_org_control_states_plan_scope_update;
+      DROP TRIGGER IF EXISTS trg_org_control_states_plan_scope_insert;
+      DROP TRIGGER IF EXISTS trg_org_control_states_brief_scope_update;
+      DROP TRIGGER IF EXISTS trg_org_control_states_brief_scope_insert;
+      DROP TRIGGER IF EXISTS trg_org_plan_snapshots_brief_scope_update;
+      DROP TRIGGER IF EXISTS trg_org_plan_snapshots_brief_scope_insert;
+      DROP TABLE IF EXISTS org_control_states;
+      DROP TABLE IF EXISTS org_approval_records;
+      DROP TABLE IF EXISTS org_plan_snapshots;
+      DROP TABLE IF EXISTS org_briefs;
+    `);
+    console.log('[Migration v22] Rolled back: Removed Organization Control Plane governance tables');
+  },
+};
+
+/**
  * All migrations in order
  */
 // prettier-ignore
@@ -1683,8 +1914,10 @@ export const ALL_MIGRATIONS: IMigration[] = [
   migration_v1, migration_v2, migration_v3, migration_v4, migration_v5, migration_v6,
   migration_v7, migration_v8, migration_v9, migration_v10, migration_v11, migration_v12,
   migration_v13, migration_v14, migration_v15, migration_v16, migration_v17, migration_v18,
-  migration_v19, migration_v20, migration_v21,
+  migration_v19, migration_v20, migration_v21, migration_v22,
 ];
+
+export const LATEST_MIGRATION_VERSION = ALL_MIGRATIONS[ALL_MIGRATIONS.length - 1]?.version ?? 0;
 
 /**
  * Get migrations needed to upgrade from one version to another

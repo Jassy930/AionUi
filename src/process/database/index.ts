@@ -9,7 +9,7 @@ import type Database from 'better-sqlite3';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
-import { runMigrations as executeMigrations } from './migrations';
+import { LATEST_MIGRATION_VERSION, runMigrations as executeMigrations } from './migrations';
 import { CURRENT_DB_VERSION, getDatabaseVersion, initSchema, setDatabaseVersion } from './schema';
 import type {
   IConversationRow,
@@ -58,13 +58,17 @@ import type {
   IListOrgRunParams,
   IListOrgSkillParams,
   IListOrgTaskParams,
+  TOrgApprovalRecord,
   TOrganization,
   TOrgArtifact,
+  TOrgBrief,
+  TOrgControlState,
   TOrgEvalSpec,
   TOrgGenomePatch,
   TOrgGovernanceAuditLog,
   TOrgGovernanceAuditLogRecord,
   TOrgMemoryCard,
+  TOrgPlanSnapshot,
   TOrgRun,
   TOrgSkill,
   TOrgTask,
@@ -124,6 +128,33 @@ type IOrgGenomePatchRow = Omit<
   offline_eval_result: string | null;
   canary_result: string | null;
   decision: string | null;
+};
+
+type IOrgControlStateRow = Omit<TOrgControlState, 'needs_human_input'> & {
+  needs_human_input: number;
+};
+
+type IOrgBriefRow = Omit<TOrgBrief, 'tier1_open_questions' | 'tier2_pending_items' | 'constraints' | 'risk_notes'> & {
+  tier1_open_questions: string;
+  tier2_pending_items: string;
+  constraints: string | null;
+  risk_notes: string | null;
+};
+
+type IOrgPlanSnapshotRow = Omit<TOrgPlanSnapshot, 'content'> & {
+  content: string;
+};
+
+type IListOrgPlanSnapshotQuery = {
+  organization_id: string;
+  status?: TOrgPlanSnapshot['status'];
+};
+
+type IListOrgApprovalRecordQuery = {
+  organization_id: string;
+  status?: TOrgApprovalRecord['status'];
+  scope?: TOrgApprovalRecord['scope'];
+  limit?: number;
 };
 
 const escapeLikePattern = (value: string): string => value.replace(/[\\%_]/g, (match) => `\\${match}`);
@@ -238,9 +269,10 @@ export class AionUIDatabase {
 
       // Check and run migrations if needed
       const currentVersion = getDatabaseVersion(this.db);
-      if (currentVersion < CURRENT_DB_VERSION) {
-        this.runMigrations(currentVersion, CURRENT_DB_VERSION);
-        setDatabaseVersion(this.db, CURRENT_DB_VERSION);
+      const targetVersion = Math.max(CURRENT_DB_VERSION, LATEST_MIGRATION_VERSION);
+      if (currentVersion < targetVersion) {
+        this.runMigrations(currentVersion, targetVersion);
+        setDatabaseVersion(this.db, targetVersion);
       }
 
       this.ensureSystemUser();
@@ -1574,6 +1606,733 @@ export class AionUIDatabase {
   deleteOrganization(organizationId: string): IQueryResult<boolean> {
     try {
       const result = this.db.prepare('DELETE FROM organizations WHERE id = ?').run(organizationId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgControlState(controlState: TOrgControlState): IQueryResult<TOrgControlState> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_control_states (
+            id, organization_id, conversation_id, phase, active_brief_id, active_plan_id,
+            needs_human_input, pending_approval_count, last_human_touch_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          controlState.id,
+          controlState.organization_id,
+          controlState.conversation_id ?? null,
+          controlState.phase,
+          controlState.active_brief_id ?? null,
+          controlState.active_plan_id ?? null,
+          controlState.needs_human_input ? 1 : 0,
+          controlState.pending_approval_count,
+          controlState.last_human_touch_at ?? null,
+          controlState.updated_at
+        );
+
+      return { success: true, data: controlState };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgControlState(organizationId: string): IQueryResult<TOrgControlState> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_control_states WHERE organization_id = ?').get(organizationId) as
+        | IOrgControlStateRow
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization control state not found' };
+      }
+      return {
+        success: true,
+        data: {
+          id: row.id,
+          organization_id: row.organization_id,
+          conversation_id: row.conversation_id ?? undefined,
+          phase: row.phase,
+          active_brief_id: row.active_brief_id ?? undefined,
+          active_plan_id: row.active_plan_id ?? undefined,
+          needs_human_input: row.needs_human_input === 1,
+          pending_approval_count: row.pending_approval_count,
+          last_human_touch_at: row.last_human_touch_at ?? undefined,
+          updated_at: row.updated_at,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  updateOrgControlState(
+    organizationId: string,
+    updates: Partial<
+      Pick<
+        TOrgControlState,
+        | 'conversation_id'
+        | 'phase'
+        | 'active_brief_id'
+        | 'active_plan_id'
+        | 'needs_human_input'
+        | 'pending_approval_count'
+        | 'last_human_touch_at'
+      >
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgControlState(organizationId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization control state not found' };
+      }
+
+      const setClauses: string[] = ['updated_at = ?'];
+      const now = Date.now();
+      const sqlParams: Array<string | number | null> = [now];
+
+      if (updates.conversation_id !== undefined) {
+        setClauses.push('conversation_id = ?');
+        sqlParams.push(updates.conversation_id ?? null);
+      }
+      if (updates.phase !== undefined) {
+        setClauses.push('phase = ?');
+        sqlParams.push(updates.phase);
+      }
+      if (updates.active_brief_id !== undefined) {
+        setClauses.push('active_brief_id = ?');
+        sqlParams.push(updates.active_brief_id ?? null);
+      }
+      if (updates.active_plan_id !== undefined) {
+        setClauses.push('active_plan_id = ?');
+        sqlParams.push(updates.active_plan_id ?? null);
+      }
+      if (updates.needs_human_input !== undefined) {
+        setClauses.push('needs_human_input = ?');
+        sqlParams.push(updates.needs_human_input ? 1 : 0);
+      }
+      if (updates.pending_approval_count !== undefined) {
+        setClauses.push('pending_approval_count = ?');
+        sqlParams.push(updates.pending_approval_count);
+      }
+      if (updates.last_human_touch_at !== undefined) {
+        setClauses.push('last_human_touch_at = ?');
+        sqlParams.push(updates.last_human_touch_at ?? null);
+      }
+
+      sqlParams.push(organizationId);
+      this.db
+        .prepare(`UPDATE org_control_states SET ${setClauses.join(', ')} WHERE organization_id = ?`)
+        .run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgControlState(organizationId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_control_states WHERE organization_id = ?').run(organizationId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgBrief(brief: TOrgBrief): IQueryResult<TOrgBrief> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_briefs (
+            id, organization_id, title, summary, status, tier1_open_questions, tier2_pending_items,
+            constraints, risk_notes, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          brief.id,
+          brief.organization_id,
+          brief.title,
+          brief.summary,
+          brief.status,
+          toJson(brief.tier1_open_questions),
+          toJson(brief.tier2_pending_items),
+          brief.constraints !== undefined ? toJson(brief.constraints) : null,
+          brief.risk_notes !== undefined ? toJson(brief.risk_notes) : null,
+          brief.created_at,
+          brief.updated_at
+        );
+      return { success: true, data: brief };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgBrief(briefId: string): IQueryResult<TOrgBrief> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_briefs WHERE id = ?').get(briefId) as IOrgBriefRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization brief not found' };
+      }
+      return {
+        success: true,
+        data: {
+          ...row,
+          tier1_open_questions: parseJson(row.tier1_open_questions, []),
+          tier2_pending_items: parseJson(row.tier2_pending_items, []),
+          constraints: parseJson(row.constraints, undefined),
+          risk_notes: parseJson(row.risk_notes, undefined),
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getLatestOrgBrief(organizationId: string): IQueryResult<TOrgBrief> {
+    try {
+      const row = this.db
+        .prepare('SELECT * FROM org_briefs WHERE organization_id = ? ORDER BY updated_at DESC, id DESC LIMIT 1')
+        .get(organizationId) as IOrgBriefRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization brief not found' };
+      }
+      return {
+        success: true,
+        data: {
+          ...row,
+          tier1_open_questions: parseJson(row.tier1_open_questions, []),
+          tier2_pending_items: parseJson(row.tier2_pending_items, []),
+          constraints: parseJson(row.constraints, undefined),
+          risk_notes: parseJson(row.risk_notes, undefined),
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgBriefs(params: string | { organization_id: string }): IQueryResult<TOrgBrief[]> {
+    try {
+      const organizationId = typeof params === 'string' ? params : params.organization_id;
+      const rows = this.db
+        .prepare('SELECT * FROM org_briefs WHERE organization_id = ? ORDER BY updated_at DESC')
+        .all(organizationId) as IOrgBriefRow[];
+      return {
+        success: true,
+        data: rows.map((row) => ({
+          ...row,
+          tier1_open_questions: parseJson(row.tier1_open_questions, []),
+          tier2_pending_items: parseJson(row.tier2_pending_items, []),
+          constraints: parseJson(row.constraints, undefined),
+          risk_notes: parseJson(row.risk_notes, undefined),
+        })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgBrief(
+    briefId: string,
+    updates: Partial<
+      Pick<
+        TOrgBrief,
+        'title' | 'summary' | 'status' | 'tier1_open_questions' | 'tier2_pending_items' | 'constraints' | 'risk_notes'
+      >
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgBrief(briefId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization brief not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: Array<string | number | null> = [now];
+
+      if (updates.title !== undefined) {
+        setClauses.push('title = ?');
+        sqlParams.push(updates.title);
+      }
+      if (updates.summary !== undefined) {
+        setClauses.push('summary = ?');
+        sqlParams.push(updates.summary);
+      }
+      if (updates.status !== undefined) {
+        setClauses.push('status = ?');
+        sqlParams.push(updates.status);
+      }
+      if (updates.tier1_open_questions !== undefined) {
+        setClauses.push('tier1_open_questions = ?');
+        sqlParams.push(toJson(updates.tier1_open_questions));
+      }
+      if (updates.tier2_pending_items !== undefined) {
+        setClauses.push('tier2_pending_items = ?');
+        sqlParams.push(toJson(updates.tier2_pending_items));
+      }
+      if (updates.constraints !== undefined) {
+        setClauses.push('constraints = ?');
+        sqlParams.push(toJson(updates.constraints));
+      }
+      if (updates.risk_notes !== undefined) {
+        setClauses.push('risk_notes = ?');
+        sqlParams.push(toJson(updates.risk_notes));
+      }
+
+      sqlParams.push(briefId);
+      this.db.prepare(`UPDATE org_briefs SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgBrief(briefId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_briefs WHERE id = ?').run(briefId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgPlanSnapshot(snapshot: TOrgPlanSnapshot): IQueryResult<TOrgPlanSnapshot> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_plan_snapshots (
+            id, organization_id, brief_id, title, objective, content, status,
+            approved_by, approved_at, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          snapshot.id,
+          snapshot.organization_id,
+          snapshot.brief_id ?? null,
+          snapshot.title,
+          snapshot.objective,
+          toJson(snapshot.content),
+          snapshot.status,
+          snapshot.approved_by ?? null,
+          snapshot.approved_at ?? null,
+          snapshot.created_at,
+          snapshot.updated_at
+        );
+      return { success: true, data: snapshot };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgPlanSnapshot(snapshotId: string): IQueryResult<TOrgPlanSnapshot> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_plan_snapshots WHERE id = ?').get(snapshotId) as
+        | IOrgPlanSnapshotRow
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization plan snapshot not found' };
+      }
+      return {
+        success: true,
+        data: {
+          id: row.id,
+          organization_id: row.organization_id,
+          brief_id: row.brief_id ?? undefined,
+          title: row.title,
+          objective: row.objective,
+          content: parseJson(row.content, {}),
+          status: row.status,
+          approved_by: row.approved_by ?? undefined,
+          approved_at: row.approved_at ?? undefined,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getLatestOrgPlanSnapshot(
+    organizationId: string,
+    status?: TOrgPlanSnapshot['status']
+  ): IQueryResult<TOrgPlanSnapshot> {
+    try {
+      const where: string[] = ['organization_id = ?'];
+      const sqlParams: Array<string | number> = [organizationId];
+
+      if (status) {
+        where.push('status = ?');
+        sqlParams.push(status);
+      }
+
+      const row = this.db
+        .prepare(
+          `SELECT * FROM org_plan_snapshots WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id DESC LIMIT 1`
+        )
+        .get(...sqlParams) as IOrgPlanSnapshotRow | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization plan snapshot not found' };
+      }
+      return {
+        success: true,
+        data: {
+          id: row.id,
+          organization_id: row.organization_id,
+          brief_id: row.brief_id ?? undefined,
+          title: row.title,
+          objective: row.objective,
+          content: parseJson(row.content, {}),
+          status: row.status,
+          approved_by: row.approved_by ?? undefined,
+          approved_at: row.approved_at ?? undefined,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgPlanSnapshots(params: IListOrgPlanSnapshotQuery): IQueryResult<TOrgPlanSnapshot[]> {
+    try {
+      const where: string[] = ['organization_id = ?'];
+      const sqlParams: Array<string | number> = [params.organization_id];
+
+      if (params.status) {
+        where.push('status = ?');
+        sqlParams.push(params.status);
+      }
+
+      const rows = this.db
+        .prepare(`SELECT * FROM org_plan_snapshots WHERE ${where.join(' AND ')} ORDER BY created_at DESC`)
+        .all(...sqlParams) as IOrgPlanSnapshotRow[];
+      return {
+        success: true,
+        data: rows.map((row) => ({
+          id: row.id,
+          organization_id: row.organization_id,
+          brief_id: row.brief_id ?? undefined,
+          title: row.title,
+          objective: row.objective,
+          content: parseJson(row.content, {}),
+          status: row.status,
+          approved_by: row.approved_by ?? undefined,
+          approved_at: row.approved_at ?? undefined,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgPlanSnapshot(
+    snapshotId: string,
+    updates: Partial<
+      Pick<TOrgPlanSnapshot, 'brief_id' | 'title' | 'objective' | 'content' | 'status' | 'approved_by' | 'approved_at'>
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgPlanSnapshot(snapshotId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization plan snapshot not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: Array<string | number | null> = [now];
+
+      if (updates.brief_id !== undefined) {
+        setClauses.push('brief_id = ?');
+        sqlParams.push(updates.brief_id ?? null);
+      }
+      if (updates.title !== undefined) {
+        setClauses.push('title = ?');
+        sqlParams.push(updates.title);
+      }
+      if (updates.objective !== undefined) {
+        setClauses.push('objective = ?');
+        sqlParams.push(updates.objective);
+      }
+      if (updates.content !== undefined) {
+        setClauses.push('content = ?');
+        sqlParams.push(toJson(updates.content));
+      }
+      if (updates.status !== undefined) {
+        setClauses.push('status = ?');
+        sqlParams.push(updates.status);
+      }
+      if (updates.approved_by !== undefined) {
+        setClauses.push('approved_by = ?');
+        sqlParams.push(updates.approved_by ?? null);
+      }
+      if (updates.approved_at !== undefined) {
+        setClauses.push('approved_at = ?');
+        sqlParams.push(updates.approved_at ?? null);
+      }
+
+      sqlParams.push(snapshotId);
+      this.db.prepare(`UPDATE org_plan_snapshots SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgPlanSnapshot(snapshotId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_plan_snapshots WHERE id = ?').run(snapshotId);
+      return { success: true, data: result.changes > 0 };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  createOrgApprovalRecord(record: TOrgApprovalRecord): IQueryResult<TOrgApprovalRecord> {
+    try {
+      this.db
+        .prepare(
+          `
+          INSERT INTO org_approval_records (
+            id, organization_id, scope, status, target_type, target_id, title, detail,
+            requested_by, decided_by, decided_at, decision_comment, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(
+          record.id,
+          record.organization_id,
+          record.scope,
+          record.status,
+          record.target_type ?? null,
+          record.target_id ?? null,
+          record.title,
+          record.detail ?? null,
+          record.requested_by,
+          record.decided_by ?? null,
+          record.decided_at ?? null,
+          record.decision_comment ?? null,
+          record.created_at,
+          record.updated_at
+        );
+      return { success: true, data: record };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getOrgApprovalRecord(recordId: string): IQueryResult<TOrgApprovalRecord> {
+    try {
+      const row = this.db.prepare('SELECT * FROM org_approval_records WHERE id = ?').get(recordId) as
+        | TOrgApprovalRecord
+        | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization approval record not found' };
+      }
+      return {
+        success: true,
+        data: {
+          id: row.id,
+          organization_id: row.organization_id,
+          scope: row.scope,
+          status: row.status,
+          target_type: row.target_type ?? undefined,
+          target_id: row.target_id ?? undefined,
+          title: row.title,
+          detail: row.detail ?? undefined,
+          requested_by: row.requested_by,
+          decided_by: row.decided_by ?? undefined,
+          decided_at: row.decided_at ?? undefined,
+          decision_comment: row.decision_comment ?? undefined,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  getLatestOrgApprovalRecord(
+    organizationId: string,
+    filters?: Pick<IListOrgApprovalRecordQuery, 'status' | 'scope'>
+  ): IQueryResult<TOrgApprovalRecord> {
+    try {
+      const where: string[] = ['organization_id = ?'];
+      const sqlParams: Array<string | number> = [organizationId];
+
+      if (filters?.status) {
+        where.push('status = ?');
+        sqlParams.push(filters.status);
+      }
+      if (filters?.scope) {
+        where.push('scope = ?');
+        sqlParams.push(filters.scope);
+      }
+
+      const row = this.db
+        .prepare(
+          `SELECT * FROM org_approval_records WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id DESC LIMIT 1`
+        )
+        .get(...sqlParams) as TOrgApprovalRecord | undefined;
+      if (!row) {
+        return { success: false, error: 'Organization approval record not found' };
+      }
+      return {
+        success: true,
+        data: {
+          id: row.id,
+          organization_id: row.organization_id,
+          scope: row.scope,
+          status: row.status,
+          target_type: row.target_type ?? undefined,
+          target_id: row.target_id ?? undefined,
+          title: row.title,
+          detail: row.detail ?? undefined,
+          requested_by: row.requested_by,
+          decided_by: row.decided_by ?? undefined,
+          decided_at: row.decided_at ?? undefined,
+          decision_comment: row.decision_comment ?? undefined,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        },
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  listOrgApprovalRecords(params: IListOrgApprovalRecordQuery): IQueryResult<TOrgApprovalRecord[]> {
+    try {
+      const where: string[] = ['organization_id = ?'];
+      const sqlParams: Array<string | number> = [params.organization_id];
+
+      if (params.status) {
+        where.push('status = ?');
+        sqlParams.push(params.status);
+      }
+      if (params.scope) {
+        where.push('scope = ?');
+        sqlParams.push(params.scope);
+      }
+
+      const limit = params.limit && params.limit > 0 ? params.limit : 100;
+      sqlParams.push(limit);
+
+      const rows = this.db
+        .prepare(`SELECT * FROM org_approval_records WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ?`)
+        .all(...sqlParams) as TOrgApprovalRecord[];
+      return {
+        success: true,
+        data: rows.map((row) => ({
+          id: row.id,
+          organization_id: row.organization_id,
+          scope: row.scope,
+          status: row.status,
+          target_type: row.target_type ?? undefined,
+          target_id: row.target_id ?? undefined,
+          title: row.title,
+          detail: row.detail ?? undefined,
+          requested_by: row.requested_by,
+          decided_by: row.decided_by ?? undefined,
+          decided_at: row.decided_at ?? undefined,
+          decision_comment: row.decision_comment ?? undefined,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        })),
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message, data: [] };
+    }
+  }
+
+  updateOrgApprovalRecord(
+    recordId: string,
+    updates: Partial<
+      Pick<
+        TOrgApprovalRecord,
+        | 'scope'
+        | 'status'
+        | 'target_type'
+        | 'target_id'
+        | 'title'
+        | 'detail'
+        | 'decided_by'
+        | 'decided_at'
+        | 'decision_comment'
+      >
+    >
+  ): IQueryResult<boolean> {
+    try {
+      const existing = this.getOrgApprovalRecord(recordId);
+      if (!existing.success) {
+        return { success: false, error: 'Organization approval record not found' };
+      }
+
+      const now = Date.now();
+      const setClauses: string[] = ['updated_at = ?'];
+      const sqlParams: Array<string | number | null> = [now];
+
+      if (updates.scope !== undefined) {
+        setClauses.push('scope = ?');
+        sqlParams.push(updates.scope);
+      }
+      if (updates.status !== undefined) {
+        setClauses.push('status = ?');
+        sqlParams.push(updates.status);
+      }
+      if (updates.target_type !== undefined) {
+        setClauses.push('target_type = ?');
+        sqlParams.push(updates.target_type ?? null);
+      }
+      if (updates.target_id !== undefined) {
+        setClauses.push('target_id = ?');
+        sqlParams.push(updates.target_id ?? null);
+      }
+      if (updates.title !== undefined) {
+        setClauses.push('title = ?');
+        sqlParams.push(updates.title);
+      }
+      if (updates.detail !== undefined) {
+        setClauses.push('detail = ?');
+        sqlParams.push(updates.detail ?? null);
+      }
+      if (updates.decided_by !== undefined) {
+        setClauses.push('decided_by = ?');
+        sqlParams.push(updates.decided_by ?? null);
+      }
+      if (updates.decided_at !== undefined) {
+        setClauses.push('decided_at = ?');
+        sqlParams.push(updates.decided_at ?? null);
+      }
+      if (updates.decision_comment !== undefined) {
+        setClauses.push('decision_comment = ?');
+        sqlParams.push(updates.decision_comment ?? null);
+      }
+
+      sqlParams.push(recordId);
+      this.db.prepare(`UPDATE org_approval_records SET ${setClauses.join(', ')} WHERE id = ?`).run(...sqlParams);
+      return { success: true, data: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  deleteOrgApprovalRecord(recordId: string): IQueryResult<boolean> {
+    try {
+      const result = this.db.prepare('DELETE FROM org_approval_records WHERE id = ?').run(recordId);
       return { success: true, data: result.changes > 0 };
     } catch (error: any) {
       return { success: false, error: error.message };
