@@ -33,6 +33,7 @@
 - 2026-03-21：继续压平 `Organization AI` 外观层级。当前仅对 AI 卡片特例移除了外层边框、圆角与卡片内边距，保留右栏整体分栏与容器 padding，不影响输入框与右栏整体留白；新增控制塔单测保护该无边框特例 class。
 - 2026-03-22：新增 `Organization Control Plane Governance` 设计与实现计划，明确后续将用 `prompt + 状态机 + 人类审批门` 把右侧组织 AI 从执行型聊天入口升级为真正的组织控制平面；详见 `docs/plans/2026-03-22-organization-control-plane-governance-design.md` 与 `docs/plans/2026-03-22-organization-control-plane-governance-plan.md`。
 - 2026-03-22：`Organization Control Plane Governance` Task 1 / Task 2 已完成。当前已补齐控制面领域模型与 IPC 契约，并把控制状态、brainstorming brief、plan snapshot、approval record 落库到 v22；repository 已具备 CRUD / list / latest，且新增控制状态引用完整性与审批状态一致性约束，为后续状态机与审批门提供稳定底座。
+- 2026-03-22：`Organization Control Plane Governance` Task 3 已完成。组织控制面 prompt 已切换为 authority tiers + coordinator-only 模式，明确“先问人类、再 brief/plan、再 approval gate、最后启动 run”；`.aionui-org/context/` 现新增 `control_state.json`、`briefs.json`、`plan_snapshots.json`、`approvals.json`，为后续状态机与审批门落地提供完整上下文投影。
 
 ### Task 1: 定义组织领域类型与 IPC 草案
 

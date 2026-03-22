@@ -6,10 +6,21 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import type { TOrganization, TOrgArtifact, TOrgGenomePatch, TOrgRun, TOrgTask } from '@/common/types/organization';
+import type {
+  TOrgApprovalRecord,
+  TOrganization,
+  TOrgArtifact,
+  TOrgBrief,
+  TOrgControlState,
+  TOrgGenomePatch,
+  TOrgPlanSnapshot,
+  TOrgRun,
+  TOrgTask,
+} from '@/common/types/organization';
 import { getDatabase } from '@process/database';
 
 const AIONUI_ORG_DIR = '.aionui-org';
+const ALL_APPROVALS_LIMIT = 1_000_000;
 
 function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) {
@@ -81,6 +92,70 @@ function buildGenomePatchesContext(patches: TOrgGenomePatch[]) {
   }));
 }
 
+function buildControlStateContext(controlState?: TOrgControlState | null) {
+  if (!controlState) {
+    return null;
+  }
+
+  return {
+    id: controlState.id,
+    organization_id: controlState.organization_id,
+    conversation_id: controlState.conversation_id,
+    phase: controlState.phase,
+    active_brief_id: controlState.active_brief_id,
+    active_plan_id: controlState.active_plan_id,
+    needs_human_input: controlState.needs_human_input,
+    pending_approval_count: controlState.pending_approval_count,
+    last_human_touch_at: controlState.last_human_touch_at,
+    updated_at: controlState.updated_at,
+  };
+}
+
+function buildBriefsContext(briefs: TOrgBrief[]) {
+  return briefs.map((brief) => ({
+    id: brief.id,
+    title: brief.title,
+    summary: brief.summary,
+    status: brief.status,
+    tier1_open_questions: brief.tier1_open_questions,
+    tier2_pending_items: brief.tier2_pending_items,
+    constraints: brief.constraints,
+    risk_notes: brief.risk_notes,
+    updated_at: brief.updated_at,
+  }));
+}
+
+function buildPlanSnapshotsContext(planSnapshots: TOrgPlanSnapshot[]) {
+  return planSnapshots.map((snapshot) => ({
+    id: snapshot.id,
+    brief_id: snapshot.brief_id,
+    title: snapshot.title,
+    objective: snapshot.objective,
+    content: snapshot.content,
+    status: snapshot.status,
+    approved_by: snapshot.approved_by,
+    approved_at: snapshot.approved_at,
+    updated_at: snapshot.updated_at,
+  }));
+}
+
+function buildApprovalsContext(approvals: TOrgApprovalRecord[]) {
+  return approvals.map((approval) => ({
+    id: approval.id,
+    scope: approval.scope,
+    status: approval.status,
+    target_type: approval.target_type,
+    target_id: approval.target_id,
+    title: approval.title,
+    detail: approval.detail,
+    requested_by: approval.requested_by,
+    decided_by: approval.decided_by,
+    decided_at: approval.decided_at,
+    decision_comment: approval.decision_comment,
+    updated_at: approval.updated_at,
+  }));
+}
+
 function buildDashboardContext(params: {
   organization: TOrganization;
   tasks: TOrgTask[];
@@ -125,8 +200,35 @@ function buildDashboardContext(params: {
 
 function buildControlSchema() {
   return {
-    version: 1,
+    version: 2,
     description: 'Organization control plane operations. Write JSON files to .aionui-org/control/operations/.',
+    control_phases: [
+      'intake',
+      'brainstorming',
+      'awaiting_human_decision',
+      'drafting_plan',
+      'awaiting_plan_approval',
+      'dispatching',
+      'monitoring',
+      'blocked',
+    ],
+    approval_gates: [
+      {
+        scope: 'tier1_decision',
+        required_before: ['org/task/create', 'org/run/start'],
+        description: 'Human-only decisions must be explicitly answered before planning or execution continues.',
+      },
+      {
+        scope: 'tier2_decision',
+        required_before: ['org/task/create', 'org/run/start'],
+        description: 'Agent may draft proposals, but execution waits for human approval.',
+      },
+      {
+        scope: 'plan_gate',
+        required_before: ['org/run/start'],
+        description: 'A Run may start only after an approved plan snapshot exists.',
+      },
+    ],
     request: {
       format: {
         method: 'org/task/create',
@@ -134,9 +236,14 @@ function buildControlSchema() {
       },
     },
     methods: [
+      'org/control/brief/update',
+      'org/control/plan/update',
+      'org/control/state/update',
       'org/task/create',
       'org/task/update',
       'org/run/start',
+      'org/approval/request',
+      'org/approval/respond',
       'org/artifact/register',
       'org/eval/execute',
       'org/memory/promote',
@@ -219,11 +326,20 @@ export function syncOrganizationContext(organizationId: string): void {
   const evalSpecs = db.listOrgEvalSpecs({ organization_id: organizationId }).data || [];
   const skills = db.listOrgSkills({ organization_id: organizationId }).data || [];
   const genomePatches = db.listOrgGenomePatches({ organization_id: organizationId }).data || [];
+  const controlState = db.getOrgControlState(organizationId).data || null;
+  const briefs = db.listOrgBriefs(organizationId).data || [];
+  const planSnapshots = db.listOrgPlanSnapshots({ organization_id: organizationId }).data || [];
+  const approvals =
+    db.listOrgApprovalRecords({ organization_id: organizationId, limit: ALL_APPROVALS_LIMIT }).data || [];
 
   writeJson(path.join(baseDir, 'context', 'organization.json'), buildOrganizationContext(organization));
   writeJson(path.join(baseDir, 'context', 'tasks.json'), buildTasksContext(tasks));
   writeJson(path.join(baseDir, 'context', 'runs.json'), buildRunsContext(runs));
   writeJson(path.join(baseDir, 'context', 'artifacts.json'), buildArtifactsContext(artifacts));
+  writeJson(path.join(baseDir, 'context', 'control_state.json'), buildControlStateContext(controlState));
+  writeJson(path.join(baseDir, 'context', 'briefs.json'), buildBriefsContext(briefs));
+  writeJson(path.join(baseDir, 'context', 'plan_snapshots.json'), buildPlanSnapshotsContext(planSnapshots));
+  writeJson(path.join(baseDir, 'context', 'approvals.json'), buildApprovalsContext(approvals));
   writeJson(path.join(baseDir, 'context', 'memory_cards.json'), memoryCards);
   writeJson(path.join(baseDir, 'context', 'eval_specs.json'), evalSpecs);
   writeJson(path.join(baseDir, 'context', 'skills.json'), skills);
@@ -255,23 +371,80 @@ export function generateOrganizationSystemPrompt(organizationId: string): string
   const tasks = db.getOrganizationTasks(organizationId).data || [];
   const runs = db.listOrgRuns({ organization_id: organizationId }).data || [];
   const genomePatches = db.listOrgGenomePatches({ organization_id: organizationId }).data || [];
+  const controlState = db.getOrgControlState(organizationId).data || null;
+  const approvals =
+    db.listOrgApprovalRecords({ organization_id: organizationId, limit: ALL_APPROVALS_LIMIT }).data || [];
   const contextDir = getOrganizationContextDir(organization.workspace);
+  const approvedPlanSnapshot = db.getLatestOrgPlanSnapshot(organizationId, 'approved').data || null;
 
   return `<SYSTEM_ROLE>
-You are the Organization Control Plane AI for "${organization.name}".
-You operate the Organization OS control plane, not a chat-centric project board.
+You are the **Organization Control Plane AI** for "${organization.name}".
+
+You are the organization's **coordinator and control-plane director**.
+Your job is planning, coordination, governance, and oversight — NOT direct execution.
+You must turn goals into approved Task Contract + Run workflows, monitor progress,
+review outcomes, and decide whether to refine the plan, request approval, or ask the user for more input.
+You are a coordinator, not an executor.
 </SYSTEM_ROLE>
+
+<AUTHORITY_TIERS>
+All decisions in this organization follow a strict three-tier authority model.
+You MUST classify decisions into the correct tier and act accordingly.
+
+**Tier 1 — Human-Only Decisions (you MUST NOT make these)**
+You must ask the user directly and wait for their answer:
+- Vision, mission, and long-term direction
+- Target users and organizational priorities
+- Non-negotiable principles and red lines
+- Risk tolerance, safety boundaries, and budget ceilings
+- Resource commitments and go/no-go release decisions
+
+**Tier 2 — You Draft, Human Approves**
+You may analyze and propose, but must wait for explicit human approval before execution:
+- Roadmaps, milestone plans, and organization-level sequencing
+- Architecture and major technology choices
+- Significant interaction, data, and governance strategy
+- Changes that are hard to reverse once adopted
+
+**Tier 3 — You Execute Autonomously Through Delegation**
+You may proceed without asking, but only through Task Contract + Run delegation:
+- Background research and structured analysis
+- PRD/spec first drafts and plan decomposition
+- Implementation, testing, validation, and documentation
+- Low-risk iteration on already approved directions
+
+If uncertain, treat the decision as Tier 2.
+</AUTHORITY_TIERS>
 
 <PRIMARY_OBJECTS>
 The system revolves around Task Contract, Run, Artifact, MemoryCard, EvalSpec, Skill, and GenomePatch.
 Conversation is only an execution channel bound to a Run.
 </PRIMARY_OBJECTS>
 
-<WORKFLOW>
-Use the control plane to drive this lifecycle:
-Task Contract -> Run -> Artifact -> Eval -> MemoryCard -> GenomePatch -> Governance.
-Prefer structured updates over free-form chat memory.
-</WORKFLOW>
+<COORDINATOR_MODE>
+Management-only requests may be answered directly.
+Any substantial execution must first become a Task Contract, then be planned, then be delegated through a Run.
+The top-level organization agent must not directly implement, edit, debug, or test as if it were the worker.
+</COORDINATOR_MODE>
+
+<YOUR_WORKFLOW>
+When the user gives you a goal, follow this cycle:
+
+1. **Classify** — Identify Tier 1, Tier 2, and Tier 3 decisions.
+   If Tier 1 information is missing, ask clarifying questions first and wait for the human answer.
+
+2. **Brief** — draft or update a brief that records open questions, constraints, pending approvals, and risks.
+
+3. **Plan** — Produce or revise plan snapshots. Tier 2 planning changes require explicit human approval.
+
+4. **Gate** — Check approval gates and control phases before execution.
+   Never start a Run until there is an approved plan snapshot and required approvals are satisfied.
+
+5. **Dispatch** — Create a Task Contract, then start a Run for delegated Tier 3 execution.
+
+6. **Monitor** — Review run output, artifacts, evals, memory, and governance signals.
+   Decide whether to continue, split more tasks, request new approvals, or return to the user for clarification.
+</YOUR_WORKFLOW>
 
 <CONTEXT_FILES>
 Read the latest projected state from:
@@ -279,6 +452,10 @@ Read the latest projected state from:
 - ${path.join(contextDir, 'context', 'tasks.json')}
 - ${path.join(contextDir, 'context', 'runs.json')}
 - ${path.join(contextDir, 'context', 'artifacts.json')}
+- ${path.join(contextDir, 'context', 'control_state.json')}
+- ${path.join(contextDir, 'context', 'briefs.json')}
+- ${path.join(contextDir, 'context', 'plan_snapshots.json')}
+- ${path.join(contextDir, 'context', 'approvals.json')}
 - ${path.join(contextDir, 'context', 'genome_patches.json')}
 - ${path.join(contextDir, 'control', 'schema.json')}
 </CONTEXT_FILES>
@@ -288,11 +465,15 @@ Write JSON files into ${path.join(contextDir, 'control', 'operations')} using:
 { "method": "org/task/create", "params": { ... } }
 
 Use governance actions for irreversible changes.
+The schema declares approval gates and control phases. Read it before dispatching work.
 </CONTROL_PROTOCOL>
 
 <CURRENT_STATE>
 Tasks: ${tasks.length}
 Runs: ${runs.length}
 GenomePatch: ${genomePatches.length}
+Current control phase: ${controlState?.phase || 'intake'}
+Pending approvals: ${approvals.filter((approval) => approval.status === 'pending').length}
+Latest approved plan snapshot: ${approvedPlanSnapshot?.id || 'none'}
 </CURRENT_STATE>`;
 }
