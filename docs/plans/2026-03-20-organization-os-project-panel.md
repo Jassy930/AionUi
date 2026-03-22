@@ -31,6 +31,7 @@
 - 2026-03-21：根据交互反馈继续调整 `Organization Console` 布局，右栏现收敛为纯 `Organization AI` 工作区，不再堆叠结构化动作与对象检查器；这两块已下沉到中栏主内容底部，避免在常见窗口尺寸下挤压 AI 选型/聊天区域，并新增控制台布局单测保护该结构。
 - 2026-03-21：继续扁平化右侧 `Organization AI` 面板结构。当前已去掉内层 `project-conv-panel` 标题壳，改为由控制塔提供唯一标题，组织会话面板仅渲染无边框内容；已有会话时显示一条轻量工具条承载 agent 名与右上角切换按钮，下方直接挂载 `AcpChat`，并补充单测保护“无内层 header”约束。
 - 2026-03-21：继续压平 `Organization AI` 外观层级。当前仅对 AI 卡片特例移除了外层边框、圆角与卡片内边距，保留右栏整体分栏与容器 padding，不影响输入框与右栏整体留白；新增控制塔单测保护该无边框特例 class。
+- 2026-03-22：新增 `Organization Control Plane Governance` 设计与实现计划，明确后续将用 `prompt + 状态机 + 人类审批门` 把右侧组织 AI 从执行型聊天入口升级为真正的组织控制平面；详见 `docs/plans/2026-03-22-organization-control-plane-governance-design.md` 与 `docs/plans/2026-03-22-organization-control-plane-governance-plan.md`。
 
 ### Task 1: 定义组织领域类型与 IPC 草案
 
