@@ -37,6 +37,7 @@
 - 2026-03-22：`Organization Control Plane Governance` Task 3 已完成。组织控制面 prompt 已切换为 authority tiers + coordinator-only 模式，明确“先问人类、再 brief/plan、再 approval gate、最后启动 run”；`.aionui-org/context/` 现新增 `control_state.json`、`briefs.json`、`plan_snapshots.json`、`approvals.json`，为后续状态机与审批门落地提供完整上下文投影。
 - 2026-03-22：`Organization Control Plane Governance` Task 4 已完成。组织 bridge 现已接通 `getControlState / listApprovals / respondApproval`，watcher 会在 `org/task/create / org/run/start` 前强制检查 Tier 1 决策与 approved plan snapshot，并将 phase 推进到 `awaiting_human_decision / awaiting_plan_approval / dispatching / monitoring`；`run close` 后会回收控制状态进入下一轮规划，审批响应也会同步写入 approval record 与 audit log。
 - 2026-03-22：`Organization Control Plane Governance` Task 5 / Task 6 已完成。组织控制会话在前端创建时默认落到更安全的 `sessionMode=default`，控制台主区现已自取组织 `controlState + pending approvals`，展示当前 phase、人类审批提醒，并在审批门未满足或治理状态未加载完成前禁用“启动运行”；随后已完成多语言、文档、全量验证与收尾提交，这条治理增强计划现已闭环。
+- 2026-03-22：修复右侧 `Organization AI` 会话窗口消息被发送区遮挡的问题。基于运行态排查，根因收敛为嵌入式组织会话仍沿用了主聊天页 `ThoughtDisplay` 的默认悬浮样式；现已为 `AcpChat -> AcpSendBox` 增加 `thoughtDisplayStyle` 透传，并在组织右栏固定使用 `compact` 模式，同时补充 DOM 单测锁定该嵌入态约束。
 
 ### Task 1: 定义组织领域类型与 IPC 草案
 

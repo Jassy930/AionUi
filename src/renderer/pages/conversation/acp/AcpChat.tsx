@@ -20,7 +20,8 @@ const AcpChat: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
-}> = ({ conversation_id, workspace, backend, sessionMode, agentName }) => {
+  thoughtDisplayStyle?: 'default' | 'compact';
+}> = ({ conversation_id, workspace, backend, sessionMode, agentName, thoughtDisplayStyle }) => {
   useMessageLstCache(conversation_id);
 
   return (
@@ -35,6 +36,7 @@ const AcpChat: React.FC<{
             backend={backend}
             sessionMode={sessionMode}
             agentName={agentName}
+            thoughtDisplayStyle={thoughtDisplayStyle}
           ></AcpSendBox>
         </ConversationChatConfirm>
       </div>

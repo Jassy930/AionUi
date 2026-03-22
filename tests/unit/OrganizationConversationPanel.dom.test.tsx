@@ -16,6 +16,7 @@ const mockSyncContext = vi.fn();
 const mockGetSystemPrompt = vi.fn();
 const mockGetControlState = vi.fn();
 const mockBuildCliAgentParams = vi.fn();
+const mockAcpChat = vi.fn(({ conversation_id }: { conversation_id: string }) => <div>Chat:{conversation_id}</div>);
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -46,7 +47,7 @@ vi.mock('@/renderer/pages/guid/constants', () => ({
 }));
 
 vi.mock('@/renderer/pages/conversation/acp/AcpChat', () => ({
-  default: ({ conversation_id }: { conversation_id: string }) => <div>Chat:{conversation_id}</div>,
+  default: (props: { conversation_id: string }) => mockAcpChat(props),
 }));
 
 vi.mock('@/common', () => ({
@@ -170,6 +171,12 @@ describe('OrganizationConversationPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Chat:conv_org')).toBeInTheDocument();
     });
+    expect(mockAcpChat).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conversation_id: 'conv_org',
+        thoughtDisplayStyle: 'compact',
+      })
+    );
     expect(container.querySelector('.project-conv-panel__header')).toBeNull();
     expect(container.querySelector('.organization-conv-panel__toolbar')).toBeInTheDocument();
     expect(screen.getByTitle('Switch agent')).toBeInTheDocument();
@@ -226,5 +233,11 @@ describe('OrganizationConversationPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Chat:conv_created')).toBeInTheDocument();
     });
+    expect(mockAcpChat).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conversation_id: 'conv_created',
+        thoughtDisplayStyle: 'compact',
+      })
+    );
   });
 });

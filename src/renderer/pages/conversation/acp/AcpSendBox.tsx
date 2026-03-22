@@ -380,7 +380,8 @@ const AcpSendBox: React.FC<{
   backend: AcpBackend;
   sessionMode?: string;
   agentName?: string;
-}> = ({ conversation_id, backend, sessionMode, agentName }) => {
+  thoughtDisplayStyle?: 'default' | 'compact';
+}> = ({ conversation_id, backend, sessionMode, agentName, thoughtDisplayStyle = 'default' }) => {
   const { thought, running, acpStatus, aiProcessing, setAiProcessing, resetState, tokenUsage, contextLimit } =
     useAcpMessage(conversation_id);
   const { t } = useTranslation();
@@ -593,7 +594,12 @@ const AcpSendBox: React.FC<{
 
   return (
     <div className='max-w-800px w-full mx-auto flex flex-col mt-auto mb-16px'>
-      <ThoughtDisplay thought={thought} running={running || aiProcessing} onStop={handleStop} />
+      <ThoughtDisplay
+        thought={thought}
+        style={thoughtDisplayStyle}
+        running={running || aiProcessing}
+        onStop={handleStop}
+      />
 
       <SendBox
         value={content}

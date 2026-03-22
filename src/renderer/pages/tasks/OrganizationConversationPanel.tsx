@@ -266,6 +266,7 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
               backend={((extra?.backend as string) || 'claude') as AcpBackend}
               sessionMode={extra?.sessionMode as string}
               agentName={extra?.agentName as string}
+              thoughtDisplayStyle='compact'
             />
           </React.Suspense>
         ) : (
