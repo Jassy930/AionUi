@@ -59,3 +59,54 @@ bun run install
 ```
 
 如果只是跑前端 DOM 测试或继续调试 Electron，本步骤通常不需要执行。
+
+### 4. 点击懒加载页面或侧栏后白屏
+
+如果 Electron 主窗口已经打开，但点击 `Project` 等懒加载页面，或者切换到会触发侧栏懒加载的界面后出现白屏，并在控制台看到类似下面的日志：
+
+```text
+[vite] server connection lost. Polling for restart...
+Failed to fetch dynamically imported module
+```
+
+这通常不是页面业务逻辑直接崩溃，而是 renderer dev server `http://localhost:5173` 在懒加载模块请求时暂时不可用。常见触发点包括：
+
+- 路由页面懒加载
+- 左侧侧栏中的懒加载模块，例如 `WorkspaceGroupedHistory`
+
+当前版本已经为这些懒加载入口补上错误边界：
+
+- 不再直接白屏
+- 会展示错误信息和“重新加载”按钮
+- 当 dev server 恢复后，点击“重新加载”即可重新获取对应模块
+
+如果仍频繁出现该问题，优先检查：
+
+1. 启动 `bun run start` 的终端会话是否被中断
+2. `5173` 端口上的 `electron-vite dev` 是否仍在运行
+3. 是否存在导致 Vite 重启或退出的本地环境问题
+
+### 5. 调试优先级
+
+以后遇到下面这些问题时，优先使用 CDP 调试，而不是先猜测业务代码：
+
+- Electron renderer 白屏
+- 路由懒加载失败
+- 侧栏或局部懒加载模块失败
+- 只在运行态出现、单测不容易直接复现的前端异常
+
+当前项目开发态默认会启用 Electron 的 CDP 远程调试端口，启动日志中会打印类似：
+
+```text
+[CDP] Remote debugging port: 9230
+[CDP] DevTools URL: http://127.0.0.1:9230
+```
+
+推荐的排查顺序是：
+
+1. 先通过 `http://127.0.0.1:<port>/json/version` 和 `/json/list` 确认 CDP target 是否存在
+2. 再通过 target 的 `webSocketDebuggerUrl` 读取 `location.href`、`document.body.innerText`、`#root` 渲染状态
+3. 订阅 `Runtime.exceptionThrown`、`Runtime.consoleAPICalled`、`Network.loadingFailed`，定位是模块导入失败、运行时异常，还是 dev server 断连
+4. 只有在 CDP 已确认具体异常来源后，再回到源码做修复
+
+本次 `Project` 白屏问题就是通过 CDP 继续下钻后确认：真正失败的是侧栏中的 `WorkspaceGroupedHistory` 懒加载，而不是 `Project` 页面主体本身。

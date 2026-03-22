@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLoader from './components/AppLoader';
+import RouteErrorBoundary from './components/RouteErrorBoundary';
 import { useAuth } from './context/AuthContext';
 const Conversation = React.lazy(() => import('./pages/conversation'));
 const Guid = React.lazy(() => import('./pages/guid'));
@@ -20,9 +21,11 @@ const LoginPage = React.lazy(() => import('./pages/login'));
 const ComponentsShowcase = React.lazy(() => import('./pages/test/ComponentsShowcase'));
 
 const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentType>) => (
-  <Suspense fallback={<AppLoader />}>
-    <Component />
-  </Suspense>
+  <RouteErrorBoundary>
+    <Suspense fallback={<AppLoader />}>
+      <Component />
+    </Suspense>
+  </RouteErrorBoundary>
 );
 
 /**

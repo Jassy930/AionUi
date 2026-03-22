@@ -13,6 +13,7 @@ import { blurActiveElement } from './utils/focus';
 import { useThemeContext } from './context/ThemeContext';
 import { useProjectModeOptional } from './context/ProjectModeContext';
 import ConversationSearchPopover from './pages/conversation/grouped-history/ConversationSearchPopover';
+import RouteErrorBoundary from './components/RouteErrorBoundary';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('./pages/conversation/WorkspaceGroupedHistory'));
 const SettingsSider = React.lazy(() => import('./pages/settings/SettingsSider'));
@@ -90,13 +91,17 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
       {/* Main content area */}
       <div className='flex-1 min-h-0 overflow-hidden'>
         {isSettings ? (
-          <Suspense fallback={<div className='size-full' />}>
-            <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
-          </Suspense>
+          <RouteErrorBoundary>
+            <Suspense fallback={<div className='size-full' />}>
+              <SettingsSider collapsed={collapsed} tooltipEnabled={tooltipEnabled}></SettingsSider>
+            </Suspense>
+          </RouteErrorBoundary>
         ) : isProjectMode ? (
-          <Suspense fallback={<div className='size-full' />}>
-            <ProjectSider collapsed={collapsed} onSessionClick={onSessionClick} />
-          </Suspense>
+          <RouteErrorBoundary>
+            <Suspense fallback={<div className='size-full' />}>
+              <ProjectSider collapsed={collapsed} onSessionClick={onSessionClick} />
+            </Suspense>
+          </RouteErrorBoundary>
         ) : (
           <div className='size-full flex flex-col'>
             <div className='mb-8px shrink-0 flex items-center gap-8px'>
@@ -166,9 +171,11 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                 </div>
               </Tooltip>
             </div>
-            <Suspense fallback={<div className='flex-1 min-h-0' />}>
-              <WorkspaceGroupedHistory {...workspaceHistoryProps}></WorkspaceGroupedHistory>
-            </Suspense>
+            <RouteErrorBoundary>
+              <Suspense fallback={<div className='flex-1 min-h-0' />}>
+                <WorkspaceGroupedHistory {...workspaceHistoryProps}></WorkspaceGroupedHistory>
+              </Suspense>
+            </RouteErrorBoundary>
           </div>
         )}
       </div>

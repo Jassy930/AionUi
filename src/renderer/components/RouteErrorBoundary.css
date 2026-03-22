@@ -1,0 +1,39 @@
+.route-error-boundary {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--color-fill-1);
+}
+
+.route-error-boundary__card {
+  width: min(560px, 100%);
+  border-radius: 16px;
+  border: 1px solid var(--color-border-2);
+  background: var(--color-bg-2);
+  padding: 24px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+}
+
+.route-error-boundary__title {
+  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-1);
+}
+
+.route-error-boundary__message {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.route-error-boundary__actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
