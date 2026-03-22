@@ -7,6 +7,8 @@ const fs = require('fs');
 const path = require('path');
 
 const BOOTSTRAP_CACHE_DIRS = new Set(['.vite', '.cache']);
+const RENDERER_DEV_PORT = 5173;
+const ELECTRON_REBUILD_MODULES = ['better-sqlite3', 'keytar', 'node-pty', 'tree-sitter-bash'];
 const BETTER_SQLITE3_ELECTRON_CHECK = [
   '-e',
   "const Database=require('better-sqlite3'); const db=new Database(':memory:'); db.close();",
@@ -82,6 +84,10 @@ function getElectronBinary(nodeModulesDir) {
   return path.join(nodeModulesDir, '.bin', process.platform === 'win32' ? 'electron.cmd' : 'electron');
 }
 
+function getElectronRebuildBinary(nodeModulesDir) {
+  return path.join(nodeModulesDir, '.bin', process.platform === 'win32' ? 'electron-rebuild.cmd' : 'electron-rebuild');
+}
+
 function buildElectronCheckEnv(baseEnv = process.env) {
   return {
     ...baseEnv,
@@ -90,6 +96,16 @@ function buildElectronCheckEnv(baseEnv = process.env) {
 }
 
 function getElectronVersion(cwd) {
+  const installedElectronPackagePath = path.join(cwd, 'node_modules', 'electron', 'package.json');
+  try {
+    const installedElectronPackageJson = JSON.parse(fs.readFileSync(installedElectronPackagePath, 'utf8'));
+    if (installedElectronPackageJson.version) {
+      return String(installedElectronPackageJson.version);
+    }
+  } catch {
+    // Fall back to package.json semver range when the installed Electron package is unavailable.
+  }
+
   const packageJson = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
   return String(packageJson.devDependencies.electron || '').replace(/^[~^]/, '');
 }
@@ -111,6 +127,10 @@ function canUseBetterSqliteInElectron(cwd, nodeModulesDir, execFileSyncImpl = ex
   }
 }
 
+function buildElectronRebuildCommand(nodeModulesDir) {
+  return `${getElectronRebuildBinary(nodeModulesDir)} -f -w ${ELECTRON_REBUILD_MODULES.join(',')}`;
+}
+
 function ensureElectronNativeModules(cwd, nodeModulesDir, options = {}) {
   const {
     canUseBetterSqliteInElectronImpl = canUseBetterSqliteInElectron,
@@ -128,13 +148,9 @@ function ensureElectronNativeModules(cwd, nodeModulesDir, options = {}) {
   }
 
   console.warn('[dev-start-preflight] Preparing Electron native modules...');
-  execSyncImpl('bun x electron-builder install-app-deps', {
+  execSyncImpl(buildElectronRebuildCommand(nodeModulesDir), {
     cwd,
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      npm_config_build_from_source: 'true',
-    },
   });
   writeFileImpl(stampPath, `${Date.now()}\n`, 'utf8');
   return { rebuilt: true, checked: true };
@@ -147,9 +163,71 @@ function ensureStreamdownEntry(nodeModulesDir) {
   }
 }
 
+function getListeningPidOnPort(port, execFileSyncImpl = execFileSync) {
+  try {
+    const output = execFileSyncImpl('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+
+    if (!output) {
+      return null;
+    }
+
+    const pid = Number.parseInt(output.split(/\s+/)[0], 10);
+    return Number.isFinite(pid) ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function getProcessCommand(pid, execFileSyncImpl = execFileSync) {
+  try {
+    return execFileSyncImpl('ps', ['-p', String(pid), '-o', 'command='], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function isStaleElectronViteDevProcess(cwd, command) {
+  if (!command) {
+    return false;
+  }
+
+  const normalizedCwd = path.resolve(cwd);
+  const expectedPath = path.join(normalizedCwd, 'node_modules', '.bin', 'electron-vite');
+  return command.includes(expectedPath) && command.includes('electron-vite dev');
+}
+
+function ensureRendererDevPortAvailable(cwd, options = {}) {
+  const {
+    port = RENDERER_DEV_PORT,
+    getListeningPidImpl = getListeningPidOnPort,
+    getProcessCommandImpl = getProcessCommand,
+    killProcessImpl = process.kill,
+  } = options;
+
+  const pid = getListeningPidImpl(port);
+  if (!pid) {
+    return { portInUse: false, staleProcessKilled: false, portFreed: false };
+  }
+
+  const command = getProcessCommandImpl(pid);
+  if (isStaleElectronViteDevProcess(cwd, command)) {
+    killProcessImpl(pid, 'SIGTERM');
+    return { portInUse: true, staleProcessKilled: true, portFreed: true };
+  }
+
+  throw new Error(`Port ${port} is already in use by PID ${pid}. Close the existing dev server and retry.`);
+}
+
 function runDevStartPreflight(cwd = process.cwd()) {
   const { bootstrapped, nodeModulesDir } = ensureSharedNodeModules(cwd);
   ensureStreamdownEntry(nodeModulesDir);
+  ensureRendererDevPortAvailable(cwd);
   const nativeStatus = ensureElectronNativeModules(cwd, nodeModulesDir);
 
   if (bootstrapped) {
@@ -166,8 +244,14 @@ if (require.main === module) {
 
 module.exports = {
   buildElectronCheckEnv,
+  buildElectronRebuildCommand,
   canUseBetterSqliteInElectron,
   ensureElectronNativeModules,
+  ensureRendererDevPortAvailable,
+  getElectronVersion,
+  getListeningPidOnPort,
+  getProcessCommand,
+  isStaleElectronViteDevProcess,
   resolveSharedNodeModulesDir,
   runDevStartPreflight,
   shouldBootstrapLocalNodeModules,

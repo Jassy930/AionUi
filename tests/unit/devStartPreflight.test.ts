@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import fs from 'fs';
 
 describe('devStartPreflight', () => {
   it('resolves shared node_modules from git common dir when running inside a worktree', async () => {
@@ -56,7 +57,9 @@ describe('devStartPreflight', () => {
     });
 
     expect(result).toMatchObject({ rebuilt: true, checked: true });
-    expect(rebuildCommands).toEqual(['bun x electron-builder install-app-deps']);
+    expect(rebuildCommands).toEqual([
+      '/repo/node_modules/.bin/electron-rebuild -f -w better-sqlite3,keytar,node-pty,tree-sitter-bash',
+    ]);
     expect(writtenStamps).toEqual(['/repo/node_modules/.aionui-electron-37.3.1-darwin-arm64.stamp']);
   });
 
@@ -76,5 +79,62 @@ describe('devStartPreflight', () => {
     });
 
     expect(result).toMatchObject({ rebuilt: false, checked: true });
+  });
+
+  it('kills a stale electron-vite dev process from the same workspace before start', async () => {
+    const { ensureRendererDevPortAvailable } = await import('../../scripts/devStartPreflight.js');
+
+    const killedPids: number[] = [];
+
+    const result = ensureRendererDevPortAvailable('/repo/app', {
+      getListeningPidImpl: () => 3348,
+      getProcessCommandImpl: () => 'node /repo/app/node_modules/.bin/electron-vite dev',
+      killProcessImpl: (pid: number) => {
+        killedPids.push(pid);
+      },
+    });
+
+    expect(result).toEqual({
+      portFreed: true,
+      portInUse: true,
+      staleProcessKilled: true,
+    });
+    expect(killedPids).toEqual([3348]);
+  });
+
+  it('throws a clear error when renderer dev port is occupied by another process', async () => {
+    const { ensureRendererDevPortAvailable } = await import('../../scripts/devStartPreflight.js');
+
+    expect(() =>
+      ensureRendererDevPortAvailable('/repo/app', {
+        getListeningPidImpl: () => 7788,
+        getProcessCommandImpl: () => 'node /tmp/other-project/node_modules/.bin/vite',
+        killProcessImpl: () => {
+          throw new Error('should not kill unrelated process');
+        },
+      })
+    ).toThrowError(/Port 5173 is already in use by PID 7788/);
+  });
+
+  it('prefers the installed electron package version over the semver range in package json', async () => {
+    const originalReadFileSync = fs.readFileSync;
+
+    try {
+      fs.readFileSync = ((target: fs.PathOrFileDescriptor) => {
+        const normalized = String(target);
+        if (normalized.endsWith('/node_modules/electron/package.json')) {
+          return JSON.stringify({ version: '37.10.3' });
+        }
+        if (normalized.endsWith('/package.json')) {
+          return JSON.stringify({ devDependencies: { electron: '^37.3.1' } });
+        }
+        return originalReadFileSync(target, 'utf8');
+      }) as typeof fs.readFileSync;
+
+      const { getElectronVersion } = await import('../../scripts/devStartPreflight.js');
+      expect(getElectronVersion('/repo')).toBe('37.10.3');
+    } finally {
+      fs.readFileSync = originalReadFileSync;
+    }
   });
 });

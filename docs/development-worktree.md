@@ -20,8 +20,13 @@ bun run dev:prepare
 该预检会完成两件事：
 
 1. 如果当前 worktree 的 `node_modules` 只有缓存目录，会自动复用主仓库的共享 `node_modules`
-2. 第一次进入当前依赖目录时，会执行 `electron-builder install-app-deps`，重建 Electron 所需的 native modules
+2. 第一次进入当前依赖目录时，会执行 `electron-rebuild`，重建 Electron 所需的 native modules
 3. 即使 stamp 已存在，也会额外探测 Electron 是否还能实际加载 `better-sqlite3`；如果 ABI 已失配，会自动重新触发 rebuild
+
+当前版本额外做了两件事：
+
+4. 如果 `5173` 被当前仓库残留的 `electron-vite dev` 旧进程占用，预检会先清理该残留进程，避免 `bun run start` 直接因端口冲突失败
+5. native rebuild 现在改为直接调用 `electron-rebuild`，确保 `better-sqlite3` 等模块真正按 Electron ABI 重建，而不是停留在当前 Node ABI
 
 ## 常见问题
 
@@ -33,7 +38,10 @@ bun run dev:prepare
 Port 5173 is already in use
 ```
 
-说明已有旧的开发实例未退出。关闭旧的 `electron-vite dev` / Electron 进程后再重试即可。
+说明已有旧的开发实例未退出。
+
+- 如果占用者是当前仓库残留的 `electron-vite dev`，预检会自动清理
+- 如果占用者是其他无关进程，启动会提前报错并提示对应 PID，此时需要手动关闭占用者后再重试
 
 ### 2. 首次启动较慢
 
@@ -43,7 +51,7 @@ Port 5173 is already in use
 
 当前本地环境下，`better-sqlite3` 的 Node ABI 与 Electron ABI 可能不同：
 
-- `bun run start` 会优先确保 Electron 可启动，必要时重建为 Electron 所需 ABI
+- `bun run start` 会优先确保 Electron 可启动，必要时通过 `electron-rebuild` 重建为 Electron 所需 ABI
 - 如果随后要跑依赖 `better-sqlite3` 的 Node 单测，可能需要在 `node_modules/better-sqlite3` 下重新执行一次：
 
 ```bash
