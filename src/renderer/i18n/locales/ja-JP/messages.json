@@ -13,6 +13,17 @@
   "copiedToClipboard": "クリップボードにコピーしました",
   "downloadSuccess": "ダウンロードしました",
   "downloadFailed": "ダウンロードに失敗しました",
+  "organizationEvent": {
+    "title": "組織イベント",
+    "eventType": "イベント種別",
+    "taskId": "タスク",
+    "runId": "ラン",
+    "approvalId": "承認",
+    "source": "ソース",
+    "summary": "要約",
+    "payload": "ペイロード",
+    "notSet": "未設定"
+  },
   "imageLoadFailed": "画像の読み込みに失敗しました",
   "scrollToBottom": "下にスクロール",
   "availableCommands": "{{count}} 個の利用可能なコマンド",

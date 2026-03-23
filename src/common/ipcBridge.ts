@@ -1064,6 +1064,7 @@ import type {
   IOrgGetControlStateParams,
   IOrgListApprovalsParams,
   IOrgRespondApprovalParams,
+  IOrgRegisterControlConversationParams,
   TOrgGovernancePendingItem,
   TOrgGovernanceAuditLog,
   TaskStatus as OrgTaskStatus,
@@ -1143,6 +1144,7 @@ export type {
   IOrgGetControlStateParams,
   IOrgListApprovalsParams,
   IOrgRespondApprovalParams,
+  IOrgRegisterControlConversationParams,
   TOrgGovernancePendingItem,
   TOrgGovernanceAuditLog,
   OrgTaskStatus,
@@ -1234,6 +1236,9 @@ export const org = {
     ),
     respondApproval: bridge.buildProvider<IBridgeResponse<boolean>, IOrgRespondApprovalParams>(
       'org.organization.respond-approval'
+    ),
+    registerControlConversation: bridge.buildProvider<IBridgeResponse<boolean>, IOrgRegisterControlConversationParams>(
+      'org.organization.register-control-conversation'
     ),
     created: bridge.buildEmitter<TOrganization>('org.organization.created'),
     updated: bridge.buildEmitter<TOrganization>('org.organization.updated'),

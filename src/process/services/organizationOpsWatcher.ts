@@ -28,6 +28,16 @@ import type {
 } from '@/common/types/organization';
 import { getDatabase } from '@process/database';
 import { getOrganizationContextDir, syncOrganizationContext } from './organizationContextService';
+import { enqueueOrganizationControlEvent, getOrganizationControlConversation } from './organizationControlRuntime';
+import {
+  deriveOrganizationControlPhase,
+  hasOrganizationTier1Gap,
+  organizationControlPhaseNeedsHumanInput,
+} from './organizationControlStateDerivation';
+import {
+  buildRunStartedControlEventPayload,
+  buildTaskCreatedControlEventPayload,
+} from './organizationControlEventBuilder';
 import { executeOrganizationEval, registerOrganizationArtifact } from './organizationEvalService';
 import { promoteMemoryCardFromRun, proposeGenomePatchFromRuns } from './organizationEvolutionService';
 
@@ -44,6 +54,9 @@ type OperationResult = {
   data?: unknown;
 };
 
+type CreatedTaskData = Pick<TOrgTask, 'id' | 'title' | 'objective' | 'risk_tier' | 'status'>;
+type StartedRunData = Pick<TOrgRun, 'id' | 'task_id' | 'status' | 'conversation_id' | 'workspace'>;
+
 type WatcherState = {
   watcher: fs.FSWatcher;
   operationsDir: string;
@@ -53,17 +66,92 @@ type WatcherState = {
 const activeWatchers = new Map<string, WatcherState>();
 const ALL_APPROVALS_LIMIT = 1_000;
 
+function isCreatedTaskData(data: unknown): data is CreatedTaskData {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const value = data as Record<string, unknown>;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.objective === 'string' &&
+    typeof value.risk_tier === 'string' &&
+    typeof value.status === 'string'
+  );
+}
+
+function isStartedRunData(data: unknown): data is StartedRunData {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const value = data as Record<string, unknown>;
+  return typeof value.id === 'string' && typeof value.task_id === 'string' && typeof value.status === 'string';
+}
+
+function emitWatcherSuccessControlEvent(organizationId: string, workspace: string, result: OperationResult): void {
+  if (!result.success) {
+    return;
+  }
+
+  const binding = getOrganizationControlConversation(organizationId);
+  if (!binding?.conversationId) {
+    return;
+  }
+
+  if (result.method === 'org/task/create' && isCreatedTaskData(result.data)) {
+    const task = result.data;
+    const eventData = buildTaskCreatedControlEventPayload({
+      organizationId,
+      task,
+    });
+    enqueueOrganizationControlEvent({
+      id: `org_event_${nanoid()}`,
+      organization_id: organizationId,
+      control_conversation_id: binding.conversationId,
+      event_type: 'task_created',
+      task_id: eventData.taskId,
+      source: 'organization_ops_watcher',
+      summary: eventData.summary,
+      payload: eventData.payload,
+      timestamp: Date.now(),
+    });
+    return;
+  }
+
+  if (result.method === 'org/run/start' && isStartedRunData(result.data)) {
+    const run = result.data;
+    const workspacePath = typeof run.workspace?.path === 'string' ? run.workspace.path : workspace;
+    const taskTitle = getDatabase().getOrgTask(run.task_id).data?.title;
+    const eventData = buildRunStartedControlEventPayload({
+      organizationId,
+      task: {
+        id: run.task_id,
+        title: taskTitle || '',
+      },
+      run,
+      workspace: workspacePath,
+    });
+    enqueueOrganizationControlEvent({
+      id: `org_event_${nanoid()}`,
+      organization_id: organizationId,
+      control_conversation_id: binding.conversationId,
+      event_type: 'run_started',
+      task_id: eventData.taskId,
+      run_id: eventData.runId,
+      source: 'organization_ops_watcher',
+      summary: eventData.summary,
+      payload: eventData.payload,
+      timestamp: Date.now(),
+    });
+    return;
+  }
+}
+
 function getLatestRelevantBrief(db: ReturnType<typeof getDatabase>, organizationId: string): TOrgBrief | null {
   const briefs = db.listOrgBriefs(organizationId).data || [];
   return briefs[0] || null;
-}
-
-function hasTier1Gap(brief: TOrgBrief | null): boolean {
-  if (!brief) {
-    return true;
-  }
-
-  return brief.status !== 'confirmed' || (brief.tier1_open_questions?.length || 0) > 0;
 }
 
 function getLatestRelevantPlanSnapshot(
@@ -95,25 +183,19 @@ function buildControlStateSnapshot(
     (run) => run.status !== 'closed'
   );
 
-  let nextPhase = phase;
-  if (!nextPhase) {
-    if (activeRuns.length > 0) {
-      nextPhase = 'monitoring';
-    } else if (hasTier1Gap(brief)) {
-      nextPhase = 'awaiting_human_decision';
-    } else if (pendingApprovals.some((approval) => approval.scope === 'plan_gate')) {
-      nextPhase = 'awaiting_plan_approval';
-    } else {
-      nextPhase = 'drafting_plan';
-    }
-  }
+  const nextPhase = deriveOrganizationControlPhase({
+    brief,
+    pendingApprovals,
+    activeRunCount: activeRuns.length,
+    phase,
+  });
 
   return {
     conversation_id: undefined,
     phase: nextPhase,
     active_brief_id: brief?.id,
     active_plan_id: planSnapshot?.id,
-    needs_human_input: nextPhase === 'awaiting_human_decision' || nextPhase === 'awaiting_plan_approval',
+    needs_human_input: organizationControlPhaseNeedsHumanInput(nextPhase),
     pending_approval_count: pendingApprovals.length,
     last_human_touch_at: undefined,
     updated_at: Date.now(),
@@ -166,7 +248,7 @@ export function reconcileOrganizationControlState(
 function ensureTier1DecisionReady(organizationId: string): { success: true } | { success: false; message: string } {
   const db = getDatabase();
   const brief = getLatestRelevantBrief(db, organizationId);
-  if (!hasTier1Gap(brief)) {
+  if (!hasOrganizationTier1Gap(brief)) {
     return { success: true };
   }
 
@@ -982,6 +1064,7 @@ export async function processOrganizationOperationFile(
     const content = fs.readFileSync(filePath, 'utf-8');
     const payload = JSON.parse(content) as OperationPayload;
     const result = await executeOrganizationOperation(organizationId, workspace, payload);
+    emitWatcherSuccessControlEvent(organizationId, workspace, result);
     fs.writeFileSync(resultPath, JSON.stringify(result, null, 2), 'utf-8');
     syncOrganizationContext(organizationId);
     fs.unlinkSync(filePath);

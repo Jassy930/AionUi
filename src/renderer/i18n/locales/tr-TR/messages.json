@@ -13,6 +13,17 @@
   "copiedToClipboard": "Panoya kopyalandı",
   "downloadSuccess": "İndirme başarılı",
   "downloadFailed": "İndirme başarısız",
+  "organizationEvent": {
+    "title": "Organizasyon olayı",
+    "eventType": "Olay türü",
+    "taskId": "Görev",
+    "runId": "Çalıştırma",
+    "approvalId": "Onay",
+    "source": "Kaynak",
+    "summary": "Özet",
+    "payload": "Yük",
+    "notSet": "Ayarlanmadı"
+  },
   "imageLoadFailed": "Görüntü yüklenemedi",
   "scrollToBottom": "Aşağı kaydır",
   "availableCommands": "{{count}} Kullanılabilir Komut",

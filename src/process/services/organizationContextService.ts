@@ -18,9 +18,14 @@ import type {
   TOrgTask,
 } from '@/common/types/organization';
 import { getDatabase } from '@process/database';
+import {
+  deriveOrganizationControlPhase,
+  organizationControlPhaseNeedsHumanInput,
+} from './organizationControlStateDerivation';
 
 const AIONUI_ORG_DIR = '.aionui-org';
 const ALL_APPROVALS_LIMIT = 1_000_000;
+const RECONCILE_APPROVALS_LIMIT = 10_000;
 
 function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) {
@@ -277,6 +282,67 @@ function collectOrganizationArtifacts(tasks: TOrgTask[], runs: TOrgRun[]): TOrgA
 
 export function getOrganizationContextDir(workspace: string): string {
   return path.join(workspace, AIONUI_ORG_DIR);
+}
+
+export type TOrganizationReconcileSnapshot = {
+  organization_id: string;
+  control_state: {
+    phase: TOrgControlState['phase'];
+    needs_human_input: boolean;
+    pending_approval_count: number;
+  } | null;
+  derived_state: {
+    expected_phase: TOrgControlState['phase'];
+    expected_needs_human_input: boolean;
+    pending_approval_count: number;
+  };
+  active_run_count: number;
+  pending_approval_count: number;
+  generated_at: number;
+};
+
+export function getOrganizationReconcileSnapshot(organizationId: string): TOrganizationReconcileSnapshot | null {
+  const db = getDatabase();
+  const organizationResult = db.getOrganization(organizationId);
+  if (!organizationResult.success || !organizationResult.data) {
+    return null;
+  }
+
+  const controlState = db.getOrgControlState(organizationId).data || null;
+  const brief = (db.listOrgBriefs(organizationId).data || [])[0] || null;
+  const activeRuns = (db.listOrgRuns({ organization_id: organizationId }).data || []).filter(
+    (run) => run.status !== 'closed'
+  );
+  const pendingApprovals =
+    db.listOrgApprovalRecords({
+      organization_id: organizationId,
+      status: 'pending',
+      limit: RECONCILE_APPROVALS_LIMIT,
+    }).data || [];
+  const expectedPhase = deriveOrganizationControlPhase({
+    brief,
+    pendingApprovals,
+    activeRunCount: activeRuns.length,
+  });
+
+  return {
+    organization_id: organizationId,
+    control_state: controlState
+      ? {
+          phase: controlState.phase,
+          needs_human_input: controlState.needs_human_input,
+          pending_approval_count: controlState.pending_approval_count,
+        }
+      : null,
+    derived_state: {
+      expected_phase: expectedPhase,
+      expected_needs_human_input: organizationControlPhaseNeedsHumanInput(expectedPhase),
+      pending_approval_count: pendingApprovals.length,
+    },
+    active_run_count: activeRuns.length,
+    pending_approval_count: pendingApprovals.length,
+    generated_at: Date.now(),
+  };
 }
 
 export function initOrganizationContext(organization: TOrganization): void {

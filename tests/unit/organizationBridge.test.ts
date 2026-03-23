@@ -17,8 +17,19 @@ import type {
   TOrgTask,
 } from '@/common/types/organization';
 
-const { safeExecFileMock } = vi.hoisted(() => ({
+const {
+  safeExecFileMock,
+  enqueueOrganizationControlEventMock,
+  buildTaskCreatedControlEventPayloadMock,
+  buildRunStartedControlEventPayloadMock,
+} = vi.hoisted(() => ({
   safeExecFileMock: vi.fn(),
+  enqueueOrganizationControlEventMock: vi.fn(),
+  buildTaskCreatedControlEventPayloadMock: vi.fn(),
+  buildRunStartedControlEventPayloadMock: vi.fn(),
+}));
+const { workerManageKillMock } = vi.hoisted(() => ({
+  workerManageKillMock: vi.fn(),
 }));
 
 const TEST_DATA_PATH = path.join(os.tmpdir(), `aionui-org-bridge-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -74,6 +85,7 @@ function createOrgIpcMock(handlers: Record<string, ProviderHandler>) {
       getControlState: createCommandMock('org.organization.get-control-state'),
       listApprovals: createCommandMock('org.organization.list-approvals'),
       respondApproval: createCommandMock('org.organization.respond-approval'),
+      registerControlConversation: createCommandMock('org.organization.register-control-conversation'),
       created: { emit: vi.fn() },
       updated: { emit: vi.fn() },
       deleted: { emit: vi.fn() },
@@ -241,16 +253,62 @@ function seedApprovalRecord(db: AionUIDatabase, organizationId: string, override
 describe('organizationBridge', () => {
   let db: AionUIDatabase;
   let handlers: Record<string, ProviderHandler>;
+  let orgIpcMock: ReturnType<typeof createOrgIpcMock>;
   let organization: TOrganization;
   let task: TOrgTask;
   let evalSpec: TOrgEvalSpec;
   let conversationSeq = 0;
+
+  function getEnqueuedControlEvent(eventType: string) {
+    return enqueueOrganizationControlEventMock.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.event_type === eventType);
+  }
 
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     safeExecFileMock.mockReset();
     safeExecFileMock.mockResolvedValue({ stdout: 'ok\n', stderr: '' });
+    enqueueOrganizationControlEventMock.mockReset();
+    buildTaskCreatedControlEventPayloadMock.mockReset();
+    buildTaskCreatedControlEventPayloadMock.mockImplementation(({ organizationId, task }) => ({
+      taskId: task.id,
+      summary: `Task ${task.id} created: ${task.title}.`,
+      payload: {
+        organization_id: organizationId,
+        task_id: task.id,
+        title: task.title,
+        objective: task.objective,
+        risk_tier: task.risk_tier,
+        status: task.status,
+        object_ids: {
+          organization_id: organizationId,
+          task_id: task.id,
+        },
+      },
+    }));
+    buildRunStartedControlEventPayloadMock.mockReset();
+    buildRunStartedControlEventPayloadMock.mockImplementation(({ organizationId, task, run, workspace }) => ({
+      taskId: task.id,
+      runId: run.id,
+      summary: `Run ${run.id} started for task ${task.id}.`,
+      payload: {
+        organization_id: organizationId,
+        task_id: task.id,
+        task_title: task.title,
+        run_id: run.id,
+        status: run.status,
+        workspace,
+        conversation_id: run.conversation_id,
+        object_ids: {
+          organization_id: organizationId,
+          task_id: task.id,
+          run_id: run.id,
+        },
+      },
+    }));
+    workerManageKillMock.mockReset();
 
     fs.mkdirSync(TEST_DATA_PATH, { recursive: true });
     if (fs.existsSync(DB_PATH)) {
@@ -304,9 +362,10 @@ describe('organizationBridge', () => {
     };
     expect(db.createOrgEvalSpec(evalSpec).success).toBe(true);
 
+    orgIpcMock = createOrgIpcMock(handlers);
     vi.doMock('@/common', () => ({
       ipcBridge: {
-        org: createOrgIpcMock(handlers),
+        org: orgIpcMock,
       },
     }));
     vi.doMock('@process/database', () => ({
@@ -345,6 +404,24 @@ describe('organizationBridge', () => {
               : { success: false, error: result.error || 'Failed to create conversation' };
           }
         ),
+      },
+    }));
+    vi.doMock('@process/services/organizationControlRuntime', async () => {
+      const actual = await vi.importActual<typeof import('@/process/services/organizationControlRuntime')>(
+        '@process/services/organizationControlRuntime'
+      );
+      return {
+        ...actual,
+        enqueueOrganizationControlEvent: enqueueOrganizationControlEventMock,
+      };
+    });
+    vi.doMock('@process/services/organizationControlEventBuilder', () => ({
+      buildTaskCreatedControlEventPayload: buildTaskCreatedControlEventPayloadMock,
+      buildRunStartedControlEventPayload: buildRunStartedControlEventPayloadMock,
+    }));
+    vi.doMock('@process/WorkerManage', () => ({
+      default: {
+        kill: workerManageKillMock,
       },
     }));
   });
@@ -480,6 +557,411 @@ describe('organizationBridge', () => {
       })
     );
     expect(db.getOrgControlState(organization.id).data?.phase).toBe('awaiting_human_decision');
+  });
+
+  it('registers and updates organization control conversation bindings', async () => {
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    const { clearOrganizationControlConversation, getOrganizationControlConversation } =
+      await import('@/process/services/organizationControlRuntime');
+    clearOrganizationControlConversation(organization.id);
+
+    initOrganizationBridge();
+    expect(handlers['org.organization.register-control-conversation']).toBeTypeOf('function');
+
+    const ignoredRoleResult = await handlers['org.organization.register-control-conversation']({
+      organizationId: organization.id,
+      conversationId: 'conv_run_executor',
+      organizationRole: 'run_executor',
+    });
+    expect(ignoredRoleResult.success).toBe(true);
+    expect(ignoredRoleResult.data).toBe(false);
+    expect(getOrganizationControlConversation(organization.id)).toBeUndefined();
+
+    const firstBindResult = await handlers['org.organization.register-control-conversation']({
+      organizationId: organization.id,
+      conversationId: 'conv_control_1',
+      organizationRole: 'control_plane',
+    });
+    expect(firstBindResult.success).toBe(true);
+    expect(firstBindResult.data).toBe(true);
+    expect(getOrganizationControlConversation(organization.id)?.conversationId).toBe('conv_control_1');
+
+    const secondBindResult = await handlers['org.organization.register-control-conversation']({
+      organizationId: organization.id,
+      conversationId: 'conv_control_2',
+      organizationRole: 'control_plane',
+    });
+    expect(secondBindResult.success).toBe(true);
+    expect(secondBindResult.data).toBe(true);
+    expect(getOrganizationControlConversation(organization.id)?.conversationId).toBe('conv_control_2');
+  });
+
+  it('enqueues task_created event after org.task.create succeeds when control conversation is bound', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const bindResult = await handlers['org.organization.register-control-conversation']({
+      organizationId: organization.id,
+      conversationId: 'conv_control_task_event',
+      organizationRole: 'control_plane',
+    });
+    expect(bindResult.success).toBe(true);
+    expect(bindResult.data).toBe(true);
+
+    const createdTaskResult = await handlers['org.task.create']({
+      organization_id: organization.id,
+      title: 'Control event task',
+      objective: 'Emit task_created event',
+      scope: ['src/process/bridge/'],
+      done_criteria: ['task created'],
+      budget: { max_runs: 1 },
+      risk_tier: 'low',
+      validators: [],
+      deliverable_schema: {},
+    });
+    expect(createdTaskResult.success).toBe(true);
+    expect(createdTaskResult.data.id).toBeTypeOf('string');
+
+    expect(orgIpcMock.task.created.emit).toHaveBeenCalledTimes(1);
+    expect(orgIpcMock.task.created.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: createdTaskResult.data.id,
+      })
+    );
+
+    const taskCreatedEvent = getEnqueuedControlEvent('task_created');
+    expect(buildTaskCreatedControlEventPayloadMock).toHaveBeenCalledTimes(1);
+    expect(taskCreatedEvent).toEqual(
+      expect.objectContaining({
+        organization_id: organization.id,
+        control_conversation_id: 'conv_control_task_event',
+        event_type: 'task_created',
+        task_id: createdTaskResult.data.id,
+        summary: `Task ${createdTaskResult.data.id} created: Control event task.`,
+        payload: expect.objectContaining({
+          organization_id: organization.id,
+          task_id: createdTaskResult.data.id,
+          title: 'Control event task',
+          objective: 'Emit task_created event',
+          risk_tier: 'low',
+          status: 'draft',
+          object_ids: {
+            organization_id: organization.id,
+            task_id: createdTaskResult.data.id,
+          },
+        }),
+      })
+    );
+  });
+
+  it('does not block org.task.create success when no control conversation binding exists', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const createdTaskResult = await handlers['org.task.create']({
+      organization_id: organization.id,
+      title: 'No binding task',
+      objective: 'Bridge should still return success',
+      scope: ['src/process/bridge/'],
+      done_criteria: ['task created without binding'],
+      budget: { max_runs: 1 },
+      risk_tier: 'low',
+      validators: [],
+      deliverable_schema: {},
+    });
+
+    expect(createdTaskResult.success).toBe(true);
+    expect(createdTaskResult.data.id).toBeTypeOf('string');
+    expect(enqueueOrganizationControlEventMock).not.toHaveBeenCalled();
+  });
+
+  it('enqueues run_started event after org.run.start succeeds with task_id and run_id', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const bindResult = await handlers['org.organization.register-control-conversation']({
+      organizationId: organization.id,
+      conversationId: 'conv_control_run_start_event',
+      organizationRole: 'control_plane',
+    });
+    expect(bindResult.success).toBe(true);
+
+    const createdTaskResult = await handlers['org.task.create']({
+      organization_id: organization.id,
+      title: 'Run start event task',
+      objective: 'Emit run_started event',
+      scope: ['src/process/bridge/'],
+      done_criteria: ['run started'],
+      budget: { max_runs: 1 },
+      risk_tier: 'low',
+      validators: [],
+      deliverable_schema: {},
+    });
+    expect(createdTaskResult.success).toBe(true);
+
+    const runStartResult = await handlers['org.run.start']({
+      task_id: createdTaskResult.data.id,
+      workspace: {
+        mode: 'isolated',
+        type: 'worktree',
+        path: path.join(organization.workspace, 'runs/run-start-event'),
+      },
+      environment: { kind: 'cloud', env_id: 'ts-ci' },
+      execution: { model: 'gpt-5.4', effort: 'medium' },
+    });
+    expect(runStartResult.success).toBe(true);
+
+    expect(orgIpcMock.run.created.emit).toHaveBeenCalledTimes(1);
+    expect(orgIpcMock.run.created.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: runStartResult.data.id,
+      })
+    );
+
+    const runStartedEvent = getEnqueuedControlEvent('run_started');
+    expect(buildRunStartedControlEventPayloadMock).toHaveBeenCalledTimes(1);
+    expect(runStartedEvent).toEqual(
+      expect.objectContaining({
+        organization_id: organization.id,
+        control_conversation_id: 'conv_control_run_start_event',
+        event_type: 'run_started',
+        task_id: createdTaskResult.data.id,
+        run_id: runStartResult.data.id,
+        summary: `Run ${runStartResult.data.id} started for task ${createdTaskResult.data.id}.`,
+        payload: expect.objectContaining({
+          organization_id: organization.id,
+          task_id: createdTaskResult.data.id,
+          run_id: runStartResult.data.id,
+          task_title: 'Run start event task',
+          status: 'active',
+          workspace: path.join(organization.workspace, 'runs/run-start-event'),
+          conversation_id: runStartResult.data.conversation_id,
+          object_ids: {
+            organization_id: organization.id,
+            task_id: createdTaskResult.data.id,
+            run_id: runStartResult.data.id,
+          },
+        }),
+      })
+    );
+  });
+
+  it('kills runtime conversation task when run start fails on associateConversationWithOrgRun', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+    vi.spyOn(db, 'associateConversationWithOrgRun').mockReturnValue({
+      success: false,
+      error: 'associate failed',
+    } as any);
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const createdTaskResult = await handlers['org.task.create']({
+      organization_id: organization.id,
+      title: 'Run associate fail task',
+      objective: 'Trigger associateConversationWithOrgRun rollback',
+      scope: ['src/process/bridge/'],
+      done_criteria: ['run start fails'],
+      budget: { max_runs: 1 },
+      risk_tier: 'low',
+      validators: [],
+      deliverable_schema: {},
+    });
+    expect(createdTaskResult.success).toBe(true);
+
+    const runStartResult = await handlers['org.run.start']({
+      task_id: createdTaskResult.data.id,
+      workspace: {
+        mode: 'isolated',
+        type: 'worktree',
+        path: path.join(organization.workspace, 'runs/run-associate-fail'),
+      },
+      environment: { kind: 'cloud', env_id: 'ts-ci' },
+      execution: { model: 'gpt-5.4', effort: 'medium' },
+    });
+
+    expect(runStartResult.success).toBe(false);
+    expect(workerManageKillMock).toHaveBeenCalledTimes(1);
+    expect(workerManageKillMock).toHaveBeenCalledWith('conv_org_bridge_1');
+  });
+
+  it('kills runtime conversation task when run start fails on updateOrgRun conversation binding', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+    const originalUpdateOrgRun = db.updateOrgRun.bind(db);
+    vi.spyOn(db, 'updateOrgRun').mockImplementation((id: string, updates: Record<string, unknown>) => {
+      if (Object.prototype.hasOwnProperty.call(updates, 'conversation_id')) {
+        return {
+          success: false,
+          error: 'bind conversation failed',
+        } as any;
+      }
+      return originalUpdateOrgRun(id, updates as any);
+    });
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const createdTaskResult = await handlers['org.task.create']({
+      organization_id: organization.id,
+      title: 'Run bind fail task',
+      objective: 'Trigger updateOrgRun rollback',
+      scope: ['src/process/bridge/'],
+      done_criteria: ['run start fails'],
+      budget: { max_runs: 1 },
+      risk_tier: 'low',
+      validators: [],
+      deliverable_schema: {},
+    });
+    expect(createdTaskResult.success).toBe(true);
+
+    const runStartResult = await handlers['org.run.start']({
+      task_id: createdTaskResult.data.id,
+      workspace: {
+        mode: 'isolated',
+        type: 'worktree',
+        path: path.join(organization.workspace, 'runs/run-bind-fail'),
+      },
+      environment: { kind: 'cloud', env_id: 'ts-ci' },
+      execution: { model: 'gpt-5.4', effort: 'medium' },
+    });
+
+    expect(runStartResult.success).toBe(false);
+    expect(workerManageKillMock).toHaveBeenCalledTimes(1);
+    expect(workerManageKillMock).toHaveBeenCalledWith('conv_org_bridge_1');
+  });
+
+  it('enqueues run_closed event after org.run.close succeeds', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const bindResult = await handlers['org.organization.register-control-conversation']({
+      organizationId: organization.id,
+      conversationId: 'conv_control_run_close_event',
+      organizationRole: 'control_plane',
+    });
+    expect(bindResult.success).toBe(true);
+
+    const createdTaskResult = await handlers['org.task.create']({
+      organization_id: organization.id,
+      title: 'Run close event task',
+      objective: 'Emit run_closed event',
+      scope: ['src/process/bridge/'],
+      done_criteria: ['run closed'],
+      budget: { max_runs: 1 },
+      risk_tier: 'low',
+      validators: [],
+      deliverable_schema: {},
+    });
+    expect(createdTaskResult.success).toBe(true);
+
+    const runStartResult = await handlers['org.run.start']({
+      task_id: createdTaskResult.data.id,
+      workspace: {
+        mode: 'isolated',
+        type: 'worktree',
+        path: path.join(organization.workspace, 'runs/run-close-event'),
+      },
+      environment: { kind: 'cloud', env_id: 'ts-ci' },
+      execution: { model: 'gpt-5.4', effort: 'medium' },
+    });
+    expect(runStartResult.success).toBe(true);
+
+    const runCloseResult = await handlers['org.run.close']({
+      id: runStartResult.data.id,
+    });
+    expect(runCloseResult.success).toBe(true);
+
+    expect(orgIpcMock.run.closed.emit).toHaveBeenCalledTimes(1);
+    expect(orgIpcMock.run.closed.emit).toHaveBeenCalledWith({ id: runStartResult.data.id });
+
+    const runClosedEvent = getEnqueuedControlEvent('run_closed');
+    expect(runClosedEvent).toEqual(
+      expect.objectContaining({
+        organization_id: organization.id,
+        control_conversation_id: 'conv_control_run_close_event',
+        event_type: 'run_closed',
+        task_id: createdTaskResult.data.id,
+        run_id: runStartResult.data.id,
+        summary: `Run ${runStartResult.data.id} closed for task ${createdTaskResult.data.id}.`,
+        payload: expect.objectContaining({
+          organization_id: organization.id,
+          task_id: createdTaskResult.data.id,
+          run_id: runStartResult.data.id,
+          status: 'closed',
+          summary: 'Run closed without assistant output.',
+          ended_at: expect.any(Number),
+          object_ids: {
+            organization_id: organization.id,
+            task_id: createdTaskResult.data.id,
+            run_id: runStartResult.data.id,
+          },
+        }),
+      })
+    );
+  });
+
+  it('enqueues approval_responded event after approval response succeeds with approval_id', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    const plan = seedPlanSnapshot(db, organization.id, brief.id, {
+      status: 'draft',
+      approved_by: undefined,
+      approved_at: undefined,
+    });
+    const approval = seedApprovalRecord(db, organization.id, {
+      target_id: plan.id,
+      detail: 'Need approval before dispatch.',
+    });
+    const { initOrganizationBridge } = await import('@/process/bridge/organizationBridge');
+    initOrganizationBridge();
+
+    const bindResult = await handlers['org.organization.register-control-conversation']({
+      organizationId: organization.id,
+      conversationId: 'conv_control_approval_event',
+      organizationRole: 'control_plane',
+    });
+    expect(bindResult.success).toBe(true);
+
+    const respondResult = await handlers['org.organization.respond-approval']({
+      organizationId: organization.id,
+      approvalId: approval.id,
+      decision: 'approved',
+      actor: 'human_reviewer',
+      comment: 'Proceed with the plan.',
+    });
+    expect(respondResult.success).toBe(true);
+
+    const approvalRespondedEvent = getEnqueuedControlEvent('approval_responded');
+    expect(approvalRespondedEvent).toEqual(
+      expect.objectContaining({
+        organization_id: organization.id,
+        control_conversation_id: 'conv_control_approval_event',
+        event_type: 'approval_responded',
+        approval_id: approval.id,
+        summary: `Approval ${approval.id} responded with approved.`,
+        payload: expect.objectContaining({
+          organization_id: organization.id,
+          approval_id: approval.id,
+          decision: 'approved',
+          actor: 'human_reviewer',
+          comment: 'Proceed with the plan.',
+          status: 'approved',
+          target_type: 'organization',
+          target_id: plan.id,
+          object_ids: {
+            organization_id: organization.id,
+            approval_id: approval.id,
+          },
+        }),
+      })
+    );
   });
 
   it('lists approvals and applies approval responses through the bridge', async () => {

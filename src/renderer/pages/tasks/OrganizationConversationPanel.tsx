@@ -42,6 +42,31 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
+  const registerControlConversation = useCallback(
+    async (nextConversation: TChatConversation | null) => {
+      if (!organization?.id || !nextConversation?.id) {
+        return;
+      }
+
+      const extra = nextConversation.extra as Record<string, unknown> | undefined;
+      const organizationRole = extra?.organizationRole as string | undefined;
+      if (organizationRole !== 'control_plane') {
+        return;
+      }
+
+      try {
+        await ipcBridge.org.organization.registerControlConversation.invoke({
+          organizationId: organization.id,
+          conversationId: nextConversation.id,
+          organizationRole: 'control_plane',
+        });
+      } catch (error) {
+        console.warn('[OrganizationConversationPanel] Failed to register control conversation', error);
+      }
+    },
+    [organization?.id]
+  );
+
   useEffect(() => {
     if (!organization?.id || !organization.workspace) {
       return;
@@ -70,6 +95,9 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
         const existingConversation =
           conversations.find((item) => isOrganizationControlConversation(item, organization.id)) || null;
         setConversation(existingConversation);
+        if (existingConversation) {
+          void registerControlConversation(existingConversation);
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -85,7 +113,7 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
     return () => {
       cancelled = true;
     };
-  }, [organization?.id]);
+  }, [organization?.id, registerControlConversation]);
 
   const handleSelectAgent = useCallback(
     async (agent: AvailableAgent, isPreset: boolean) => {
@@ -121,6 +149,8 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
           sessionMode: params.extra.sessionMode || 'default',
           organizationId: organization.id,
           organizationRole: 'control_plane',
+          organizationAutoDrive: true,
+          controlConversationVersion: 1,
         };
 
         const nextConversation = await ipcBridge.conversation.create.invoke({
@@ -134,6 +164,7 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
         }
 
         setConversation(nextConversation);
+        await registerControlConversation(nextConversation);
       } catch (error) {
         console.error('[OrganizationConversationPanel] Failed to create conversation:', error);
         Message.error(t('task.createConversationFailed', { defaultValue: 'Failed to create conversation' }));
@@ -141,7 +172,7 @@ const OrganizationConversationPanel: React.FC<OrganizationConversationPanelProps
         setCreating(false);
       }
     },
-    [creating, i18n.language, organization, t]
+    [creating, i18n.language, organization, registerControlConversation, t]
   );
 
   const handleSwitchAgent = useCallback(async () => {

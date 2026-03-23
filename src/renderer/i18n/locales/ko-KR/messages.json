@@ -13,6 +13,17 @@
   "copiedToClipboard": "클립보드에 복사됨",
   "downloadSuccess": "다운로드 성공",
   "downloadFailed": "다운로드 실패",
+  "organizationEvent": {
+    "title": "조직 이벤트",
+    "eventType": "이벤트 유형",
+    "taskId": "작업",
+    "runId": "실행",
+    "approvalId": "승인",
+    "source": "소스",
+    "summary": "요약",
+    "payload": "페이로드",
+    "notSet": "설정 안 됨"
+  },
   "imageLoadFailed": "이미지 로드 실패",
   "scrollToBottom": "맨 아래로 스크롤",
   "availableCommands": "{{count}}개의 사용 가능한 명령어",

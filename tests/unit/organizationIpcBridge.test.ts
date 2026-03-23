@@ -6,12 +6,14 @@
 
 import { describe, expect, it } from 'vitest';
 import { org } from '@/common/ipcBridge';
+import type { ConversationExecutionBinding } from '@/common/storage';
 import {
   TASK_STATUS_VALUES,
   RUN_STATUS_VALUES,
   GENOME_PATCH_STATUS_VALUES,
   MUTATION_TARGET_VALUES,
   ORGANIZATION_CONTROL_PHASE_VALUES,
+  ORGANIZATION_CONTROL_EVENT_TYPE_VALUES,
   ORG_PLAN_SNAPSHOT_STATUS_VALUES,
   ORG_APPROVAL_STATUS_VALUES,
 } from '@/common/types/organization';
@@ -61,5 +63,38 @@ describe('organization ipc bridge contracts', () => {
     expect(org.skill.create).toBeDefined();
     expect(org.evolution.propose).toBeDefined();
     expect(org.governance.approve).toBeDefined();
+  });
+
+  it('defines control runtime event types and conversation metadata contract', () => {
+    expect(ORGANIZATION_CONTROL_EVENT_TYPE_VALUES).toEqual([
+      'task_created',
+      'task_updated',
+      'run_started',
+      'run_updated',
+      'run_closed',
+      'run_failed',
+      'approval_requested',
+      'approval_responded',
+      'reconcile_tick',
+      'eval_executed',
+      'memory_promoted',
+      'evolution_proposed',
+      'governance_changed',
+    ]);
+
+    const runtimeBinding: Pick<
+      ConversationExecutionBinding,
+      'organizationAutoDrive' | 'autoDrivePaused' | 'lastReconcileAt' | 'controlConversationVersion'
+    > = {
+      organizationAutoDrive: true,
+      autoDrivePaused: false,
+      lastReconcileAt: Date.now(),
+      controlConversationVersion: 1,
+    };
+
+    expect(runtimeBinding.organizationAutoDrive).toBe(true);
+    expect(runtimeBinding.autoDrivePaused).toBe(false);
+    expect(typeof runtimeBinding.lastReconcileAt).toBe('number');
+    expect(runtimeBinding.controlConversationVersion).toBe(1);
   });
 });

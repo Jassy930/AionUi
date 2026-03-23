@@ -48,6 +48,23 @@ export const ORGANIZATION_CONTROL_PHASE_VALUES = [
 ] as const;
 export type OrganizationControlPhase = (typeof ORGANIZATION_CONTROL_PHASE_VALUES)[number];
 
+export const ORGANIZATION_CONTROL_EVENT_TYPE_VALUES = [
+  'task_created',
+  'task_updated',
+  'run_started',
+  'run_updated',
+  'run_closed',
+  'run_failed',
+  'approval_requested',
+  'approval_responded',
+  'reconcile_tick',
+  'eval_executed',
+  'memory_promoted',
+  'evolution_proposed',
+  'governance_changed',
+] as const;
+export type OrganizationControlEventType = (typeof ORGANIZATION_CONTROL_EVENT_TYPE_VALUES)[number];
+
 export const ORG_BRIEF_STATUS_VALUES = ['draft', 'confirmed'] as const;
 export type OrgBriefStatus = (typeof ORG_BRIEF_STATUS_VALUES)[number];
 
@@ -251,6 +268,20 @@ export type TOrgControlState = {
   pending_approval_count: number;
   last_human_touch_at?: number;
   updated_at: number;
+};
+
+export type TOrganizationControlEvent = {
+  id: string;
+  organization_id: string;
+  control_conversation_id: string;
+  event_type: OrganizationControlEventType;
+  task_id?: string;
+  run_id?: string;
+  approval_id?: string;
+  source: string;
+  summary: string;
+  payload?: Record<string, unknown>;
+  timestamp: number;
 };
 
 export type TOrgBrief = {
@@ -471,4 +502,10 @@ export type IOrgRespondApprovalParams = {
   decision: Extract<OrgApprovalStatus, 'approved' | 'rejected' | 'needs_more_info'>;
   actor: string;
   comment?: string;
+};
+
+export type IOrgRegisterControlConversationParams = {
+  organizationId: string;
+  conversationId: string;
+  organizationRole?: 'control_plane' | 'run_executor';
 };

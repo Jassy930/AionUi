@@ -13,6 +13,17 @@
   "copiedToClipboard": "已複製到剪貼簿",
   "downloadSuccess": "下載成功",
   "downloadFailed": "下載失敗",
+  "organizationEvent": {
+    "title": "組織事件",
+    "eventType": "事件類型",
+    "taskId": "任務",
+    "runId": "運行",
+    "approvalId": "審批",
+    "source": "來源",
+    "summary": "摘要",
+    "payload": "載荷",
+    "notSet": "未設定"
+  },
   "imageLoadFailed": "圖片載入失敗",
   "scrollToBottom": "滾動到底部",
   "availableCommands": "{{count}} 個可用指令",

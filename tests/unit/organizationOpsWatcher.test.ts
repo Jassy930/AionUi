@@ -11,8 +11,18 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import type { TOrgBrief, TOrganization, TOrgEvalSpec, TOrgPlanSnapshot, TOrgTask } from '@/common/types/organization';
 
 let currentDb: import('@/process/database').AionUIDatabase;
-const { safeExecFileMock } = vi.hoisted(() => ({
+const {
+  safeExecFileMock,
+  enqueueOrganizationControlEventMock,
+  getOrganizationControlConversationMock,
+  buildTaskCreatedControlEventPayloadMock,
+  buildRunStartedControlEventPayloadMock,
+} = vi.hoisted(() => ({
   safeExecFileMock: vi.fn(),
+  enqueueOrganizationControlEventMock: vi.fn(),
+  getOrganizationControlConversationMock: vi.fn(),
+  buildTaskCreatedControlEventPayloadMock: vi.fn(),
+  buildRunStartedControlEventPayloadMock: vi.fn(),
 }));
 
 const TEST_DATA_PATH = path.join(
@@ -40,6 +50,16 @@ vi.mock('@process/database', async () => {
 
 vi.mock('@process/utils/safeExec', () => ({
   safeExecFile: safeExecFileMock,
+}));
+
+vi.mock('@process/services/organizationControlRuntime', () => ({
+  enqueueOrganizationControlEvent: enqueueOrganizationControlEventMock,
+  getOrganizationControlConversation: getOrganizationControlConversationMock,
+}));
+
+vi.mock('@process/services/organizationControlEventBuilder', () => ({
+  buildTaskCreatedControlEventPayload: buildTaskCreatedControlEventPayloadMock,
+  buildRunStartedControlEventPayload: buildRunStartedControlEventPayloadMock,
 }));
 
 import { AionUIDatabase } from '@/process/database';
@@ -103,6 +123,46 @@ describe('organizationOpsWatcher', () => {
   beforeEach(() => {
     safeExecFileMock.mockReset();
     safeExecFileMock.mockResolvedValue({ stdout: 'ok\n', stderr: '' });
+    enqueueOrganizationControlEventMock.mockReset();
+    getOrganizationControlConversationMock.mockReset();
+    getOrganizationControlConversationMock.mockReturnValue(undefined);
+    buildTaskCreatedControlEventPayloadMock.mockReset();
+    buildTaskCreatedControlEventPayloadMock.mockImplementation(({ organizationId, task }) => ({
+      taskId: task.id,
+      summary: `Task ${task.id} created: ${task.title}.`,
+      payload: {
+        organization_id: organizationId,
+        task_id: task.id,
+        title: task.title,
+        objective: task.objective,
+        risk_tier: task.risk_tier,
+        status: task.status,
+        object_ids: {
+          organization_id: organizationId,
+          task_id: task.id,
+        },
+      },
+    }));
+    buildRunStartedControlEventPayloadMock.mockReset();
+    buildRunStartedControlEventPayloadMock.mockImplementation(({ organizationId, task, run, workspace }) => ({
+      taskId: task.id,
+      runId: run.id,
+      summary: `Run ${run.id} started for task ${task.id}.`,
+      payload: {
+        organization_id: organizationId,
+        task_id: task.id,
+        task_title: task.title,
+        run_id: run.id,
+        status: run.status,
+        workspace,
+        conversation_id: run.conversation_id,
+        object_ids: {
+          organization_id: organizationId,
+          task_id: task.id,
+          run_id: run.id,
+        },
+      },
+    }));
     fs.mkdirSync(TEST_DATA_PATH, { recursive: true });
     fs.mkdirSync(WORKSPACE_PATH, { recursive: true });
     if (fs.existsSync(DB_PATH)) {
@@ -690,5 +750,154 @@ describe('organizationOpsWatcher', () => {
       title: string;
     }>;
     expect(tasksJson.some((item) => item.title === 'File task')).toBe(true);
+  });
+
+  it('emits task_created control event after processing org/task/create file', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+    getOrganizationControlConversationMock.mockReturnValue({
+      organizationId: organization.id,
+      conversationId: 'conv_org_watcher_control',
+    });
+
+    const contextDir = getOrganizationContextDir(organization.workspace);
+    const operationsDir = path.join(contextDir, 'control', 'operations');
+    const filePath = path.join(operationsDir, 'create-task-event.json');
+
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({
+        method: 'org/task/create',
+        params: {
+          organization_id: organization.id,
+          title: 'Event task',
+          objective: 'Emit task created event from watcher file protocol',
+          scope: ['docs/'],
+          done_criteria: ['event emitted'],
+          budget: {},
+          risk_tier: 'low',
+          validators: [],
+          deliverable_schema: {},
+        },
+      }),
+      'utf-8'
+    );
+
+    await processOrganizationOperationFile(organization.id, organization.workspace, filePath);
+
+    expect(enqueueOrganizationControlEventMock).toHaveBeenCalledTimes(1);
+    expect(buildTaskCreatedControlEventPayloadMock).toHaveBeenCalledTimes(1);
+    expect(enqueueOrganizationControlEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organization_id: organization.id,
+        control_conversation_id: 'conv_org_watcher_control',
+        event_type: 'task_created',
+        source: 'organization_ops_watcher',
+        task_id: expect.any(String),
+        summary: expect.stringContaining('created'),
+        payload: expect.objectContaining({
+          organization_id: organization.id,
+          task_id: expect.any(String),
+          title: 'Event task',
+          objective: 'Emit task created event from watcher file protocol',
+          risk_tier: 'low',
+          status: 'draft',
+          object_ids: expect.objectContaining({
+            organization_id: organization.id,
+            task_id: expect.any(String),
+          }),
+        }),
+      })
+    );
+  });
+
+  it('emits run_started control event after processing org/run/start file', async () => {
+    const brief = seedConfirmedBrief(db, organization.id);
+    seedPlanSnapshot(db, organization.id, brief.id);
+    getOrganizationControlConversationMock.mockReturnValue({
+      organizationId: organization.id,
+      conversationId: 'conv_org_watcher_control',
+    });
+
+    const contextDir = getOrganizationContextDir(organization.workspace);
+    const operationsDir = path.join(contextDir, 'control', 'operations');
+    const filePath = path.join(operationsDir, 'start-run-event.json');
+
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({
+        method: 'org/run/start',
+        params: {
+          task_id: task.id,
+          workspace: { mode: 'isolated', type: 'worktree', path: path.join(WORKSPACE_PATH, 'runs/run-event') },
+          environment: { kind: 'cloud', env_id: 'ts-ci' },
+        },
+      }),
+      'utf-8'
+    );
+
+    await processOrganizationOperationFile(organization.id, organization.workspace, filePath);
+
+    expect(enqueueOrganizationControlEventMock).toHaveBeenCalledTimes(1);
+    expect(buildRunStartedControlEventPayloadMock).toHaveBeenCalledTimes(1);
+    expect(enqueueOrganizationControlEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organization_id: organization.id,
+        control_conversation_id: 'conv_org_watcher_control',
+        event_type: 'run_started',
+        source: 'organization_ops_watcher',
+        task_id: task.id,
+        run_id: expect.any(String),
+        summary: expect.stringContaining('started'),
+        payload: expect.objectContaining({
+          organization_id: organization.id,
+          task_id: task.id,
+          task_title: task.title,
+          run_id: expect.any(String),
+          status: 'active',
+          workspace: path.join(WORKSPACE_PATH, 'runs/run-event'),
+          conversation_id: undefined,
+          object_ids: expect.objectContaining({
+            organization_id: organization.id,
+            task_id: task.id,
+            run_id: expect.any(String),
+          }),
+        }),
+      })
+    );
+  });
+
+  it('does not emit success control events when watcher operation fails', async () => {
+    getOrganizationControlConversationMock.mockReturnValue({
+      organizationId: organization.id,
+      conversationId: 'conv_org_watcher_control',
+    });
+
+    const contextDir = getOrganizationContextDir(organization.workspace);
+    const operationsDir = path.join(contextDir, 'control', 'operations');
+    const filePath = path.join(operationsDir, 'failed-task-event.json');
+
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({
+        method: 'org/task/create',
+        params: {
+          organization_id: organization.id,
+          title: 'Should fail without tier 1',
+          objective: 'No brief and no plan means blocked',
+          scope: ['docs/'],
+          done_criteria: ['blocked'],
+          budget: {},
+          risk_tier: 'low',
+          validators: [],
+          deliverable_schema: {},
+        },
+      }),
+      'utf-8'
+    );
+
+    await processOrganizationOperationFile(organization.id, organization.workspace, filePath);
+
+    expect(enqueueOrganizationControlEventMock).not.toHaveBeenCalled();
   });
 });

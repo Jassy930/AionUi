@@ -15,6 +15,7 @@ const mockInitContext = vi.fn();
 const mockSyncContext = vi.fn();
 const mockGetSystemPrompt = vi.fn();
 const mockGetControlState = vi.fn();
+const mockRegisterControlConversation = vi.fn();
 const mockBuildCliAgentParams = vi.fn();
 const mockAcpChat = vi.fn(({ conversation_id }: { conversation_id: string }) => <div>Chat:{conversation_id}</div>);
 
@@ -65,6 +66,7 @@ vi.mock('@/common', () => ({
         syncContext: { invoke: (...args: any[]) => mockSyncContext(...args) },
         getSystemPrompt: { invoke: (...args: any[]) => mockGetSystemPrompt(...args) },
         getControlState: { invoke: (...args: any[]) => mockGetControlState(...args) },
+        registerControlConversation: { invoke: (...args: any[]) => mockRegisterControlConversation(...args) },
       },
     },
   },
@@ -90,6 +92,7 @@ describe('OrganizationConversationPanel', () => {
     mockInitContext.mockResolvedValue({ success: true });
     mockSyncContext.mockResolvedValue({ success: true });
     mockGetSystemPrompt.mockResolvedValue({ success: true, data: 'ORG_PROMPT' });
+    mockRegisterControlConversation.mockResolvedValue({ success: true, data: true });
     mockGetControlState.mockResolvedValue({
       success: true,
       data: {
@@ -138,6 +141,8 @@ describe('OrganizationConversationPanel', () => {
         expect.objectContaining({
           extra: expect.objectContaining({
             sessionMode: 'default',
+            organizationAutoDrive: true,
+            controlConversationVersion: 1,
           }),
         })
       );
@@ -181,6 +186,11 @@ describe('OrganizationConversationPanel', () => {
     expect(container.querySelector('.organization-conv-panel__toolbar')).toBeInTheDocument();
     expect(screen.getByTitle('Switch agent')).toBeInTheDocument();
     expect(mockInitContext).toHaveBeenCalledWith({ organizationId: 'org_alpha' });
+    expect(mockRegisterControlConversation).toHaveBeenCalledWith({
+      organizationId: 'org_alpha',
+      conversationId: 'conv_org',
+      organizationRole: 'control_plane',
+    });
     expect(mockCreateConversation).not.toHaveBeenCalled();
   });
 
@@ -222,6 +232,8 @@ describe('OrganizationConversationPanel', () => {
             organizationRole: 'control_plane',
             presetContext: 'ORG_PROMPT',
             presetRules: 'ORG_PROMPT',
+            organizationAutoDrive: true,
+            controlConversationVersion: 1,
           }),
         })
       );
@@ -229,6 +241,11 @@ describe('OrganizationConversationPanel', () => {
 
     expect(mockSyncContext).toHaveBeenCalledWith({ organizationId: 'org_alpha' });
     expect(mockGetSystemPrompt).toHaveBeenCalledWith({ organizationId: 'org_alpha' });
+    expect(mockRegisterControlConversation).toHaveBeenCalledWith({
+      organizationId: 'org_alpha',
+      conversationId: 'conv_created',
+      organizationRole: 'control_plane',
+    });
 
     await waitFor(() => {
       expect(screen.getByText('Chat:conv_created')).toBeInTheDocument();
@@ -239,5 +256,32 @@ describe('OrganizationConversationPanel', () => {
         thoughtDisplayStyle: 'compact',
       })
     );
+  });
+
+  it('does not register non control-plane conversations', async () => {
+    mockGetUserConversations.mockResolvedValue([
+      {
+        id: 'conv_non_control',
+        type: 'acp',
+        name: 'Organization Alpha - Run',
+        createTime: 1,
+        modifyTime: 2,
+        extra: {
+          backend: 'codex',
+          workspace: '/tmp/org-alpha',
+          agentName: 'Run Executor',
+          organizationId: 'org_alpha',
+          organizationRole: 'run_executor',
+        },
+      },
+    ]);
+
+    render(<OrganizationConversationPanel organization={organization} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Select an agent for the organization AI manager')).toBeInTheDocument();
+    });
+
+    expect(mockRegisterControlConversation).not.toHaveBeenCalled();
   });
 });

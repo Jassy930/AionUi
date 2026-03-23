@@ -38,6 +38,14 @@
 - 2026-03-22：`Organization Control Plane Governance` Task 4 已完成。组织 bridge 现已接通 `getControlState / listApprovals / respondApproval`，watcher 会在 `org/task/create / org/run/start` 前强制检查 Tier 1 决策与 approved plan snapshot，并将 phase 推进到 `awaiting_human_decision / awaiting_plan_approval / dispatching / monitoring`；`run close` 后会回收控制状态进入下一轮规划，审批响应也会同步写入 approval record 与 audit log。
 - 2026-03-22：`Organization Control Plane Governance` Task 5 / Task 6 已完成。组织控制会话在前端创建时默认落到更安全的 `sessionMode=default`，控制台主区现已自取组织 `controlState + pending approvals`，展示当前 phase、人类审批提醒，并在审批门未满足或治理状态未加载完成前禁用“启动运行”；随后已完成多语言、文档、全量验证与收尾提交，这条治理增强计划现已闭环。
 - 2026-03-22：修复右侧 `Organization AI` 会话窗口消息被发送区遮挡的问题。基于运行态排查，根因收敛为嵌入式组织会话仍沿用了主聊天页 `ThoughtDisplay` 的默认悬浮样式；现已为 `AcpChat -> AcpSendBox` 增加 `thoughtDisplayStyle` 透传，并在组织右栏固定使用 `compact` 模式，同时补充 DOM 单测锁定该嵌入态约束。
+- 2026-03-23：已完成 `Organization Control Runtime` 设计与实施计划，目标是在保留人类审批门的前提下，让右侧 `Organization AI` 成为真正的组织控制会话：统一接收 `Task / Run / Approval` 事件流、自动建立执行会话并根据结果继续推进项目；详细方案见 `docs/plans/2026-03-23-organization-control-runtime-design.md` 与 `docs/plans/2026-03-23-organization-control-runtime-plan.md`。
+- 2026-03-23：`Organization Control Runtime` Task 3 已完成。控制运行时已支持通过 `enqueueOrganizationControlEvent` 正式接收组织事件，并将事件以结构化消息回灌到同一控制会话；多任务事件字段、异常分支与告警上下文已补齐，Task 4 将继续实现自动唤醒与串行消费队列。
+- 2026-03-23：`Organization Control Runtime` Task 4 已完成。控制运行时现已支持事件回灌后的自动唤醒、busy/idle 串行消费与失败暂停保留 pending；组织控制内部继续推进走现有 conversation / ACP 链路，并通过 `internalTrigger` 静默发送避免伪造右侧用户消息，接下来将开始在 bridge 主链接入 `task_created / run_started / run_closed / approval_responded` 等首批组织事件。
+- 2026-03-23：`Organization Control Runtime` Task 5 已完成。组织 bridge 成功路径现已统一投递 `task_created / run_started / run_closed / approval_responded` 首批组织事件，并通过共享 builder 收敛 `summary / payload / object_ids` 组装逻辑；同时已补齐 `org.run.start` 回滚时的 runtime 会话清理，下一步将把 watcher 文件协议动作也统一回灌到同一控制会话。
+- 2026-03-23：`Organization Control Runtime` Task 6 已完成。`organizationOpsWatcher` 成功执行 `org/task/create / org/run/start` 文件协议后，现已补投 `task_created / run_started` 到同一组织控制会话，并保持无 binding 时不影响原 watcher 成功流程；同时已抽出共享事件 builder，统一 watcher 与 bridge 的 `summary / payload / object_ids` 组装，补上 watcher 侧关键字段断言，接下来将进入 `reconcile_tick` 巡检补偿阶段。
+- 2026-03-23：`Organization Control Runtime` Task 7 已完成。控制运行时现已具备自动巡检 ticker 与显式 reconcile pass，发现控制状态与对象状态失步时会补投 `reconcile_tick` 到同一控制会话，并更新控制会话 `lastReconcileAt`；同时已抽出共享 control-state phase 推导 helper，统一 watcher 主链与 reconcile snapshot 的规则来源，避免补偿事件和主状态机漂移。
+- 2026-03-23：`Organization Control Runtime` Task 8 已完成。右侧 `Organization AI` 现已能把 `[OrgEvent]` 系统消息渲染为结构化事件卡片，明确展示 `event_type / task_id / run_id / source / summary / payload`，并在并发 task/run 回调时保持每条事件独立归属；该实现收敛在消息渲染层，不改右栏整体布局与 `compact` thought display。
+- 2026-03-23：`Organization Control Runtime` Task 9 已完成，整条控制运行时计划收尾。当前已完成文档回写、结构化事件长 ID 可读性修正、定向验证 `65/65`，并确认 `tsc --noEmit` 仍仅受仓库既有 `organizationAutoDrive` extra 类型缺口与 `cookie` 声明缺失阻塞。
 
 ### Task 1: 定义组织领域类型与 IPC 草案
 

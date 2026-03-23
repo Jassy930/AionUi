@@ -19,6 +19,7 @@ import HorizontalFileList from '../components/HorizontalFileList';
 import MarkdownView from '../components/Markdown';
 import { stripThinkTags, hasThinkTags } from '../utils/thinkTagFilter';
 import MessageCronBadge from './MessageCronBadge';
+import MessageOrganizationControlEvent, { parseOrganizationControlEvent } from './MessageOrganizationControlEvent';
 
 const parseFileMarker = (content: string) => {
   const markerIndex = content.indexOf(AIONUI_FILES_MARKER);
@@ -64,6 +65,7 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
 
   const { text, files } = parseFileMarker(contentToRender);
   const { data, json } = useFormatContent(text);
+  const orgControlEvent = useMemo(() => parseOrganizationControlEvent(text), [text]);
   const { t } = useTranslation();
   const [showCopyAlert, setShowCopyAlert] = useState(false);
   const isUserMessage = message.position === 'right';
@@ -128,7 +130,9 @@ const MessageText: React.FC<{ message: IMessageText }> = ({ message }) => {
           style={isUserMessage || cronMeta ? { borderRadius: '8px 0 8px 8px' } : undefined}
         >
           {/* JSON 内容使用折叠组件 Use CollapsibleContent for JSON content */}
-          {json ? (
+          {orgControlEvent ? (
+            <MessageOrganizationControlEvent event={orgControlEvent} />
+          ) : json ? (
             <CollapsibleContent maxHeight={200} defaultCollapsed={true}>
               <MarkdownView
                 codeStyle={{ marginTop: 4, marginBlock: 4 }}

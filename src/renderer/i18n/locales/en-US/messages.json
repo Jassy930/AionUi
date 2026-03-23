@@ -13,6 +13,17 @@
   "copiedToClipboard": "Copied to clipboard",
   "downloadSuccess": "Download successful",
   "downloadFailed": "Failed to download",
+  "organizationEvent": {
+    "title": "Organization event",
+    "eventType": "Event type",
+    "taskId": "Task",
+    "runId": "Run",
+    "approvalId": "Approval",
+    "source": "Source",
+    "summary": "Summary",
+    "payload": "Payload",
+    "notSet": "Not set"
+  },
   "imageLoadFailed": "Failed to load image",
   "scrollToBottom": "Scroll to bottom",
   "availableCommands": "{{count}} Available Commands",

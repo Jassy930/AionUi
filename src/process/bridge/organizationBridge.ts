@@ -8,6 +8,7 @@ import { nanoid } from 'nanoid';
 import { ipcBridge } from '@/common';
 import type {
   ICreateOrgEvalSpecParams,
+  IOrgRegisterControlConversationParams,
   ICreateOrgSkillParams,
   ICreateOrganizationParams,
   IOrgRespondApprovalParams,
@@ -17,11 +18,14 @@ import type {
   TOrgMemoryCard,
   TOrgRun,
   TOrgSkill,
+  TOrgTask,
+  TOrganizationControlEvent,
   TOrganization,
 } from '@/common/types/organization';
 import type { AcpBackendAll } from '@/types/acpTypes';
 import { getDatabase } from '@process/database';
 import { getSystemDir } from '@process/initStorage';
+import WorkerManage from '@process/WorkerManage';
 import {
   generateOrganizationSystemPrompt,
   initOrganizationContext,
@@ -39,6 +43,15 @@ import {
   executeGenomePatchOfflineEval,
 } from '@process/services/organizationEvolutionService';
 import { ConversationService } from '@process/services/conversationService';
+import {
+  enqueueOrganizationControlEvent,
+  getOrganizationControlConversation,
+  registerOrganizationControlConversation,
+} from '@process/services/organizationControlRuntime';
+import {
+  buildRunStartedControlEventPayload,
+  buildTaskCreatedControlEventPayload,
+} from '@process/services/organizationControlEventBuilder';
 
 function wrapResult<T>(success: boolean, data?: T, msg?: string) {
   return success ? { success: true, data } : { success: false, msg };
@@ -151,6 +164,147 @@ async function invokeOrganizationOperation<T>(
 ) {
   const result = await executeOrganizationOperation(organizationId, workspace, { method, params });
   return result.success ? { success: true, data: result.data as T } : { success: false, msg: result.message };
+}
+
+function enqueueControlEventInBridge(
+  organizationId: string,
+  eventType: TOrganizationControlEvent['event_type'],
+  options: {
+    summary: string;
+    payload?: Record<string, unknown>;
+    taskId?: string;
+    runId?: string;
+    approvalId?: string;
+  }
+): void {
+  const binding = getOrganizationControlConversation(organizationId);
+  if (!binding?.conversationId) {
+    return;
+  }
+
+  enqueueOrganizationControlEvent({
+    id: `org_event_${nanoid()}`,
+    organization_id: organizationId,
+    control_conversation_id: binding.conversationId,
+    event_type: eventType,
+    task_id: options.taskId,
+    run_id: options.runId,
+    approval_id: options.approvalId,
+    source: 'organization_bridge',
+    summary: options.summary,
+    payload: options.payload,
+    timestamp: Date.now(),
+  });
+}
+
+type TOrganizationControlEventBuildResult = {
+  summary: string;
+  payload: Record<string, unknown>;
+  taskId?: string;
+  runId?: string;
+  approvalId?: string;
+};
+
+type TTaskCreatedEventInput = {
+  eventType: 'task_created';
+  organizationId: string;
+  task: Pick<TOrgTask, 'id' | 'title' | 'objective' | 'risk_tier' | 'status'>;
+};
+
+type TRunStartedEventInput = {
+  eventType: 'run_started';
+  organizationId: string;
+  task: Pick<TOrgTask, 'id' | 'title'>;
+  run: Pick<TOrgRun, 'id' | 'status' | 'conversation_id'>;
+  workspace: string;
+};
+
+type TRunClosedEventInput = {
+  eventType: 'run_closed';
+  organizationId: string;
+  run: Pick<TOrgRun, 'id' | 'task_id'>;
+  endedAt: number;
+  runSummary: string;
+};
+
+type TApprovalRespondedEventInput = {
+  eventType: 'approval_responded';
+  organizationId: string;
+  approvalId: string;
+  decision: IOrgRespondApprovalParams['decision'];
+  actor: string;
+  comment?: string;
+  approval?: {
+    status?: string;
+    target_type?: string;
+    target_id?: string;
+  };
+};
+
+type TOrganizationControlEventInput =
+  | TTaskCreatedEventInput
+  | TRunStartedEventInput
+  | TRunClosedEventInput
+  | TApprovalRespondedEventInput;
+
+function buildOrganizationControlEvent(input: TOrganizationControlEventInput): TOrganizationControlEventBuildResult {
+  switch (input.eventType) {
+    case 'task_created':
+      return buildTaskCreatedControlEventPayload({
+        organizationId: input.organizationId,
+        task: input.task,
+      });
+    case 'run_started':
+      return buildRunStartedControlEventPayload({
+        organizationId: input.organizationId,
+        task: input.task,
+        run: input.run,
+        workspace: input.workspace,
+      });
+    case 'run_closed':
+      return {
+        taskId: input.run.task_id,
+        runId: input.run.id,
+        summary: `Run ${input.run.id} closed for task ${input.run.task_id}.`,
+        payload: {
+          organization_id: input.organizationId,
+          task_id: input.run.task_id,
+          run_id: input.run.id,
+          ended_at: input.endedAt,
+          status: 'closed',
+          summary: input.runSummary,
+          object_ids: {
+            organization_id: input.organizationId,
+            task_id: input.run.task_id,
+            run_id: input.run.id,
+          },
+        },
+      };
+    case 'approval_responded':
+      return {
+        approvalId: input.approvalId,
+        summary: `Approval ${input.approvalId} responded with ${input.decision}.`,
+        payload: {
+          organization_id: input.organizationId,
+          approval_id: input.approvalId,
+          decision: input.decision,
+          actor: input.actor,
+          comment: input.comment,
+          status: input.approval?.status,
+          target_type: input.approval?.target_type,
+          target_id: input.approval?.target_id,
+          object_ids: {
+            organization_id: input.organizationId,
+            approval_id: input.approvalId,
+          },
+        },
+      };
+  }
+}
+
+function emitOrganizationControlEvent(organizationId: string, input: TOrganizationControlEventInput): void {
+  const event = buildOrganizationControlEvent(input);
+  enqueueControlEventInBridge(organizationId, input.eventType, event);
 }
 
 export function initOrganizationBridge(): void {
@@ -280,10 +434,42 @@ export function initOrganizationBridge(): void {
       }
     );
     if (result.success) {
+      const approval = db.getOrgApprovalRecord(params.approvalId).data;
+      emitOrganizationControlEvent(organization.id, {
+        eventType: 'approval_responded',
+        organizationId: organization.id,
+        approvalId: params.approvalId,
+        decision: params.decision,
+        actor: params.actor,
+        comment: params.comment,
+        approval: approval
+          ? {
+              status: approval.status,
+              target_type: approval.target_type,
+              target_id: approval.target_id,
+            }
+          : undefined,
+      });
       syncOrganizationContext(organization.id);
     }
     return result;
   });
+
+  ipcBridge.org.organization.registerControlConversation.provider(
+    async (params: IOrgRegisterControlConversationParams) => {
+      const organization = requireOrganization(params.organizationId);
+      if (!organization) {
+        return wrapResult(false, false, 'Organization not found');
+      }
+
+      if (params.organizationRole !== 'control_plane') {
+        return wrapResult(true, false);
+      }
+
+      registerOrganizationControlConversation(params.organizationId, params.conversationId);
+      return wrapResult(true, true);
+    }
+  );
 
   ipcBridge.org.organization.delete.provider(async ({ id }) => {
     const result = db.deleteOrganization(id);
@@ -308,7 +494,13 @@ export function initOrganizationBridge(): void {
       params
     );
     if (result.success && result.data) {
-      ipcBridge.org.task.created.emit(result.data as any);
+      const createdTask = result.data as TOrgTask;
+      ipcBridge.org.task.created.emit(createdTask as any);
+      emitOrganizationControlEvent(organization.id, {
+        eventType: 'task_created',
+        organizationId: organization.id,
+        task: createdTask,
+      });
       syncOrganizationContext(organization.id);
     }
     return result;
@@ -423,6 +615,7 @@ export function initOrganizationBridge(): void {
         result.data.id
       );
       if (!associationResult.success) {
+        WorkerManage.kill(conversationResult.conversation.id);
         db.deleteConversation(conversationResult.conversation.id);
         db.deleteOrgRun(result.data.id);
         db.updateOrgTask(task.id, { status: previousTaskStatus });
@@ -437,6 +630,7 @@ export function initOrganizationBridge(): void {
 
       const bindResult = db.updateOrgRun(result.data.id, { conversation_id: conversationResult.conversation.id });
       if (!bindResult.success) {
+        WorkerManage.kill(conversationResult.conversation.id);
         db.deleteConversation(conversationResult.conversation.id);
         db.deleteOrgRun(result.data.id);
         db.updateOrgTask(task.id, { status: previousTaskStatus });
@@ -451,6 +645,13 @@ export function initOrganizationBridge(): void {
       };
       ipcBridge.org.run.created.emit(updatedRun);
       ipcBridge.org.run.statusChanged.emit({ id: updatedRun.id, status: updatedRun.status });
+      emitOrganizationControlEvent(organization.id, {
+        eventType: 'run_started',
+        organizationId: organization.id,
+        task,
+        run: updatedRun,
+        workspace: resolveRunWorkspace(updatedRun, organization),
+      });
       syncOrganizationContext(organization.id);
       return wrapResult(true, updatedRun);
     }
@@ -530,6 +731,13 @@ export function initOrganizationBridge(): void {
 
     ipcBridge.org.run.closed.emit({ id });
     ipcBridge.org.run.statusChanged.emit({ id, status: 'closed' });
+    emitOrganizationControlEvent(run.organization_id, {
+      eventType: 'run_closed',
+      organizationId: run.organization_id,
+      run,
+      endedAt: now,
+      runSummary: summary,
+    });
     syncOrganizationContext(run.organization_id);
     return wrapResult(true, true);
   });
