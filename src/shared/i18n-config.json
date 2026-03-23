@@ -20,6 +20,9 @@
     "cron",
     "starOffice",
     "guid",
-    "agent"
+    "agent",
+    "task",
+    "viewMode",
+    "project"
   ]
 }

@@ -1,5 +1,6 @@
 {
   "title": "Settings",
+  "noExternalSources": "外部スキルソースが見つかりません",
   "skillsHub": {
     "title": "スキルハブ",
     "description": "AIエージェントスキルを一元管理。一度インストールすれば、すべてのアシスタントで利用可能。",
@@ -36,7 +37,8 @@
     "customPathLabel": "スキルディレクトリパス",
     "customPathPlaceholder": "例：C:\\Users\\me\\.mytools\\skills",
     "searchPlaceholder": "スキルを検索...",
-    "noSearchResults": "関連するスキルが見つかりません"
+    "noSearchResults": "関連するスキルが見つかりません",
+    "noExternalSources": "外部スキルソースが見つかりません"
   },
   "authMethod": "認証",
   "geminiApiKey": "Gemini API キー",

@@ -10,7 +10,7 @@ import path from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TMessage } from '@/common/chatLib';
 import type { TChatConversation } from '@/common/storage';
-import type { TOrganization, TOrgTask } from '@/common/types/organization';
+import type { TOrgBrief, TOrgPlanSnapshot, TOrganization, TOrgTask } from '@/common/types/organization';
 
 const TEST_DATA_PATH = path.join(
   os.tmpdir(),
@@ -49,6 +49,10 @@ function createOrgIpcMock(handlers: Record<string, ProviderHandler>) {
       initContext: createCommandMock('org.organization.init-context'),
       syncContext: createCommandMock('org.organization.sync-context'),
       getSystemPrompt: createCommandMock('org.organization.get-system-prompt'),
+      getControlState: createCommandMock('org.organization.get-control-state'),
+      listApprovals: createCommandMock('org.organization.list-approvals'),
+      respondApproval: createCommandMock('org.organization.respond-approval'),
+      registerControlConversation: createCommandMock('org.organization.register-control-conversation'),
       created: { emit: vi.fn() },
       updated: { emit: vi.fn() },
       deleted: { emit: vi.fn() },
@@ -151,6 +155,8 @@ describe('organization run execution', () => {
   let handlers: Record<string, ProviderHandler>;
   let organization: TOrganization;
   let task: TOrgTask;
+  let brief: TOrgBrief;
+  let approvedPlanSnapshot: TOrgPlanSnapshot;
   let conversationSeq = 0;
 
   beforeEach(() => {
@@ -196,6 +202,38 @@ describe('organization run execution', () => {
     };
     expect(db.createOrgTask(task).success).toBe(true);
 
+    brief = {
+      id: 'org_run_exec_brief_1',
+      organization_id: organization.id,
+      title: 'Execution ready brief',
+      summary: 'Tier 1 decisions confirmed for run execution tests.',
+      status: 'confirmed',
+      tier1_open_questions: [],
+      tier2_pending_items: [],
+      constraints: ['Preserve governance guardrails'],
+      risk_notes: [],
+      created_at: now,
+      updated_at: now,
+    };
+    expect(db.createOrgBrief(brief).success).toBe(true);
+
+    approvedPlanSnapshot = {
+      id: 'org_run_exec_plan_1',
+      organization_id: organization.id,
+      brief_id: brief.id,
+      title: 'Approved execution seed plan',
+      objective: 'Allow run dispatch in organization execution tests',
+      content: {
+        steps: ['Create execution conversation', 'Bind conversation to run', 'Persist close summary'],
+      },
+      status: 'approved',
+      approved_by: 'human_reviewer',
+      approved_at: now,
+      created_at: now,
+      updated_at: now,
+    };
+    expect(db.createOrgPlanSnapshot(approvedPlanSnapshot).success).toBe(true);
+
     vi.doMock('@/common', () => ({
       ipcBridge: {
         org: createOrgIpcMock(handlers),
@@ -205,6 +243,9 @@ describe('organization run execution', () => {
       getDatabase: vi.fn(() => db),
     }));
     vi.doMock('@process/initStorage', () => ({
+      ProcessConfig: {
+        get: vi.fn(async () => undefined),
+      },
       getSystemDir: vi.fn(() => ({
         workDir: organization.workspace,
       })),

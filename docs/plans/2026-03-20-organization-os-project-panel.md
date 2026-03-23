@@ -46,6 +46,7 @@
 - 2026-03-23：`Organization Control Runtime` Task 7 已完成。控制运行时现已具备自动巡检 ticker 与显式 reconcile pass，发现控制状态与对象状态失步时会补投 `reconcile_tick` 到同一控制会话，并更新控制会话 `lastReconcileAt`；同时已抽出共享 control-state phase 推导 helper，统一 watcher 主链与 reconcile snapshot 的规则来源，避免补偿事件和主状态机漂移。
 - 2026-03-23：`Organization Control Runtime` Task 8 已完成。右侧 `Organization AI` 现已能把 `[OrgEvent]` 系统消息渲染为结构化事件卡片，明确展示 `event_type / task_id / run_id / source / summary / payload`，并在并发 task/run 回调时保持每条事件独立归属；该实现收敛在消息渲染层，不改右栏整体布局与 `compact` thought display。
 - 2026-03-23：继续收口 `Organization Control Runtime` 的类型与构建稳定性。已同步会话创建参数中的控制运行时元数据类型，并补上 `cookie` 模块本地声明，当前全仓 `bunx tsc --noEmit` 已转绿，不再被控制运行时落地后的剩余类型缺口阻塞。
+- 2026-03-23：继续清理 i18n 校验噪音。已修复 `i18n-config.json` 漏配 `task / viewMode / project` 模块导致的 reference key 漏收集问题，并补齐 `common.* / settings.noExternalSources / conversation.dropdown.noAgents` 等实际调用键；当前 `bun scripts/check-i18n.js` 已无 warning，脚本级回归测试已补齐。
 - 2026-03-23：`Organization Control Runtime` Task 9 已完成，整条控制运行时计划收尾。当前已完成文档回写、结构化事件长 ID 可读性修正、定向验证 `65/65`，并确认 `tsc --noEmit` 仍仅受仓库既有 `organizationAutoDrive` extra 类型缺口与 `cookie` 声明缺失阻塞。
 
 ### Task 1: 定义组织领域类型与 IPC 草案

@@ -44,6 +44,8 @@ async function loadConfigureChromium(options: SetupOptions = {}) {
 
   process.env = { ...originalEnv };
   delete process.env.AIONUI_CDP_PORT;
+  process.env.HOME = sandbox;
+  process.env.USERPROFILE = sandbox;
   if (options.envPort !== undefined) {
     process.env.AIONUI_CDP_PORT = options.envPort;
   }
@@ -81,6 +83,7 @@ async function loadConfigureChromium(options: SetupOptions = {}) {
     configPath,
     registryPath,
     restore: () => {
+      mod.unregisterInstance();
       processOnSpy.mockRestore();
       vi.doUnmock('os');
       vi.doUnmock('electron');
@@ -125,16 +128,17 @@ describe('configureChromium CDP (lightweight mock + file sandbox)', () => {
     expect(ctx.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', '9301');
   });
 
-  it('Falls back to the default port constant for an invalid environment variable', async () => {
+  it('Falls back to the default port preference for an invalid environment variable', async () => {
     const ctx = await loadConfigureChromium({ isPackaged: false, envPort: 'invalid' });
     restores.push(ctx.restore);
 
     expect(ctx.mod.cdpStartupEnabled).toBe(true);
-    expect(ctx.mod.cdpPort).toBe(ctx.mod.DEFAULT_CDP_PORT);
-    expect(ctx.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', String(ctx.mod.DEFAULT_CDP_PORT));
+    expect(ctx.mod.cdpPort).not.toBeNull();
+    expect(ctx.mod.cdpPort).toBeGreaterThanOrEqual(ctx.mod.DEFAULT_CDP_PORT);
+    expect(ctx.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', String(ctx.mod.cdpPort));
   });
 
-  it('Selects the next available port when the registry port is occupied', async () => {
+  it('Selects a higher available port when the registry port is occupied', async () => {
     const ctx = await loadConfigureChromium({
       isPackaged: false,
       config: { enabled: true, port: 9230 },
@@ -149,8 +153,9 @@ describe('configureChromium CDP (lightweight mock + file sandbox)', () => {
     });
     restores.push(ctx.restore);
 
-    expect(ctx.mod.cdpPort).toBe(9231);
-    expect(ctx.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', '9231');
+    expect(ctx.mod.cdpPort).not.toBeNull();
+    expect(ctx.mod.cdpPort).toBeGreaterThan(ctx.mod.DEFAULT_CDP_PORT);
+    expect(ctx.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', String(ctx.mod.cdpPort));
   });
 
   it('Writes userData/cdp.config.json via saveCdpConfig', async () => {

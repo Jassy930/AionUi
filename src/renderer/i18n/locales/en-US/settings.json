@@ -1,5 +1,6 @@
 {
   "title": "Settings",
+  "noExternalSources": "No external skill sources discovered",
   "skillsHub": {
     "title": "Skills Hub",
     "description": "Centrally manage AI agent skills. Install once, use across all assistants.",
@@ -36,7 +37,8 @@
     "customPathLabel": "Skill Directory Path",
     "customPathPlaceholder": "e.g. C:\\Users\\me\\.mytools\\skills",
     "searchPlaceholder": "Search skills...",
-    "noSearchResults": "No matching skills found"
+    "noSearchResults": "No matching skills found",
+    "noExternalSources": "No external skill sources discovered"
   },
   "authMethod": "Authentication",
   "geminiApiKey": "Gemini API Key",
