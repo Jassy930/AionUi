@@ -508,6 +508,166 @@ describe('organizationOpsWatcher', () => {
     expect(db.getOrgControlState(organization.id).data?.phase).toBe('monitoring');
   });
 
+  it('persists brief, plan, and control-state updates from control operations', async () => {
+    const briefResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/control/brief/update',
+      params: {
+        title: 'Backend separation brief',
+        summary: 'Clarify backend boundaries before execution.',
+        status: 'confirmed',
+        tier1_open_questions: [],
+        tier2_pending_items: ['Approve cutover sequencing'],
+        constraints: ['Keep Electron process boundaries intact'],
+      },
+    });
+    expect(briefResult.success).toBe(true);
+    const briefId = (briefResult.data as { id: string }).id;
+    expect(db.getOrgBrief(briefId).data).toEqual(
+      expect.objectContaining({
+        organization_id: organization.id,
+        title: 'Backend separation brief',
+        status: 'confirmed',
+      })
+    );
+
+    const planResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/control/plan/update',
+      params: {
+        title: 'Backend separation phase 1',
+        objective: 'Define the first backend cutover slice',
+        content: {
+          milestones: [{ id: 'm1', title: 'Inventory current control handlers' }],
+        },
+        status: 'draft',
+      },
+    });
+    expect(planResult.success).toBe(true);
+    const planId = (planResult.data as { id: string }).id;
+    expect(db.getOrgPlanSnapshot(planId).data).toEqual(
+      expect.objectContaining({
+        organization_id: organization.id,
+        brief_id: briefId,
+        title: 'Backend separation phase 1',
+        status: 'draft',
+      })
+    );
+
+    const stateResult = await executeOrganizationOperation(organization.id, organization.workspace, {
+      method: 'org/control/state/update',
+      params: {
+        phase: 'dispatching',
+      },
+    });
+    expect(stateResult.success).toBe(true);
+    expect(db.getOrgControlState(organization.id).data).toEqual(
+      expect.objectContaining({
+        organization_id: organization.id,
+        phase: 'dispatching',
+        active_brief_id: briefId,
+        active_plan_id: planId,
+        needs_human_input: false,
+      })
+    );
+  });
+
+  it('emits control events for successful brief, plan, and state updates when a control conversation is bound', async () => {
+    getOrganizationControlConversationMock.mockReturnValue({
+      organizationId: organization.id,
+      conversationId: 'conv_control_org_alpha',
+      updatedAt: Date.now(),
+    });
+
+    const contextDir = getOrganizationContextDir(organization.workspace);
+    const operationsDir = path.join(contextDir, 'control', 'operations');
+
+    fs.writeFileSync(
+      path.join(operationsDir, 'control-brief.json'),
+      JSON.stringify({
+        method: 'org/control/brief/update',
+        params: {
+          title: 'Visible brief',
+          summary: 'This should surface in the control conversation.',
+          status: 'confirmed',
+          tier1_open_questions: [],
+          tier2_pending_items: [],
+        },
+      }),
+      'utf-8'
+    );
+    await processOrganizationOperationFile(
+      organization.id,
+      organization.workspace,
+      path.join(operationsDir, 'control-brief.json')
+    );
+
+    fs.writeFileSync(
+      path.join(operationsDir, 'control-plan.json'),
+      JSON.stringify({
+        method: 'org/control/plan/update',
+        params: {
+          title: 'Visible plan',
+          objective: 'This should surface in the control conversation.',
+          content: {
+            steps: ['Persist plan', 'Show feedback'],
+          },
+          status: 'draft',
+        },
+      }),
+      'utf-8'
+    );
+    await processOrganizationOperationFile(
+      organization.id,
+      organization.workspace,
+      path.join(operationsDir, 'control-plan.json')
+    );
+
+    fs.writeFileSync(
+      path.join(operationsDir, 'control-state.json'),
+      JSON.stringify({
+        method: 'org/control/state/update',
+        params: {
+          phase: 'dispatching',
+        },
+      }),
+      'utf-8'
+    );
+    await processOrganizationOperationFile(
+      organization.id,
+      organization.workspace,
+      path.join(operationsDir, 'control-state.json')
+    );
+
+    expect(enqueueOrganizationControlEventMock.mock.calls).toEqual(
+      expect.arrayContaining([
+        [
+          expect.objectContaining({
+            event_type: 'brief_updated',
+            control_conversation_id: 'conv_control_org_alpha',
+          }),
+        ],
+        [
+          expect.objectContaining({
+            event_type: 'plan_updated',
+            control_conversation_id: 'conv_control_org_alpha',
+          }),
+        ],
+        [
+          expect.objectContaining({
+            event_type: 'control_state_updated',
+            control_conversation_id: 'conv_control_org_alpha',
+          }),
+        ],
+      ])
+    );
+
+    const planSnapshotsPath = path.join(contextDir, 'context', 'plan_snapshots.json');
+    expect(JSON.parse(fs.readFileSync(planSnapshotsPath, 'utf-8'))).toEqual([
+      expect.objectContaining({
+        title: 'Visible plan',
+      }),
+    ]);
+  });
+
   it('rejects cross-organization operations from the current watcher context', async () => {
     const now = Date.now();
     const foreignOrganization: TOrganization = {

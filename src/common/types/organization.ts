@@ -49,6 +49,9 @@ export const ORGANIZATION_CONTROL_PHASE_VALUES = [
 export type OrganizationControlPhase = (typeof ORGANIZATION_CONTROL_PHASE_VALUES)[number];
 
 export const ORGANIZATION_CONTROL_EVENT_TYPE_VALUES = [
+  'brief_updated',
+  'plan_updated',
+  'control_state_updated',
   'task_created',
   'task_updated',
   'run_started',

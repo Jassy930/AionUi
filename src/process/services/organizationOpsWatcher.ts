@@ -7,6 +7,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
+import {
+  ORG_BRIEF_STATUS_VALUES,
+  ORG_PLAN_SNAPSHOT_STATUS_VALUES,
+  ORGANIZATION_CONTROL_PHASE_VALUES,
+} from '@/common/types/organization';
 import type {
   ArtifactType,
   GenomePatchStatus,
@@ -56,6 +61,12 @@ type OperationResult = {
 
 type CreatedTaskData = Pick<TOrgTask, 'id' | 'title' | 'objective' | 'risk_tier' | 'status'>;
 type StartedRunData = Pick<TOrgRun, 'id' | 'task_id' | 'status' | 'conversation_id' | 'workspace'>;
+type UpdatedBriefData = Pick<TOrgBrief, 'id' | 'title' | 'summary' | 'status'>;
+type UpdatedPlanData = Pick<TOrgPlanSnapshot, 'id' | 'brief_id' | 'title' | 'objective' | 'status'>;
+type UpdatedControlStateData = Pick<
+  TOrgControlState,
+  'phase' | 'active_brief_id' | 'active_plan_id' | 'needs_human_input' | 'pending_approval_count'
+>;
 
 type WatcherState = {
   watcher: fs.FSWatcher;
@@ -88,6 +99,47 @@ function isStartedRunData(data: unknown): data is StartedRunData {
 
   const value = data as Record<string, unknown>;
   return typeof value.id === 'string' && typeof value.task_id === 'string' && typeof value.status === 'string';
+}
+
+function isUpdatedBriefData(data: unknown): data is UpdatedBriefData {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const value = data as Record<string, unknown>;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.summary === 'string' &&
+    typeof value.status === 'string'
+  );
+}
+
+function isUpdatedPlanData(data: unknown): data is UpdatedPlanData {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const value = data as Record<string, unknown>;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.title === 'string' &&
+    typeof value.objective === 'string' &&
+    typeof value.status === 'string'
+  );
+}
+
+function isUpdatedControlStateData(data: unknown): data is UpdatedControlStateData {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+
+  const value = data as Record<string, unknown>;
+  return (
+    typeof value.phase === 'string' &&
+    typeof value.needs_human_input === 'boolean' &&
+    typeof value.pending_approval_count === 'number'
+  );
 }
 
 function emitWatcherSuccessControlEvent(organizationId: string, workspace: string, result: OperationResult): void {
@@ -146,6 +198,84 @@ function emitWatcherSuccessControlEvent(organizationId: string, workspace: strin
       timestamp: Date.now(),
     });
     return;
+  }
+
+  if (result.method === 'org/control/brief/update' && isUpdatedBriefData(result.data)) {
+    const brief = result.data;
+    enqueueOrganizationControlEvent({
+      id: `org_event_${nanoid()}`,
+      organization_id: organizationId,
+      control_conversation_id: binding.conversationId,
+      event_type: 'brief_updated',
+      source: 'organization_ops_watcher',
+      summary: `Brief ${brief.id} updated: ${brief.title}.`,
+      payload: {
+        organization_id: organizationId,
+        brief_id: brief.id,
+        title: brief.title,
+        summary: brief.summary,
+        status: brief.status,
+        object_ids: {
+          organization_id: organizationId,
+          brief_id: brief.id,
+        },
+      },
+      timestamp: Date.now(),
+    });
+    return;
+  }
+
+  if (result.method === 'org/control/plan/update' && isUpdatedPlanData(result.data)) {
+    const plan = result.data;
+    enqueueOrganizationControlEvent({
+      id: `org_event_${nanoid()}`,
+      organization_id: organizationId,
+      control_conversation_id: binding.conversationId,
+      event_type: 'plan_updated',
+      source: 'organization_ops_watcher',
+      summary: `Plan snapshot ${plan.id} updated: ${plan.title}.`,
+      payload: {
+        organization_id: organizationId,
+        plan_id: plan.id,
+        brief_id: plan.brief_id,
+        title: plan.title,
+        objective: plan.objective,
+        status: plan.status,
+        object_ids: {
+          organization_id: organizationId,
+          brief_id: plan.brief_id,
+          plan_id: plan.id,
+        },
+      },
+      timestamp: Date.now(),
+    });
+    return;
+  }
+
+  if (result.method === 'org/control/state/update' && isUpdatedControlStateData(result.data)) {
+    const controlState = result.data;
+    enqueueOrganizationControlEvent({
+      id: `org_event_${nanoid()}`,
+      organization_id: organizationId,
+      control_conversation_id: binding.conversationId,
+      event_type: 'control_state_updated',
+      source: 'organization_ops_watcher',
+      summary: `Control state updated to ${controlState.phase}.`,
+      payload: {
+        organization_id: organizationId,
+        phase: controlState.phase,
+        active_brief_id: controlState.active_brief_id,
+        active_plan_id: controlState.active_plan_id,
+        needs_human_input: controlState.needs_human_input,
+        pending_approval_count: controlState.pending_approval_count,
+        object_ids: {
+          organization_id: organizationId,
+          brief_id: controlState.active_brief_id,
+          plan_id: controlState.active_plan_id,
+        },
+      },
+      timestamp: Date.now(),
+    });
   }
 }
 
@@ -417,6 +547,303 @@ function buildAuditLog(params: {
     target_type: params.target_type,
     detail: params.detail,
     at: Date.now(),
+  };
+}
+
+function isValidControlPhase(value: unknown): value is OrganizationControlPhase {
+  return typeof value === 'string' && (ORGANIZATION_CONTROL_PHASE_VALUES as readonly string[]).includes(value);
+}
+
+function isValidBriefStatus(value: unknown): value is TOrgBrief['status'] {
+  return typeof value === 'string' && (ORG_BRIEF_STATUS_VALUES as readonly string[]).includes(value);
+}
+
+function isValidPlanSnapshotStatus(value: unknown): value is TOrgPlanSnapshot['status'] {
+  return typeof value === 'string' && (ORG_PLAN_SNAPSHOT_STATUS_VALUES as readonly string[]).includes(value);
+}
+
+function getLatestBriefId(organizationId: string): string | undefined {
+  return getDatabase().getLatestOrgBrief(organizationId).data?.id;
+}
+
+function getLatestPlanSnapshotId(organizationId: string): string | undefined {
+  return getDatabase().getLatestOrgPlanSnapshot(organizationId).data?.id;
+}
+
+async function handleUpdateBrief(
+  currentOrganizationId: string,
+  params: Record<string, unknown>
+): Promise<OperationResult> {
+  const requestedOrganizationId = params.organization_id as string | undefined;
+  if (requestedOrganizationId && requestedOrganizationId !== currentOrganizationId) {
+    return {
+      success: false,
+      method: 'org/control/brief/update',
+      message: 'Cross-organization brief update is not allowed',
+    };
+  }
+
+  const db = getDatabase();
+  const briefId = params.id as string | undefined;
+  const nextStatus = params.status;
+  if (nextStatus !== undefined && !isValidBriefStatus(nextStatus)) {
+    return { success: false, method: 'org/control/brief/update', message: 'Invalid brief status' };
+  }
+
+  if (briefId) {
+    const existing = db.getOrgBrief(briefId);
+    if (!existing.success || !existing.data) {
+      return { success: false, method: 'org/control/brief/update', message: 'Organization brief not found' };
+    }
+    if (existing.data.organization_id !== currentOrganizationId) {
+      return {
+        success: false,
+        method: 'org/control/brief/update',
+        message: 'Brief does not belong to this organization',
+      };
+    }
+
+    const updateResult = db.updateOrgBrief(briefId, {
+      title: params.title as string | undefined,
+      summary: params.summary as string | undefined,
+      status: nextStatus as TOrgBrief['status'] | undefined,
+      tier1_open_questions: params.tier1_open_questions as string[] | undefined,
+      tier2_pending_items: params.tier2_pending_items as string[] | undefined,
+      constraints: params.constraints as string[] | undefined,
+      risk_notes: params.risk_notes as string[] | undefined,
+    });
+    if (!updateResult.success) {
+      return {
+        success: false,
+        method: 'org/control/brief/update',
+        message: updateResult.error || 'Failed to update brief',
+      };
+    }
+
+    reconcileOrganizationControlState(currentOrganizationId);
+    return {
+      success: true,
+      method: 'org/control/brief/update',
+      message: 'Organization brief updated',
+      data: db.getOrgBrief(briefId).data,
+    };
+  }
+
+  if (typeof params.title !== 'string' || typeof params.summary !== 'string') {
+    return {
+      success: false,
+      method: 'org/control/brief/update',
+      message: 'Missing required title or summary',
+    };
+  }
+
+  const now = Date.now();
+  const brief: TOrgBrief = {
+    id: `org_brief_${nanoid()}`,
+    organization_id: currentOrganizationId,
+    title: params.title,
+    summary: params.summary,
+    status: (nextStatus as TOrgBrief['status'] | undefined) || 'draft',
+    tier1_open_questions: (params.tier1_open_questions as string[]) || [],
+    tier2_pending_items: (params.tier2_pending_items as string[]) || [],
+    constraints: params.constraints as string[] | undefined,
+    risk_notes: params.risk_notes as string[] | undefined,
+    created_at: now,
+    updated_at: now,
+  };
+
+  const createResult = db.createOrgBrief(brief);
+  if (!createResult.success) {
+    return {
+      success: false,
+      method: 'org/control/brief/update',
+      message: createResult.error || 'Failed to create brief',
+    };
+  }
+
+  reconcileOrganizationControlState(currentOrganizationId);
+  return { success: true, method: 'org/control/brief/update', message: 'Organization brief updated', data: brief };
+}
+
+async function handleUpdatePlanSnapshot(
+  currentOrganizationId: string,
+  params: Record<string, unknown>
+): Promise<OperationResult> {
+  const requestedOrganizationId = params.organization_id as string | undefined;
+  if (requestedOrganizationId && requestedOrganizationId !== currentOrganizationId) {
+    return {
+      success: false,
+      method: 'org/control/plan/update',
+      message: 'Cross-organization plan update is not allowed',
+    };
+  }
+
+  const db = getDatabase();
+  const planId = params.id as string | undefined;
+  const nextStatus = params.status;
+  if (nextStatus !== undefined && !isValidPlanSnapshotStatus(nextStatus)) {
+    return { success: false, method: 'org/control/plan/update', message: 'Invalid plan snapshot status' };
+  }
+
+  const requestedBriefId = params.brief_id as string | undefined;
+  if (requestedBriefId) {
+    const brief = db.getOrgBrief(requestedBriefId);
+    if (!brief.success || !brief.data || brief.data.organization_id !== currentOrganizationId) {
+      return {
+        success: false,
+        method: 'org/control/plan/update',
+        message: 'Referenced brief not found in this organization',
+      };
+    }
+  }
+
+  if (planId) {
+    const existing = db.getOrgPlanSnapshot(planId);
+    if (!existing.success || !existing.data) {
+      return { success: false, method: 'org/control/plan/update', message: 'Organization plan snapshot not found' };
+    }
+    if (existing.data.organization_id !== currentOrganizationId) {
+      return {
+        success: false,
+        method: 'org/control/plan/update',
+        message: 'Plan snapshot does not belong to this organization',
+      };
+    }
+
+    const updateResult = db.updateOrgPlanSnapshot(planId, {
+      brief_id: requestedBriefId,
+      title: params.title as string | undefined,
+      objective: params.objective as string | undefined,
+      content: params.content as Record<string, unknown> | undefined,
+      status: nextStatus as TOrgPlanSnapshot['status'] | undefined,
+      approved_by: params.approved_by as string | undefined,
+      approved_at: params.approved_at as number | undefined,
+    });
+    if (!updateResult.success) {
+      return {
+        success: false,
+        method: 'org/control/plan/update',
+        message: updateResult.error || 'Failed to update plan snapshot',
+      };
+    }
+
+    reconcileOrganizationControlState(currentOrganizationId);
+    return {
+      success: true,
+      method: 'org/control/plan/update',
+      message: 'Organization plan snapshot updated',
+      data: db.getOrgPlanSnapshot(planId).data,
+    };
+  }
+
+  if (typeof params.title !== 'string' || typeof params.objective !== 'string') {
+    return {
+      success: false,
+      method: 'org/control/plan/update',
+      message: 'Missing required title or objective',
+    };
+  }
+
+  const now = Date.now();
+  const planSnapshot: TOrgPlanSnapshot = {
+    id: `org_plan_${nanoid()}`,
+    organization_id: currentOrganizationId,
+    brief_id: requestedBriefId ?? getLatestBriefId(currentOrganizationId),
+    title: params.title,
+    objective: params.objective,
+    content: (params.content as Record<string, unknown>) || {},
+    status: (nextStatus as TOrgPlanSnapshot['status'] | undefined) || 'draft',
+    approved_by: params.approved_by as string | undefined,
+    approved_at: params.approved_at as number | undefined,
+    created_at: now,
+    updated_at: now,
+  };
+
+  const createResult = db.createOrgPlanSnapshot(planSnapshot);
+  if (!createResult.success) {
+    return {
+      success: false,
+      method: 'org/control/plan/update',
+      message: createResult.error || 'Failed to create plan snapshot',
+    };
+  }
+
+  reconcileOrganizationControlState(currentOrganizationId);
+  return {
+    success: true,
+    method: 'org/control/plan/update',
+    message: 'Organization plan snapshot updated',
+    data: planSnapshot,
+  };
+}
+
+async function handleUpdateControlState(
+  currentOrganizationId: string,
+  params: Record<string, unknown>
+): Promise<OperationResult> {
+  const db = getDatabase();
+  const requestedPhase = params.phase;
+  if (requestedPhase !== undefined && !isValidControlPhase(requestedPhase)) {
+    return { success: false, method: 'org/control/state/update', message: 'Invalid control phase' };
+  }
+
+  const requestedBriefId = params.active_brief_id as string | undefined;
+  if (requestedBriefId) {
+    const brief = db.getOrgBrief(requestedBriefId);
+    if (!brief.success || !brief.data || brief.data.organization_id !== currentOrganizationId) {
+      return {
+        success: false,
+        method: 'org/control/state/update',
+        message: 'Referenced brief not found in this organization',
+      };
+    }
+  }
+
+  const requestedPlanId = params.active_plan_id as string | undefined;
+  if (requestedPlanId) {
+    const planSnapshot = db.getOrgPlanSnapshot(requestedPlanId);
+    if (!planSnapshot.success || !planSnapshot.data || planSnapshot.data.organization_id !== currentOrganizationId) {
+      return {
+        success: false,
+        method: 'org/control/state/update',
+        message: 'Referenced plan snapshot not found in this organization',
+      };
+    }
+  }
+
+  const ensured = ensureOrganizationControlState(currentOrganizationId);
+  if (!ensured) {
+    return { success: false, method: 'org/control/state/update', message: 'Organization control state not found' };
+  }
+
+  const phase = (requestedPhase as OrganizationControlPhase | undefined) || ensured.phase;
+  const pendingApprovalCount = listPendingApprovals(db, currentOrganizationId).length;
+  const updateResult = db.updateOrgControlState(currentOrganizationId, {
+    conversation_id:
+      params.conversation_id !== undefined ? (params.conversation_id as string | undefined) : ensured.conversation_id,
+    phase,
+    active_brief_id: requestedBriefId ?? getLatestBriefId(currentOrganizationId),
+    active_plan_id: requestedPlanId ?? getLatestPlanSnapshotId(currentOrganizationId),
+    needs_human_input: organizationControlPhaseNeedsHumanInput(phase),
+    pending_approval_count: pendingApprovalCount,
+    last_human_touch_at:
+      params.last_human_touch_at !== undefined
+        ? (params.last_human_touch_at as number | undefined)
+        : ensured.last_human_touch_at,
+  });
+  if (!updateResult.success) {
+    return {
+      success: false,
+      method: 'org/control/state/update',
+      message: updateResult.error || 'Failed to update control state',
+    };
+  }
+
+  return {
+    success: true,
+    method: 'org/control/state/update',
+    message: 'Organization control state updated',
+    data: db.getOrgControlState(currentOrganizationId).data,
   };
 }
 
@@ -1016,6 +1443,12 @@ export async function executeOrganizationOperation(
   }
 
   switch (method) {
+    case 'org/control/brief/update':
+      return handleUpdateBrief(organizationId, payload.params);
+    case 'org/control/plan/update':
+      return handleUpdatePlanSnapshot(organizationId, payload.params);
+    case 'org/control/state/update':
+      return handleUpdateControlState(organizationId, payload.params);
     case 'org/task/create':
       return handleCreateTask(organizationId, payload.params);
     case 'org/task/update':

@@ -28,6 +28,7 @@
 - 2026-03-23：Task 8 已完成。前端现已在 `MessageText` 渲染链中识别 `[OrgEvent] <event_type>` 前缀，并通过新增的 `MessageOrganizationControlEvent` 以紧凑卡片展示 `event_type / task_id / run_id / source / summary / payload`；多条并发 task/run 事件会各自保留独立归属，不再以普通 Markdown 混在同一消息语义层。该任务最终无需修改 `AcpChat / AcpSendBox`，从而保持右栏当前紧凑布局与 `compact` thought display 不回退；相关 DOM 回归测试通过（6/6），下一步进入 Task 9 文档、验证与收尾。
 - 2026-03-23：Task 9 后续修补已完成。已补齐 `ICreateConversationParams.extra` 对 `organizationAutoDrive / autoDrivePaused / lastReconcileAt / controlConversationVersion` 的类型声明，并新增本地 `cookie` 模块声明，清除控制运行时落地后残留的 `tsc` 阻塞；当前 `bunx tsc --noEmit` 已通过，相关类型与 cookie 解析单测通过（13/13）。
 - 2026-03-23：补充清理本轮相关 i18n 校验。已修复共享 i18n 配置对 `task / viewMode / project` 模块的漏登记，并补齐控制台/组织会话相关实际调用键；当前 `bun scripts/check-i18n.js` 已无 warning，避免后续控制运行时改动继续被历史 i18n 噪音掩盖。
+- 2026-03-23：补充修复控制文件承接链。组织 AI 写入 `.aionui-org/control/operations/` 的 `org/control/brief/update`、`org/control/plan/update`、`org/control/state/update` 现已由 `organizationOpsWatcher` 落库到 brief / plan snapshot / control state，并在成功后同步生成控制事件，避免“文件写入成功但 UI 无变化”的假象。
 - 2026-03-23：Task 9 已完成。已同步主计划与设计文档，补充 Task 8 的消息渲染落点与 UI 约束；同时新增长 `task_id / run_id` 不截断的 DOM 回归，避免并发事件归属再次被视觉截断。最终定向验证已通过：`organizationIpcBridge / organizationBridge / organizationOpsWatcher / organizationControlRuntime / OrganizationConversationPanel.dom / organizationControlRuntime.dom` 共 `65/65`；`i18n:types` 与 `check-i18n` 通过，`tsc --noEmit` 仍只剩仓库既有 `organizationAutoDrive` 类型缺口与 `cookie` 声明缺失。
 
 ### Task 1: 定义组织控制事件模型与控制会话元数据
