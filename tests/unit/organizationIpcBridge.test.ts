@@ -68,6 +68,9 @@ describe('organization ipc bridge contracts', () => {
 
   it('defines control runtime event types and conversation metadata contract', () => {
     expect(ORGANIZATION_CONTROL_EVENT_TYPE_VALUES).toEqual([
+      'brief_updated',
+      'plan_updated',
+      'control_state_updated',
       'task_created',
       'task_updated',
       'run_started',

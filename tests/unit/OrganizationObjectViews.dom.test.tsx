@@ -10,6 +10,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 const mockOrgGet = vi.fn();
+const mockOrgControlStateGet = vi.fn();
+const mockOrgApprovalList = vi.fn();
 const mockOrgTaskList = vi.fn();
 const mockOrgTaskCreate = vi.fn();
 const mockOrgRunList = vi.fn();
@@ -85,6 +87,8 @@ vi.mock('@/common', () => ({
     org: {
       organization: {
         get: { invoke: (...args: any[]) => mockOrgGet(...args) },
+        getControlState: { invoke: (...args: any[]) => mockOrgControlStateGet(...args) },
+        listApprovals: { invoke: (...args: any[]) => mockOrgApprovalList(...args) },
         updated: { on: vi.fn(() => vi.fn()) },
       },
       task: {
@@ -182,6 +186,23 @@ describe('Organization Object Views', () => {
           updated_at: now,
         },
       ],
+    });
+    mockOrgControlStateGet.mockResolvedValue({
+      success: true,
+      data: {
+        organization_id: 'org_alpha',
+        phase: 'monitoring',
+        needs_human_input: false,
+        pending_approval_count: 0,
+        auto_drive_enabled: true,
+        last_event_at: now,
+        created_at: now,
+        updated_at: now,
+      },
+    });
+    mockOrgApprovalList.mockResolvedValue({
+      success: true,
+      data: [],
     });
     mockOrgRunList.mockResolvedValue({
       success: true,
@@ -334,6 +355,10 @@ describe('Organization Object Views', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('Organization Alpha').length).toBeGreaterThan(0);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '启动运行' })).not.toBeDisabled();
     });
 
     fireEvent.click(screen.getByRole('button', { name: '创建任务契约' }));

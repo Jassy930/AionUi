@@ -32,6 +32,7 @@
 - 2026-03-23：Task 9 已完成。已同步主计划与设计文档，补充 Task 8 的消息渲染落点与 UI 约束；同时新增长 `task_id / run_id` 不截断的 DOM 回归，避免并发事件归属再次被视觉截断。最终定向验证已通过：`organizationIpcBridge / organizationBridge / organizationOpsWatcher / organizationControlRuntime / OrganizationConversationPanel.dom / organizationControlRuntime.dom` 共 `65/65`；`i18n:types` 与 `check-i18n` 通过，`tsc --noEmit` 仍只剩仓库既有 `organizationAutoDrive` 类型缺口与 `cookie` 声明缺失。
 - 2026-03-23：补充修复控制会话承接缺口。`createAcpAgent` 之前会丢失 `organizationId / runId / organizationRole / organizationAutoDrive / autoDrivePaused / lastReconcileAt / controlConversationVersion`，导致 `OrganizationConversationPanel` 无法识别新建控制会话。现已在 `src/process/initAgent.ts` 统一透传执行绑定 extra，并补上 `tests/unit/initAgent.test.ts` 回归。
 - 2026-03-23：最新源码实例 CDP 闭环已验证通过。控制会话 `aa3667e8` 由对话创建后能够被组织面板自动承接；审批门在文件写入前正常触发，人工批准后 watcher 成功处理 `verify-1774272089728-dialog-{brief,plan,state}.json`，组织页右侧已显示控制会话且 `org-control-event-card=1`，截图见 `tests/e2e/results/verify-1774272089728-organization-console.png`。
+- 2026-03-23：补充完成测试清理与环境收口。本地 Node 24 单测曾因 `better-sqlite3` 仍停留在旧 ABI 而整体失真，已通过 `npm rebuild better-sqlite3` 恢复 Node 侧原生模块；同时补齐 `organizationIpcBridge` 的新增事件断言，以及 `OrganizationObjectViews.dom` 对 `getControlState / listApprovals` 的治理状态 mock 与“启动运行”可点击等待。当前全量验证通过：`bun run test` 为 `84 passed / 3 skipped`，`bunx tsc --noEmit` 通过。
 
 ### Task 1: 定义组织控制事件模型与控制会话元数据
 
