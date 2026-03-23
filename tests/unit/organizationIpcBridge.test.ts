@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { org } from '@/common/ipcBridge';
+import type { ICreateConversationParams } from '@/common/ipcBridge';
 import type { ConversationExecutionBinding } from '@/common/storage';
 import {
   TASK_STATUS_VALUES,
@@ -96,5 +97,23 @@ describe('organization ipc bridge contracts', () => {
     expect(runtimeBinding.autoDrivePaused).toBe(false);
     expect(typeof runtimeBinding.lastReconcileAt).toBe('number');
     expect(runtimeBinding.controlConversationVersion).toBe(1);
+  });
+
+  it('allows control conversation create params to carry runtime metadata', () => {
+    const extra: ICreateConversationParams['extra'] = {
+      workspace: '/tmp/org-alpha',
+      customWorkspace: true,
+      organizationId: 'org_alpha',
+      organizationRole: 'control_plane',
+      organizationAutoDrive: true,
+      autoDrivePaused: false,
+      lastReconcileAt: 1,
+      controlConversationVersion: 1,
+    };
+
+    expect(extra.organizationAutoDrive).toBe(true);
+    expect(extra.autoDrivePaused).toBe(false);
+    expect(extra.lastReconcileAt).toBe(1);
+    expect(extra.controlConversationVersion).toBe(1);
   });
 });

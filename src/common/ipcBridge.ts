@@ -789,6 +789,14 @@ export interface ICreateConversationParams {
     runId?: string;
     /** Distinguishes control-plane chats from execution chats */
     organizationRole?: 'control_plane' | 'run_executor';
+    /** Enables Organization Control Runtime auto-drive on this conversation */
+    organizationAutoDrive?: boolean;
+    /** Allows pausing auto-drive without deleting the control conversation */
+    autoDrivePaused?: boolean;
+    /** Last reconcile timestamp from control runtime fallback checks */
+    lastReconcileAt?: number;
+    /** Runtime version marker for control conversation behavior migrations */
+    controlConversationVersion?: number;
   };
 }
 interface IResetConversationParams {
