@@ -30,6 +30,8 @@
 - 2026-03-23：补充清理本轮相关 i18n 校验。已修复共享 i18n 配置对 `task / viewMode / project` 模块的漏登记，并补齐控制台/组织会话相关实际调用键；当前 `bun scripts/check-i18n.js` 已无 warning，避免后续控制运行时改动继续被历史 i18n 噪音掩盖。
 - 2026-03-23：补充修复控制文件承接链。组织 AI 写入 `.aionui-org/control/operations/` 的 `org/control/brief/update`、`org/control/plan/update`、`org/control/state/update` 现已由 `organizationOpsWatcher` 落库到 brief / plan snapshot / control state，并在成功后同步生成控制事件，避免“文件写入成功但 UI 无变化”的假象。
 - 2026-03-23：Task 9 已完成。已同步主计划与设计文档，补充 Task 8 的消息渲染落点与 UI 约束；同时新增长 `task_id / run_id` 不截断的 DOM 回归，避免并发事件归属再次被视觉截断。最终定向验证已通过：`organizationIpcBridge / organizationBridge / organizationOpsWatcher / organizationControlRuntime / OrganizationConversationPanel.dom / organizationControlRuntime.dom` 共 `65/65`；`i18n:types` 与 `check-i18n` 通过，`tsc --noEmit` 仍只剩仓库既有 `organizationAutoDrive` 类型缺口与 `cookie` 声明缺失。
+- 2026-03-23：补充修复控制会话承接缺口。`createAcpAgent` 之前会丢失 `organizationId / runId / organizationRole / organizationAutoDrive / autoDrivePaused / lastReconcileAt / controlConversationVersion`，导致 `OrganizationConversationPanel` 无法识别新建控制会话。现已在 `src/process/initAgent.ts` 统一透传执行绑定 extra，并补上 `tests/unit/initAgent.test.ts` 回归。
+- 2026-03-23：最新源码实例 CDP 闭环已验证通过。控制会话 `aa3667e8` 由对话创建后能够被组织面板自动承接；审批门在文件写入前正常触发，人工批准后 watcher 成功处理 `verify-1774272089728-dialog-{brief,plan,state}.json`，组织页右侧已显示控制会话且 `org-control-event-card=1`，截图见 `tests/e2e/results/verify-1774272089728-organization-console.png`。
 
 ### Task 1: 定义组织控制事件模型与控制会话元数据
 

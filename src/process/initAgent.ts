@@ -42,6 +42,16 @@ const buildWorkspaceWidthFiles = async (
   return { workspace, customWorkspace };
 };
 
+const buildExecutionBindingExtra = (extra: ICreateConversationParams['extra']) => ({
+  organizationId: extra.organizationId,
+  runId: extra.runId,
+  organizationRole: extra.organizationRole,
+  organizationAutoDrive: extra.organizationAutoDrive,
+  autoDrivePaused: extra.autoDrivePaused,
+  lastReconcileAt: extra.lastReconcileAt,
+  controlConversationVersion: extra.controlConversationVersion,
+});
+
 export const createGeminiAgent = async (
   model: TProviderWithModel,
   workspace?: string,
@@ -121,6 +131,7 @@ export const createAcpAgent = async (options: ICreateConversationParams): Promis
       currentModelId: extra.currentModelId,
       // Explicit marker for temporary health-check conversations
       isHealthCheck: extra.isHealthCheck,
+      ...buildExecutionBindingExtra(extra),
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
@@ -157,6 +168,7 @@ export const createCodexAgent = async (options: ICreateConversationParams): Prom
       codexModel: extra.codexModel,
       // Explicit marker for temporary health-check conversations
       isHealthCheck: extra.isHealthCheck,
+      ...buildExecutionBindingExtra(extra),
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
@@ -180,6 +192,7 @@ export const createNanobotAgent = async (options: ICreateConversationParams): Pr
       customWorkspace,
       enabledSkills: extra.enabledSkills,
       presetAssistantId: extra.presetAssistantId,
+      ...buildExecutionBindingExtra(extra),
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
@@ -221,6 +234,7 @@ export const createOpenClawAgent = async (options: ICreateConversationParams): P
       enabledSkills: extra.enabledSkills,
       // Preset assistant ID for displaying name and avatar in conversation panel
       presetAssistantId: extra.presetAssistantId,
+      ...buildExecutionBindingExtra(extra),
     },
     createTime: Date.now(),
     modifyTime: Date.now(),
