@@ -29,3 +29,4 @@ export function isBuiltinImageGenTransport(transport?: {
 
   return (transport.args || []).some((arg) => typeof arg === 'string' && arg.includes('builtin-mcp-image-gen.js'));
 }
+

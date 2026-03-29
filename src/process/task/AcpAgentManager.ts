@@ -22,6 +22,7 @@ import { ProcessConfig } from '@process/utils/initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '@process/utils/message';
 import { handlePreviewOpenEvent } from '@process/utils/previewUtils';
 import { cronBusyGuard } from '@process/services/cron/CronBusyGuard';
+import { generateTitle, detectCjk } from '@process/services/autoTitleService';
 import { mainLog, mainWarn, mainError } from '@process/utils/mainLogger';
 import {
   getCodexSandboxModeForSessionMode,
@@ -91,6 +92,11 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
   /** Accumulated thinking content for persistence */
   private thinkingContent: string = '';
   private thinkingDbFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  private autoTitleTriggered = false;
+  /** When true, stream/signal events are suppressed (not emitted to frontend or persisted). */
+  private autoTitleInProgress = false;
+  /** Accumulated text content during auto-title prompt for extracting the generated title. */
+  private autoTitleAccumulated = '';
   private acpAvailableSlashCommands: SlashCommandItem[] = [];
   private acpAvailableSlashWaiters: Array<(commands: SlashCommandItem[]) => void> = [];
   private readonly streamDbFlushIntervalMs = 120;
@@ -362,6 +368,15 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             this.status = 'finished';
           }
 
+          // Suppress stream events during silent auto-title generation.
+          // Only accumulate text content for title extraction.
+          if (this.autoTitleInProgress) {
+            if (message.type === 'content' && typeof message.data === 'string') {
+              this.autoTitleAccumulated += message.data;
+            }
+            return;
+          }
+
           // Emit request trace on each model generation start
           if (message.type === 'start') {
             const modelInfo = this.agent?.getModelInfo();
@@ -481,6 +496,15 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           // Flush buffered text chunks before handling turn-level signals
           this.flushBufferedStreamTextMessages();
 
+          // Suppress signal events during silent auto-title generation.
+          // On finish, resolve the accumulated title text.
+          if (this.autoTitleInProgress) {
+            if (v.type === 'finish' || v.type === 'error') {
+              this.autoTitleInProgress = false;
+            }
+            return;
+          }
+
           // 仅发送信号到前端，不更新消息列表
           if (v.type === 'acp_permission') {
             const { toolCall, options } = v.data as AcpPermissionRequest;
@@ -554,6 +578,14 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
             // Reset after processing
             this.currentMsgId = null;
             this.currentMsgContent = '';
+          }
+
+          // Auto-generate title on first turn completion
+          if (v.type === 'finish' && !this.autoTitleTriggered) {
+            this.autoTitleTriggered = true;
+            this.tryAutoGenerateTitle().catch((err) =>
+              console.warn('[AcpAgentManager] Auto-title generation failed:', err),
+            );
           }
 
           ipcBridge.acpConversation.responseStream.emit(v);
@@ -1141,6 +1173,143 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
     } catch {
       // Non-critical metadata, silently ignore errors
     }
+  }
+
+  /** Auto-title timeout: prevents permanent UI freeze if ACP agent hangs. */
+  private static readonly AUTO_TITLE_TIMEOUT_MS = 30_000;
+
+  /**
+   * Attempt to auto-generate a conversation title after the first turn.
+   *
+   * Strategy (avoids polluting ACP session context):
+   * 1. Try autoTitleService HTTP API using global provider config (no context pollution)
+   * 2. Fall back to ACP agent silent prompt only when no OpenAI-compatible provider is available
+   */
+  private async tryAutoGenerateTitle(): Promise<void> {
+    try {
+      const { conversationServiceSingleton } = await import('@process/services/conversationServiceSingleton');
+      const conversation = await conversationServiceSingleton.getConversation(this.conversation_id);
+      if (!conversation) return;
+
+      // Check if title is still default.
+      // Values from src/renderer/services/i18n/locales/*/conversation.json "welcome.newConversation"
+      const DEFAULT_TITLES = new Set([
+        'New Chat',        // en-US
+        '新会话',          // zh-CN
+        '新會話',          // zh-TW
+        '新しいチャット',  // ja-JP
+        '새 채팅',         // ko-KR
+        'Yeni Sohbet',     // tr-TR
+      ]);
+      const name = conversation.name;
+      if (name && !DEFAULT_TITLES.has(name)) return;
+
+      // Collect recent messages for context (needed for both paths)
+      const db = await getDatabase();
+      const messagesResult = db.getConversationMessages(this.conversation_id, 0, 4);
+      const messages = messagesResult.data || [];
+
+      const userMsg = messages.find((m) => m.position === 'right');
+      const assistantMsg = messages.find((m) => m.position === 'left' && m.type === 'text');
+      if (!userMsg || !assistantMsg) return;
+
+      const userContent =
+        typeof userMsg.content === 'string'
+          ? userMsg.content
+          : (userMsg.content as { content?: string })?.content || '';
+      const assistantContent =
+        typeof assistantMsg.content === 'string'
+          ? assistantMsg.content
+          : (assistantMsg.content as { content?: string })?.content || '';
+      if (!userContent || !assistantContent) return;
+
+      // --- Path 1: Try HTTP API via autoTitleService (preferred, no context pollution) ---
+      let title: string | null = null;
+
+      // Check conversation's own model first (non-ACP conversations)
+      const conversationModel = (conversation as { model?: { baseUrl?: string; useModel?: string; apiKey?: string; platform?: string } }).model;
+      if (conversationModel?.baseUrl && conversationModel?.useModel) {
+        title = await generateTitle(
+          conversationModel as import('@/common/config/storage').TProviderWithModel,
+          userContent,
+          assistantContent,
+        );
+      }
+
+      // Fallback: find a suitable provider from global model.config
+      if (!title) {
+        const providers = await ProcessConfig.get('model.config');
+        const providerList = Array.isArray(providers) ? providers : [];
+        const suitable = providerList.find(
+          (p) => p.baseUrl && p.apiKey && p.model?.length > 0 && p.platform !== 'anthropic',
+        );
+        if (suitable) {
+          title = await generateTitle(
+            { ...suitable, useModel: suitable.model[0] },
+            userContent,
+            assistantContent,
+          );
+        }
+      }
+
+      // --- Path 2: ACP agent fallback (pollutes context, but always available) ---
+      if (!title && this.agent?.isConnected) {
+        title = await this.generateTitleViaAgent(userContent);
+      }
+
+      if (!title) return;
+
+      await conversationServiceSingleton.updateConversation(this.conversation_id, { name: title });
+
+      // Notify frontend with updated conversation data
+      const updated = await conversationServiceSingleton.getConversation(this.conversation_id);
+      if (updated) {
+        const { emitConversationListChanged } = await import('@process/bridge/conversationBridge');
+        emitConversationListChanged(updated, 'updated');
+      }
+
+      console.debug(`[AcpAgentManager] Auto-generated title for ${this.conversation_id}: "${title}"`);
+    } catch (error) {
+      this.autoTitleInProgress = false;
+      console.warn('[AcpAgentManager] tryAutoGenerateTitle error:', error);
+    }
+  }
+
+  /**
+   * Last resort: use the ACP agent itself to generate a title via silent prompt.
+   * This pollutes the agent's context but guarantees title generation.
+   * Includes a timeout guard to prevent permanent UI freeze.
+   */
+  private async generateTitleViaAgent(userContent: string): Promise<string | null> {
+    this.autoTitleInProgress = true;
+    this.autoTitleAccumulated = '';
+
+    // Detect CJK to use an appropriate prompt language
+    const isCjk = detectCjk(userContent);
+
+    const titlePrompt = isCjk
+      ? '根据我们目前的对话，生成一个简洁的标题（不超过15个字）。只输出标题文本，不要输出其他内容，不要加引号。'
+      : 'Generate a concise title (10 words or fewer) for this conversation based on our discussion so far. ' +
+        'Output ONLY the title text, nothing else. Do not use quotes around the title.';
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        this.agent.sendMessage({ content: titlePrompt }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Auto-title timeout')), AcpAgentManager.AUTO_TITLE_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      this.autoTitleInProgress = false;
+    }
+
+    const rawTitle = this.autoTitleAccumulated.trim();
+    if (!rawTitle) return null;
+
+    // Clean: remove quotes, limit to 120 chars
+    return rawTitle.replace(/^["'""]+|["'""]+$/g, '').slice(0, 120) || null;
   }
 
   /**

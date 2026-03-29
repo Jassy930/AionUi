@@ -76,7 +76,7 @@ function shouldInjectBuiltinServer(server: IMcpServer): boolean {
 
 export function buildBuiltinAcpSessionMcpServers(
   mcpServers: IMcpServer[] | undefined | null,
-  capabilities: Partial<AcpMcpCapabilities> = DEFAULT_ACP_MCP_CAPABILITIES
+  capabilities: Partial<AcpMcpCapabilities> = DEFAULT_ACP_MCP_CAPABILITIES,
 ): AcpSessionMcpServer[] {
   if (!Array.isArray(mcpServers) || mcpServers.length === 0) {
     return [];
@@ -93,13 +93,16 @@ export function buildBuiltinAcpSessionMcpServers(
       switch (server.transport.type) {
         case 'stdio':
           if (!effectiveCapabilities.stdio) return null;
-          return {
-            type: 'stdio',
-            name: server.name,
-            command: server.transport.command,
-            args: server.transport.args || [],
-            env: toNameValueEntries(server.transport.env),
-          };
+          {
+            const baseEnv = toNameValueEntries(server.transport.env);
+            return {
+              type: 'stdio',
+              name: server.name,
+              command: server.transport.command,
+              args: server.transport.args || [],
+              env: baseEnv,
+            };
+          }
         case 'http':
         case 'streamable_http':
           if (!effectiveCapabilities.http) return null;

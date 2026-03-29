@@ -5,6 +5,10 @@ import { useConversationTabs } from '@/renderer/pages/conversation/hooks/Convers
 import { deriveAutoTitleFromMessages } from '@/renderer/utils/chat/autoTitle';
 import { emitter } from '@/renderer/utils/emitter';
 
+/**
+ * Auto-title is now handled by the backend (autoTitleService).
+ * This hook is kept for API compatibility but is a no-op.
+ */
 export const useAutoTitle = () => {
   const { t } = useTranslation();
   const { updateTabName } = useConversationTabs();
@@ -46,10 +50,10 @@ export const useAutoTitle = () => {
   );
 
   const checkAndUpdateTitle = useCallback(
-    async (conversationId: string, messageContent: string) => {
-      await syncTitleFromHistory(conversationId, messageContent);
+    async (_conversationId: string, _messageContent: string) => {
+      // No-op: title generation moved to backend
     },
-    [syncTitleFromHistory]
+    [],
   );
 
   return {

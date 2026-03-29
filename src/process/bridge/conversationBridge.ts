@@ -47,22 +47,22 @@ const VALID_CONVERSATION_TYPES = new Set<TChatConversation['type']>([
   'remote',
 ]);
 
+export function emitConversationListChanged(
+  conversation: Pick<TChatConversation, 'id' | 'source'>,
+  action: 'created' | 'updated' | 'deleted'
+): void {
+  ipcBridge.conversation.listChanged.emit({
+    conversationId: conversation.id,
+    action,
+    source: conversation.source || 'aionui',
+  });
+}
+
 export function initConversationBridge(
   conversationService: IConversationService,
   workerTaskManager: IWorkerTaskManager
 ): void {
   const sideQuestionService = new ConversationSideQuestionService(conversationService);
-
-  const emitConversationListChanged = (
-    conversation: Pick<TChatConversation, 'id' | 'source'>,
-    action: 'created' | 'updated' | 'deleted'
-  ) => {
-    ipcBridge.conversation.listChanged.emit({
-      conversationId: conversation.id,
-      action,
-      source: conversation.source || 'aionui',
-    });
-  };
 
   ipcBridge.openclawConversation.getRuntime.provider(async ({ conversation_id }) => {
     try {
