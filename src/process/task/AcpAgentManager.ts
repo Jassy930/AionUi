@@ -584,7 +584,7 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
           if (v.type === 'finish' && !this.autoTitleTriggered) {
             this.autoTitleTriggered = true;
             this.tryAutoGenerateTitle().catch((err) =>
-              console.warn('[AcpAgentManager] Auto-title generation failed:', err),
+              console.warn('[AcpAgentManager] Auto-title generation failed:', err)
             );
           }
 
@@ -1194,12 +1194,12 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       // Check if title is still default.
       // Values from src/renderer/services/i18n/locales/*/conversation.json "welcome.newConversation"
       const DEFAULT_TITLES = new Set([
-        'New Chat',        // en-US
-        '新会话',          // zh-CN
-        '新會話',          // zh-TW
-        '新しいチャット',  // ja-JP
-        '새 채팅',         // ko-KR
-        'Yeni Sohbet',     // tr-TR
+        'New Chat', // en-US
+        '新会话', // zh-CN
+        '新會話', // zh-TW
+        '新しいチャット', // ja-JP
+        '새 채팅', // ko-KR
+        'Yeni Sohbet', // tr-TR
       ]);
       const name = conversation.name;
       if (name && !DEFAULT_TITLES.has(name)) return;
@@ -1227,12 +1227,14 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
       let title: string | null = null;
 
       // Check conversation's own model first (non-ACP conversations)
-      const conversationModel = (conversation as { model?: { baseUrl?: string; useModel?: string; apiKey?: string; platform?: string } }).model;
+      const conversationModel = (
+        conversation as { model?: { baseUrl?: string; useModel?: string; apiKey?: string; platform?: string } }
+      ).model;
       if (conversationModel?.baseUrl && conversationModel?.useModel) {
         title = await generateTitle(
           conversationModel as import('@/common/config/storage').TProviderWithModel,
           userContent,
-          assistantContent,
+          assistantContent
         );
       }
 
@@ -1241,14 +1243,10 @@ class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissio
         const providers = await ProcessConfig.get('model.config');
         const providerList = Array.isArray(providers) ? providers : [];
         const suitable = providerList.find(
-          (p) => p.baseUrl && p.apiKey && p.model?.length > 0 && p.platform !== 'anthropic',
+          (p) => p.baseUrl && p.apiKey && p.model?.length > 0 && p.platform !== 'anthropic'
         );
         if (suitable) {
-          title = await generateTitle(
-            { ...suitable, useModel: suitable.model[0] },
-            userContent,
-            assistantContent,
-          );
+          title = await generateTitle({ ...suitable, useModel: suitable.model[0] }, userContent, assistantContent);
         }
       }
 

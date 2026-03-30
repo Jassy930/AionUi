@@ -64,9 +64,11 @@ describe('generateTitle', () => {
 
   it('should return generated title on success', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: 'Code Review Discussion' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'Code Review Discussion' } }],
+        })
+      )
     );
 
     const title = await generateTitle(mockProvider, 'Review my code', 'Sure, let me look at it.');
@@ -75,9 +77,11 @@ describe('generateTitle', () => {
 
   it('should strip surrounding quotes from title', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: '"Code Review Discussion"' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '"Code Review Discussion"' } }],
+        })
+      )
     );
 
     const title = await generateTitle(mockProvider, 'Review my code', 'Sure.');
@@ -86,9 +90,11 @@ describe('generateTitle', () => {
 
   it('should not strip smart quotes (only ASCII quotes are stripped)', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: '\u201CCode Review\u201D' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '\u201CCode Review\u201D' } }],
+        })
+      )
     );
 
     const title = await generateTitle(mockProvider, 'Review my code', 'Sure.');
@@ -98,9 +104,11 @@ describe('generateTitle', () => {
   it('should truncate title to 120 characters', async () => {
     const longTitle = 'A'.repeat(200);
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: longTitle } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: longTitle } }],
+        })
+      )
     );
 
     const title = await generateTitle(mockProvider, 'Hello', 'World');
@@ -136,9 +144,7 @@ describe('generateTitle', () => {
   });
 
   it('should return null when response has no choices', async () => {
-    fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({ choices: [] })),
-    );
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ choices: [] })));
 
     const title = await generateTitle(mockProvider, 'Hello', 'World');
     expect(title).toBeNull();
@@ -146,9 +152,11 @@ describe('generateTitle', () => {
 
   it('should return null when choice content is empty', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: '   ' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '   ' } }],
+        })
+      )
     );
 
     const title = await generateTitle(mockProvider, 'Hello', 'World');
@@ -164,9 +172,11 @@ describe('generateTitle', () => {
 
   it('should send correct request body', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: 'Title' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'Title' } }],
+        })
+      )
     );
 
     await generateTitle(mockProvider, 'Hello', 'World');
@@ -176,7 +186,7 @@ describe('generateTitle', () => {
       expect.objectContaining({
         method: 'POST',
         body: expect.any(String),
-      }),
+      })
     );
 
     const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string);
@@ -187,9 +197,11 @@ describe('generateTitle', () => {
 
   it('should include Authorization header when apiKey is present', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: 'Title' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'Title' } }],
+        })
+      )
     );
 
     await generateTitle(mockProvider, 'Hello', 'World');
@@ -200,9 +212,11 @@ describe('generateTitle', () => {
 
   it('should omit Authorization header when apiKey is empty', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: 'Title' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'Title' } }],
+        })
+      )
     );
 
     await generateTitle({ ...mockProvider, apiKey: '' }, 'Hello', 'World');
@@ -213,24 +227,25 @@ describe('generateTitle', () => {
 
   it('should strip trailing slash from baseUrl', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: 'Title' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'Title' } }],
+        })
+      )
     );
 
     await generateTitle({ ...mockProvider, baseUrl: 'https://api.example.com/v1/' }, 'Hello', 'World');
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'https://api.example.com/v1/chat/completions',
-      expect.anything(),
-    );
+    expect(fetchSpy).toHaveBeenCalledWith('https://api.example.com/v1/chat/completions', expect.anything());
   });
 
   it('should use Chinese prompt for CJK user messages', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: '代码审查讨论' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '代码审查讨论' } }],
+        })
+      )
     );
 
     await generateTitle(mockProvider, '请帮我审查这段代码', '好的，让我看看。');
@@ -242,9 +257,11 @@ describe('generateTitle', () => {
 
   it('should use English prompt for non-CJK user messages', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: 'Code Review' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'Code Review' } }],
+        })
+      )
     );
 
     await generateTitle(mockProvider, 'Please review my code', 'Sure.');
@@ -256,9 +273,11 @@ describe('generateTitle', () => {
 
   it('should truncate long messages to 500 chars in prompt', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({
-        choices: [{ message: { content: 'Title' } }],
-      })),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'Title' } }],
+        })
+      )
     );
 
     const longMessage = 'x'.repeat(1000);

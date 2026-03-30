@@ -49,12 +49,9 @@ export const useAutoTitle = () => {
     [t, updateTabName]
   );
 
-  const checkAndUpdateTitle = useCallback(
-    async (_conversationId: string, _messageContent: string) => {
-      // No-op: title generation moved to backend
-    },
-    [],
-  );
+  const checkAndUpdateTitle = useCallback(async (_conversationId: string, _messageContent: string) => {
+    // No-op: title generation moved to backend
+  }, []);
 
   return {
     checkAndUpdateTitle,

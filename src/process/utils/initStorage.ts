@@ -802,9 +802,7 @@ const ensureBuiltinMcpServers = async (): Promise<void> => {
     }
 
     // --- Remove deprecated builtin-conversation-tools server ---
-    const convToolsIdx = mcpServers.findIndex(
-      (s) => s.builtin === true && s.id === 'builtin-conversation-tools',
-    );
+    const convToolsIdx = mcpServers.findIndex((s) => s.builtin === true && s.id === 'builtin-conversation-tools');
     if (convToolsIdx >= 0) {
       mcpServers.splice(convToolsIdx, 1);
       changed = true;

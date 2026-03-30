@@ -76,7 +76,7 @@ function shouldInjectBuiltinServer(server: IMcpServer): boolean {
 
 export function buildBuiltinAcpSessionMcpServers(
   mcpServers: IMcpServer[] | undefined | null,
-  capabilities: Partial<AcpMcpCapabilities> = DEFAULT_ACP_MCP_CAPABILITIES,
+  capabilities: Partial<AcpMcpCapabilities> = DEFAULT_ACP_MCP_CAPABILITIES
 ): AcpSessionMcpServer[] {
   if (!Array.isArray(mcpServers) || mcpServers.length === 0) {
     return [];

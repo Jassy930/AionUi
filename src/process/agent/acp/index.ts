@@ -1513,10 +1513,7 @@ export class AcpAgent {
       }
 
       const capabilities = parseAcpMcpCapabilities(this.connection.getInitializeResponse());
-      const sessionMcpServers = buildBuiltinAcpSessionMcpServers(
-        mcpConfig as IMcpServer[],
-        capabilities,
-      );
+      const sessionMcpServers = buildBuiltinAcpSessionMcpServers(mcpConfig as IMcpServer[], capabilities);
 
       if (sessionMcpServers.length > 0) {
         mainLog(
