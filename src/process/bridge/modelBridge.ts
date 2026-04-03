@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -187,7 +188,7 @@ export function initModelBridge(): void {
         return { success: true, data: { mode: modelList } };
       } catch (e: unknown) {
         // Fall back to default model list on API failure
-        const errorMessage = e instanceof Error ? e.message : String(e);
+        const errorMessage = e instanceof Error ? getErrorMessage(e) : String(e);
         console.warn('Failed to fetch Anthropic models via API, falling back to default list:', errorMessage);
         const defaultAnthropicModels = [
           'claude-sonnet-4-20250514',
@@ -229,8 +230,8 @@ export function initModelBridge(): void {
           throw new Error('Invalid response: empty data');
         }
         return { success: true, data: { mode: res.data.map((v) => v.id) } };
-      } catch (e: any) {
-        return { success: false, msg: e.message || e.toString() };
+      } catch (e: unknown) {
+        return { success: false, msg: getErrorMessage(e) || e.toString() };
       }
     }
 
@@ -312,7 +313,7 @@ export function initModelBridge(): void {
           }
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? getErrorMessage(error) : String(error);
         return {
           success: false,
           msg: `Failed to fetch Bedrock models: ${errorMessage}`,
@@ -350,15 +351,15 @@ export function initModelBridge(): void {
         });
 
         return { success: true, data: { mode: modelList } };
-      } catch (e: any) {
+      } catch (e: unknown) {
         // 对于 Gemini 平台，API 调用失败时回退到默认模型列表
         // For Gemini platform, fall back to default model list on API failure
         if (platform?.includes('gemini')) {
-          console.warn('Failed to fetch Gemini models via API, falling back to default list:', e.message);
+          console.warn('Failed to fetch Gemini models via API, falling back to default list:', getErrorMessage(e));
           const defaultGeminiModels = ['gemini-2.5-pro', 'gemini-2.5-flash'];
           return { success: true, data: { mode: defaultGeminiModels } };
         }
-        return { success: false, msg: e.message || e.toString() };
+        return { success: false, msg: getErrorMessage(e) || e.toString() };
       }
     }
 
@@ -386,7 +387,7 @@ export function initModelBridge(): void {
       }
       return { success: true, data: { mode: res.data.map((v) => v.id) } };
     } catch (e) {
-      const errRes = { success: false, msg: e.message || e.toString() };
+      const errRes = { success: false, msg: getErrorMessage(e) || e.toString() };
 
       if (!try_fix) return errRes;
 
@@ -396,14 +397,14 @@ export function initModelBridge(): void {
       // Note: 403 could be URL error (missing /v1) or permission issue, need to check error message
       const isAuthError =
         e.status === 401 ||
-        e.message?.includes('401') ||
-        e.message?.includes('Unauthorized') ||
-        e.message?.includes('Invalid API key');
+        getErrorMessage(e)?.includes('401') ||
+        getErrorMessage(e)?.includes('Unauthorized') ||
+        getErrorMessage(e)?.includes('Invalid API key');
       const isPermissionError =
-        e.message?.includes('已被禁用') ||
-        e.message?.includes('disabled') ||
-        e.message?.includes('quota') ||
-        e.message?.includes('rate limit');
+        getErrorMessage(e)?.includes('已被禁用') ||
+        getErrorMessage(e)?.includes('disabled') ||
+        getErrorMessage(e)?.includes('quota') ||
+        getErrorMessage(e)?.includes('rate limit');
       if (isAuthError || isPermissionError) {
         return errRes;
       }
@@ -499,7 +500,7 @@ export function initModelBridge(): void {
         return { success: true };
       })
       .catch((e) => {
-        return { success: false, msg: e.message || e.toString() };
+        return { success: false, msg: getErrorMessage(e) || e.toString() };
       });
   });
 
@@ -762,11 +763,11 @@ async function testProtocol(
       default:
         return { success: false, confidence: 0, error: 'Unknown protocol' };
     }
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
       return { success: false, confidence: 0, error: 'Request timeout' };
     }
-    return { success: false, confidence: 0, error: error.message || String(error) };
+    return { success: false, confidence: 0, error: getErrorMessage(error) || String(error) };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -1090,7 +1091,7 @@ async function testMultipleKeys(
           index: globalIndex,
           maskedKey: maskApiKey(key),
           valid: false,
-          error: e instanceof Error ? e.message : String(e),
+          error: e instanceof Error ? getErrorMessage(e) : String(e),
           latency: Date.now() - startTime,
         };
       }

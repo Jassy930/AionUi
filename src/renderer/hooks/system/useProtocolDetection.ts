@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -112,14 +113,14 @@ export function useProtocolDetection(
           setResult(response.data || null);
           setError(response.msg || 'Detection failed');
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         // 检查是否是最新的请求
         if (currentVersion !== requestVersionRef.current) {
           return;
         }
 
         setResult(null);
-        setError(e.message || String(e));
+        setError(getErrorMessage(e) || String(e));
       } finally {
         // 检查是否是最新的请求
         if (currentVersion === requestVersionRef.current) {

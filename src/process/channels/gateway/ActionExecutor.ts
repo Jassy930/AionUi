@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -482,7 +483,7 @@ export class ActionExecutor {
             console.error(`[ActionExecutor] Failed to create conversation:`, error);
             await context.sendMessage({
               type: 'text',
-              text: `❌ Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              text: `❌ Failed to create session: ${error instanceof Error ? getErrorMessage(error) : 'Unknown error'}`,
               parseMode: 'HTML',
             });
             return;
@@ -522,13 +523,13 @@ export class ActionExecutor {
           replyMarkup: getMainMenuMarkup(platform as PluginType),
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[ActionExecutor] Error handling message:`, error);
       await context.sendMessage({
         type: 'text',
-        text: `❌ Error processing message: ${error.message}`,
+        text: `❌ Error processing message: ${getErrorMessage(error)}`,
         parseMode: 'HTML',
-        replyMarkup: getErrorRecoveryMarkup(platform as PluginType, error.message),
+        replyMarkup: getErrorRecoveryMarkup(platform as PluginType, getErrorMessage(error)),
       });
     }
   }
@@ -559,11 +560,11 @@ export class ActionExecutor {
       if (result.message) {
         await context.sendMessage(result.message);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[ActionExecutor] Action ${actionName} failed:`, error);
       await context.sendMessage({
         type: 'text',
-        text: `❌ Action failed: ${error.message}`,
+        text: `❌ Action failed: ${getErrorMessage(error)}`,
         parseMode: 'HTML',
       });
     }
@@ -772,11 +773,11 @@ export class ActionExecutor {
         // 忽略最终编辑错误
         // Ignore final edit error
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`[ActionExecutor] Chat processing failed:`, error);
 
       // Update message with error
-      const errorResponse = buildChatErrorResponse(error.message);
+      const errorResponse = buildChatErrorResponse(getErrorMessage(error));
       await context.editMessage(thinkingMsgId, {
         type: 'text',
         text: errorResponse.text,

@@ -76,6 +76,12 @@ export type AcpBackendAll =
   | 'custom'; // User-configured custom ACP agent
 
 /**
+ * MCP 服务来源类型 — 与 ACP 后端共享 + AionUI 自身
+ * MCP service source type — union of ACP backends + AionUI's own MCP layer
+ */
+export type McpSource = AcpBackendAll | 'aionui';
+
+/**
  * 潜在的 ACP CLI 工具列表
  * 用于自动检测用户本地安装的 CLI 工具
  * 当有新的 ACP CLI 工具发布时，只需在此列表中添加即可

@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strictNullChecks": true
+  },
+  "include": [
+    "src/common/**/*",
+    "src/process/extensions/**/*",
+    "src/process/services/database/**/*",
+    "src/process/channels/utils/credentialCrypto.ts"
+  ]
+}

@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -118,8 +119,8 @@ export abstract class BasePlugin {
     try {
       await this.onInitialize(config);
       this.setStatus('ready');
-    } catch (error: any) {
-      this.setStatus('error', error.message);
+    } catch (error: unknown) {
+      this.setStatus('error', getErrorMessage(error));
       throw error;
     }
   }
@@ -137,8 +138,8 @@ export abstract class BasePlugin {
     try {
       await this.onStart();
       this.setStatus('running');
-    } catch (error: any) {
-      this.setStatus('error', error.message);
+    } catch (error: unknown) {
+      this.setStatus('error', getErrorMessage(error));
       throw error;
     }
   }
@@ -156,8 +157,8 @@ export abstract class BasePlugin {
     try {
       await this.onStop();
       this.setStatus('stopped');
-    } catch (error: any) {
-      this.setStatus('error', error.message);
+    } catch (error: unknown) {
+      this.setStatus('error', getErrorMessage(error));
       throw error;
     }
   }

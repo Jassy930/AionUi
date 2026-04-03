@@ -59,3 +59,13 @@ export const resolveLocaleKey = (language: string): 'zh-CN' | 'en-US' | 'ja-JP' 
   if (lang.startsWith('tr')) return 'tr-TR';
   return 'en-US';
 };
+
+/**
+ * Extract error message from unknown catch parameter.
+ * Safely handles Error instances, strings, and arbitrary values.
+ */
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return String(error);
+}

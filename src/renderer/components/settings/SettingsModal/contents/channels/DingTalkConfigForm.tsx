@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -226,9 +227,9 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
         setCredentialsTested(false);
         Message.error(result.data?.error || t('settings.dingtalk.connectionFailed', 'Connection failed'));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setCredentialsTested(false);
-      Message.error(error.message || t('settings.dingtalk.connectionFailed', 'Connection failed'));
+      Message.error(getErrorMessage(error) || t('settings.dingtalk.connectionFailed', 'Connection failed'));
     } finally {
       setTestLoading(false);
     }
@@ -256,9 +257,9 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
         console.error('[DingTalkConfig] enablePlugin failed:', result.msg);
         Message.error(result.msg || t('settings.dingtalk.enableFailed', 'Failed to enable DingTalk plugin'));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[DingTalkConfig] Auto-enable failed:', error);
-      Message.error(error.message || t('settings.dingtalk.enableFailed', 'Failed to enable DingTalk plugin'));
+      Message.error(getErrorMessage(error) || t('settings.dingtalk.enableFailed', 'Failed to enable DingTalk plugin'));
     }
   };
 
@@ -278,8 +279,8 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       } else {
         Message.error(result.msg || t('settings.assistant.approveFailed', 'Failed to approve pairing'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 
@@ -293,8 +294,8 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       } else {
         Message.error(result.msg || t('settings.assistant.rejectFailed', 'Failed to reject pairing'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 
@@ -308,8 +309,8 @@ const DingTalkConfigForm: React.FC<DingTalkConfigFormProps> = ({ pluginStatus, m
       } else {
         Message.error(result.msg || t('settings.assistant.revokeFailed', 'Failed to revoke user'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 

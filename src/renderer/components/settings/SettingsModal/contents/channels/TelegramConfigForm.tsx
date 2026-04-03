@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -221,9 +222,9 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
         setTokenTested(false);
         Message.error(result.data?.error || t('settings.assistant.connectionFailed', 'Connection failed'));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setTokenTested(false);
-      Message.error(error.message || t('settings.assistant.connectionFailed', 'Connection failed'));
+      Message.error(getErrorMessage(error) || t('settings.assistant.connectionFailed', 'Connection failed'));
     } finally {
       setTestLoading(false);
     }
@@ -245,7 +246,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
           onStatusChange(telegramPlugin || null);
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelSettings] Auto-enable failed:', error);
     }
   };
@@ -269,8 +270,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
       } else {
         Message.error(result.msg || t('settings.assistant.approveFailed', 'Failed to approve pairing'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 
@@ -284,8 +285,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
       } else {
         Message.error(result.msg || t('settings.assistant.rejectFailed', 'Failed to reject pairing'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 
@@ -299,8 +300,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
       } else {
         Message.error(result.msg || t('settings.assistant.revokeFailed', 'Failed to revoke user'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 

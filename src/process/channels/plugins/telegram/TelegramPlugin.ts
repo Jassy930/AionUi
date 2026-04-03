@@ -175,7 +175,7 @@ export class TelegramPlugin extends BasePlugin {
         parse_mode: options.parse_mode,
         reply_markup: options.reply_markup,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Ignore "message is not modified" errors
       if (error instanceof GrammyError && error.description?.includes('message is not modified')) {
         return;
@@ -646,7 +646,7 @@ export class TelegramPlugin extends BasePlugin {
           displayName: me.first_name,
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       let errorMessage = 'Connection failed';
 
       if (error instanceof GrammyError) {

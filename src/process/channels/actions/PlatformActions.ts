@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -135,8 +136,8 @@ export const handlePairingShow: ActionHandler = async (context) => {
       parseMode: 'HTML',
       replyMarkup: getPairingCodeMarkup(platform, code),
     });
-  } catch (error: any) {
-    return createErrorResponse(`Failed to generate pairing code: ${error.message}`);
+  } catch (error: unknown) {
+    return createErrorResponse(`Failed to generate pairing code: ${getErrorMessage(error)}`);
   }
 };
 
@@ -177,8 +178,8 @@ export const handlePairingRefresh: ActionHandler = async (context) => {
       parseMode: 'HTML',
       replyMarkup: getPairingCodeMarkup(platform, code),
     });
-  } catch (error: any) {
-    return createErrorResponse(`Failed to refresh pairing code: ${error.message}`);
+  } catch (error: unknown) {
+    return createErrorResponse(`Failed to refresh pairing code: ${getErrorMessage(error)}`);
   }
 };
 

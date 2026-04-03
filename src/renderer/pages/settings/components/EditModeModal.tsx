@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 import type { IProvider } from '@/common/config/storage';
 import ModalHOC from '@/renderer/utils/ui/ModalHOC';
 import { Form, Input, Message, Select } from '@arco-design/web-react';
@@ -356,8 +357,8 @@ const EditModeModal = ModalHOC<{ data?: IProvider; onChange(data: IProvider): vo
                       } else {
                         message.error(res.msg || 'Failed to fetch models');
                       }
-                    } catch (error: any) {
-                      message.error(error.message || 'Failed to fetch models');
+                    } catch (error: unknown) {
+                      message.error(getErrorMessage(error) || 'Failed to fetch models');
                     }
                     return;
                   }

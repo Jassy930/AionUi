@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -106,9 +107,9 @@ export const handleToolConfirm: ActionHandler = async (context, params) => {
     // 返回成功但不带消息，agent 会继续执行并通过流回调更新消息
     // Return success without message, agent will continue and update via stream callback
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[ChatActions] Tool confirmation failed:', error);
-    return createErrorResponse(`Confirmation failed: ${error.message}`);
+    return createErrorResponse(`Confirmation failed: ${getErrorMessage(error)}`);
   }
 };
 

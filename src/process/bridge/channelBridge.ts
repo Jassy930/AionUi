@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -162,9 +163,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
       }
 
       return { success: true, data: Array.from(statusMap.values()) };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] getPluginStatus error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -181,9 +182,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
       }
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] enablePlugin error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -200,9 +201,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
       }
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] disablePlugin error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -214,9 +215,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
       const manager = getChannelManager();
       const result = await manager.testPlugin(pluginId, token, extraConfig);
       return { success: true, data: result };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] testPlugin error:', error);
-      return { success: false, data: { success: false, error: error.message } };
+      return { success: false, data: { success: false, error: getErrorMessage(error) } };
     }
   });
 
@@ -229,9 +230,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
     try {
       const data = await channelRepo.getPendingPairingRequests();
       return { success: true, data };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] getPendingPairings error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -250,9 +251,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
 
       console.log(`[ChannelBridge] Approved pairing for code ${code}`);
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] approvePairing error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -271,9 +272,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
 
       console.log(`[ChannelBridge] Rejected pairing code ${code}`);
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] rejectPairing error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -286,9 +287,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
     try {
       const data = await channelRepo.getChannelUsers();
       return { success: true, data };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] getAuthorizedUsers error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -301,9 +302,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
       await channelRepo.deleteChannelUser(userId);
       console.log(`[ChannelBridge] Revoked user ${userId}`);
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] revokeUser error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -316,9 +317,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
     try {
       const data = await channelRepo.getChannelSessions();
       return { success: true, data };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] getActiveSessions error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 
@@ -335,9 +336,9 @@ export function initChannelBridge(channelRepo: IChannelRepository): void {
         return { success: false, msg: result.error };
       }
       return { success: true };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[ChannelBridge] syncChannelSettings error:', error);
-      return { success: false, msg: error.message };
+      return { success: false, msg: getErrorMessage(error) };
     }
   });
 

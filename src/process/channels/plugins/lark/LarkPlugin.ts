@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -298,10 +299,11 @@ export class LarkPlugin extends BasePlugin {
           content: JSON.stringify(cardContent),
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Ignore common errors
-      const errorCode = error?.response?.data?.code || error?.code;
-      const errorMsg = error?.response?.data?.msg || error?.message || '';
+      const axiosErr = error as { response?: { data?: { code?: number; msg?: string } }; code?: number };
+      const errorCode = axiosErr?.response?.data?.code || axiosErr?.code;
+      const errorMsg = axiosErr?.response?.data?.msg || getErrorMessage(error);
 
       // Ignore "message not changed" or "not modified" errors
       if (errorCode === 230002 || errorMsg.includes('not modified')) {
@@ -647,10 +649,10 @@ export class LarkPlugin extends BasePlugin {
       });
 
       return { success: true, botInfo: { name: 'Lark Bot' } };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message || 'Failed to connect to Lark API',
+        error: getErrorMessage(error) || 'Failed to connect to Lark API',
       };
     }
   }

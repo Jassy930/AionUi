@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -234,9 +235,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
         setCredentialsTested(false);
         Message.error(result.data?.error || t('settings.lark.connectionFailed', 'Connection failed'));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setCredentialsTested(false);
-      Message.error(error.message || t('settings.lark.connectionFailed', 'Connection failed'));
+      Message.error(getErrorMessage(error) || t('settings.lark.connectionFailed', 'Connection failed'));
     } finally {
       setTestLoading(false);
     }
@@ -267,9 +268,9 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
         console.error('[LarkConfig] enablePlugin failed:', result.msg);
         Message.error(result.msg || t('settings.lark.enableFailed', 'Failed to enable Lark plugin'));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[LarkConfig] Auto-enable failed:', error);
-      Message.error(error.message || t('settings.lark.enableFailed', 'Failed to enable Lark plugin'));
+      Message.error(getErrorMessage(error) || t('settings.lark.enableFailed', 'Failed to enable Lark plugin'));
     }
   };
 
@@ -289,8 +290,8 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       } else {
         Message.error(result.msg || t('settings.assistant.approveFailed', 'Failed to approve pairing'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 
@@ -304,8 +305,8 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       } else {
         Message.error(result.msg || t('settings.assistant.rejectFailed', 'Failed to reject pairing'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 
@@ -319,8 +320,8 @@ const LarkConfigForm: React.FC<LarkConfigFormProps> = ({ pluginStatus, modelSele
       } else {
         Message.error(result.msg || t('settings.assistant.revokeFailed', 'Failed to revoke user'));
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     }
   };
 

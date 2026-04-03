@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -335,8 +336,8 @@ const ChannelModalContent: React.FC = () => {
           Message.error(result.msg || t('settings.assistant.disableFailed', 'Failed to disable plugin'));
         }
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     } finally {
       setEnableLoading(false);
     }
@@ -377,8 +378,8 @@ const ChannelModalContent: React.FC = () => {
           Message.error(result.msg || t('settings.assistant.disableFailed', 'Failed to disable plugin'));
         }
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     } finally {
       setLarkEnableLoading(false);
     }
@@ -418,8 +419,8 @@ const ChannelModalContent: React.FC = () => {
           Message.error(result.msg || t('settings.dingtalk.disableFailed', 'Failed to disable DingTalk plugin'));
         }
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     } finally {
       setDingtalkEnableLoading(false);
     }
@@ -456,8 +457,8 @@ const ChannelModalContent: React.FC = () => {
           Message.error(result.msg || t('settings.weixin.disableFailed', 'Failed to disable WeChat plugin'));
         }
       }
-    } catch (error: any) {
-      Message.error(error.message);
+    } catch (error: unknown) {
+      Message.error(getErrorMessage(error));
     } finally {
       setWeixinEnableLoading(false);
     }
@@ -540,8 +541,8 @@ const ChannelModalContent: React.FC = () => {
             );
           }
         }
-      } catch (error: any) {
-        Message.error(error.message || String(error));
+      } catch (error: unknown) {
+        Message.error(getErrorMessage(error) || String(error));
       } finally {
         setExtensionLoadingMap((prev) => ({ ...prev, [pluginType]: false }));
       }

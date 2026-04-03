@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -289,9 +290,9 @@ export class DingTalkPlugin extends BasePlugin {
         await this.finishAICard(cardSession.outTrackId, truncatedText);
         this.aiCardSessions.set(messageId, { ...cardSession, isFinished: true });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Ignore "not modified" style errors
-      const errorMsg = error?.message || '';
+      const errorMsg = getErrorMessage(error);
       if (errorMsg.includes('not modified') || errorMsg.includes('not found')) {
         return;
       }
@@ -870,10 +871,10 @@ export class DingTalkPlugin extends BasePlugin {
         success: false,
         error: response?.message || response?.errmsg || 'Failed to get access token',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message || 'Failed to connect to DingTalk API',
+        error: getErrorMessage(error) || 'Failed to connect to DingTalk API',
       };
     }
   }
