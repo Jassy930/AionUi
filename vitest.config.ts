@@ -78,12 +78,12 @@ export default defineConfig({
         'src/common/config/i18n-config.json',
       ],
       // Thresholds apply to the included file set.
-      // Keeping them informational until coverage ramps up across all files.
+      // Set to current baseline — raise progressively toward 80% target.
       thresholds: {
-        statements: 0,
-        branches: 0,
-        functions: 0,
-        lines: 0,
+        statements: 20,
+        branches: 15,
+        functions: 15,
+        lines: 20,
       },
     },
   },
