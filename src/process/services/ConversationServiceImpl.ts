@@ -70,7 +70,7 @@ export class ConversationServiceImpl implements IConversationService {
 
     if (sourceConversationId) {
       // Copy all messages from source conversation
-      const pageSize = 10000;
+      const pageSize = 200;
       let page = 0;
       let hasMore = true;
 

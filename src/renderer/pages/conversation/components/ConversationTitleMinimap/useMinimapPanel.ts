@@ -116,7 +116,7 @@ export const useMinimapPanel = (conversationId?: string): UseMinimapPanelReturn 
       const messages = await ipcBridge.database.getConversationMessages.invoke({
         conversation_id: conversationId,
         page: 0,
-        pageSize: 10000,
+        pageSize: 500,
       });
       setItems(buildTurnPreview(messages || []));
     } catch (error) {

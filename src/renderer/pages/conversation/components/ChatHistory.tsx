@@ -106,7 +106,7 @@ const ChatHistory: React.FC<{ onSessionClick?: () => void; collapsed?: boolean }
     const refresh = () => {
       // Get conversations from database instead of file storage
       ipcBridge.database.getUserConversations
-        .invoke({ page: 0, pageSize: 10000 })
+        .invoke({ page: 0, pageSize: 200 })
         .then((history) => {
           if (history && Array.isArray(history) && history.length > 0) {
             const sortedHistory = history.toSorted((a, b) => getActivityTime(b) - getActivityTime(a));
