@@ -88,30 +88,39 @@ const subscribeConversationListSync = (listener: () => void) => {
 
 const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snapshotState;
 
-const refreshConversations = () => {
-  void ipcBridge.database.getUserConversations
-    .invoke({ page: 0, pageSize: 200 })
-    .then((data) => {
-      if (data && Array.isArray(data)) {
-        const filteredData = data.filter(
-          (conv) => (conv.extra as { isHealthCheck?: boolean } | undefined)?.isHealthCheck !== true
-        );
-        conversationsState = filteredData;
-        conversationIdsState = new Set(filteredData.map((conversation) => conversation.id));
-        emitStoreChange();
-        return;
-      }
+const DEBOUNCE_MS = 300;
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-      conversationsState = [];
-      conversationIdsState = new Set();
-      emitStoreChange();
-    })
-    .catch((error) => {
-      console.error('[WorkspaceGroupedHistory] Failed to load conversations:', error);
-      conversationsState = [];
-      conversationIdsState = new Set();
-      emitStoreChange();
-    });
+const refreshConversations = () => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+  }
+  refreshTimer = setTimeout(() => {
+    refreshTimer = null;
+    void ipcBridge.database.getUserConversations
+      .invoke({ page: 0, pageSize: 200 })
+      .then((data) => {
+        if (data && Array.isArray(data)) {
+          const filteredData = data.filter(
+            (conv) => (conv.extra as { isHealthCheck?: boolean } | undefined)?.isHealthCheck !== true
+          );
+          conversationsState = filteredData;
+          conversationIdsState = new Set(filteredData.map((conversation) => conversation.id));
+          emitStoreChange();
+          return;
+        }
+
+        conversationsState = [];
+        conversationIdsState = new Set();
+        emitStoreChange();
+      })
+      .catch((error) => {
+        console.error('[WorkspaceGroupedHistory] Failed to load conversations:', error);
+        conversationsState = [];
+        conversationIdsState = new Set();
+        emitStoreChange();
+      });
+  }, DEBOUNCE_MS);
 };
 
 const markGenerating = (conversationId: string) => {
