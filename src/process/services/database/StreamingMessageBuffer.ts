@@ -43,6 +43,7 @@ export class StreamingMessageBuffer {
   // 默认配置
   private readonly UPDATE_INTERVAL = 300; // 300ms 更新一次
   private readonly CHUNK_BATCH_SIZE = 20; // 或累积 20 个 chunk
+  private readonly MAX_BUFFERS = 100; // 最大缓冲区数量
 
   constructor(private config?: StreamingConfig) {
     if (config?.updateInterval) {
@@ -68,6 +69,11 @@ export class StreamingMessageBuffer {
     let buffer = this.buffers.get(messageId);
 
     if (!buffer) {
+      // Evict oldest buffer if at capacity
+      if (this.buffers.size >= this.MAX_BUFFERS) {
+        this.evictOldest();
+      }
+
       // 首次 chunk，初始化缓冲区（存储 mode 到 buffer 而非实例）
       buffer = {
         messageId,
@@ -155,6 +161,30 @@ export class StreamingMessageBuffer {
       }
     } catch (error) {
       console.error(`[StreamingBuffer] Failed to flush buffer for ${messageId}:`, error);
+    }
+  }
+
+  /**
+   * Evict the oldest buffer (LRU) by flushing it to the database first.
+   */
+  private evictOldest(): void {
+    let oldestKey: string | undefined;
+    let oldestTime = Infinity;
+
+    for (const [key, buf] of this.buffers) {
+      if (buf.lastDbUpdate < oldestTime) {
+        oldestTime = buf.lastDbUpdate;
+        oldestKey = key;
+      }
+    }
+
+    if (oldestKey) {
+      const buf = this.buffers.get(oldestKey)!;
+      if (buf.updateTimer) {
+        clearTimeout(buf.updateTimer);
+      }
+      // Flush before evicting to avoid data loss
+      void this.flushBuffer(buf.messageId, oldestKey, true);
     }
   }
 }
