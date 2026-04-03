@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/common/utils/utils';
 /**
  * @license
  * Copyright 2025 AionUi (aionui.com)
@@ -211,10 +212,10 @@ export class AionUIDatabase {
         success: true,
         data: true,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         data: false,
       };
     }
@@ -266,10 +267,10 @@ export class AionUIDatabase {
           last_login: null,
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -296,10 +297,10 @@ export class AionUIDatabase {
         success: true,
         data: user,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -319,10 +320,10 @@ export class AionUIDatabase {
         success: true,
         data: user ?? null,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         data: null,
       };
     }
@@ -343,10 +344,10 @@ export class AionUIDatabase {
         success: true,
         data: rows,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         data: [],
       };
     }
@@ -367,10 +368,10 @@ export class AionUIDatabase {
         success: true,
         data: row.count,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         data: 0,
       };
     }
@@ -394,10 +395,10 @@ export class AionUIDatabase {
         success: true,
         data: row.count > 0,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -417,10 +418,10 @@ export class AionUIDatabase {
         success: true,
         data: true,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         data: false,
       };
     }
@@ -444,10 +445,10 @@ export class AionUIDatabase {
         success: true,
         data: true,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         data: false,
       };
     }
@@ -465,10 +466,10 @@ export class AionUIDatabase {
         success: true,
         data: true,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         data: false,
       };
     }
@@ -507,10 +508,10 @@ export class AionUIDatabase {
         success: true,
         data: conversation,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -532,10 +533,10 @@ export class AionUIDatabase {
         success: true,
         data: rowToConversation(row),
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -587,10 +588,10 @@ export class AionUIDatabase {
         success: true,
         data: row ? rowToConversation(row) : null,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -615,8 +616,8 @@ export class AionUIDatabase {
       `);
       const result = stmt.run(modelJson, now, finalUserId, source, type);
       return { success: true, data: result.changes };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -658,7 +659,7 @@ export class AionUIDatabase {
         pageSize,
         hasMore: (page + 1) * pageSize < countResult.count,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Database] Get conversations error:', error);
       return {
         data: [],
@@ -703,10 +704,10 @@ export class AionUIDatabase {
         success: true,
         data: true,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -720,10 +721,10 @@ export class AionUIDatabase {
         success: true,
         data: result.changes > 0,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -758,16 +759,18 @@ export class AionUIDatabase {
         success: true,
         data: message,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
 
   getConversationMessages(conversationId: string, page = 0, pageSize = 100, order = 'ASC'): IPaginatedResult<TMessage> {
     try {
+      const safeOrder = order === 'DESC' ? 'DESC' : 'ASC';
+
       const countResult = this.db
         .prepare('SELECT COUNT(*) as count FROM messages WHERE conversation_id = ?')
         .get(conversationId) as {
@@ -780,7 +783,7 @@ export class AionUIDatabase {
             SELECT *
             FROM messages
             WHERE conversation_id = ?
-            ORDER BY created_at ${order} LIMIT ?
+            ORDER BY created_at ${safeOrder} LIMIT ?
             OFFSET ?
           `
         )
@@ -793,7 +796,7 @@ export class AionUIDatabase {
         pageSize,
         hasMore: (page + 1) * pageSize < countResult.count,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Database] Get messages error:', error);
       return {
         data: [],
@@ -878,7 +881,7 @@ export class AionUIDatabase {
         pageSize,
         hasMore: (page + 1) * pageSize < countResult.count,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[Database] Search messages error:', error);
       return {
         items: [],
@@ -914,10 +917,10 @@ export class AionUIDatabase {
         success: true,
         data: result.changes > 0,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -931,10 +934,10 @@ export class AionUIDatabase {
         success: true,
         data: result.changes > 0,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -948,10 +951,10 @@ export class AionUIDatabase {
         success: true,
         data: result.changes,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -977,10 +980,10 @@ export class AionUIDatabase {
         success: true,
         data: row ? rowToMessage(row) : null,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -1029,8 +1032,8 @@ export class AionUIDatabase {
       });
 
       return { success: true, data: plugins };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error), data: [] };
     }
   }
 
@@ -1075,8 +1078,8 @@ export class AionUIDatabase {
       };
 
       return { success: true, data: plugin };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1121,8 +1124,8 @@ export class AionUIDatabase {
       );
 
       return { success: true, data: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1138,8 +1141,8 @@ export class AionUIDatabase {
         )
         .run(status, lastConnected ?? null, now, pluginId);
       return { success: true, data: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1150,8 +1153,8 @@ export class AionUIDatabase {
     try {
       const result = this.db.prepare('DELETE FROM assistant_plugins WHERE id = ?').run(pluginId);
       return { success: true, data: result.changes > 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1171,8 +1174,8 @@ export class AionUIDatabase {
         .prepare('SELECT * FROM assistant_users ORDER BY authorized_at DESC')
         .all() as IChannelUserRow[];
       return { success: true, data: rows.map(rowToChannelUser) };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error), data: [] };
     }
   }
 
@@ -1186,8 +1189,8 @@ export class AionUIDatabase {
         .get(platformUserId, platformType) as IChannelUserRow | undefined;
 
       return { success: true, data: row ? rowToChannelUser(row) : null };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1212,8 +1215,8 @@ export class AionUIDatabase {
       );
 
       return { success: true, data: user };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1225,8 +1228,8 @@ export class AionUIDatabase {
       const now = Date.now();
       this.db.prepare('UPDATE assistant_users SET last_active = ? WHERE id = ?').run(now, userId);
       return { success: true, data: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1237,8 +1240,8 @@ export class AionUIDatabase {
     try {
       const result = this.db.prepare('DELETE FROM assistant_users WHERE id = ?').run(userId);
       return { success: true, data: result.changes > 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1258,8 +1261,8 @@ export class AionUIDatabase {
         .prepare('SELECT * FROM assistant_sessions ORDER BY last_activity DESC')
         .all() as IChannelSessionRow[];
       return { success: true, data: rows.map(rowToChannelSession) };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error), data: [] };
     }
   }
 
@@ -1272,8 +1275,8 @@ export class AionUIDatabase {
         | IChannelSessionRow
         | undefined;
       return { success: true, data: row ? rowToChannelSession(row) : null };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1306,8 +1309,8 @@ export class AionUIDatabase {
       );
 
       return { success: true, data: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1318,8 +1321,8 @@ export class AionUIDatabase {
     try {
       const result = this.db.prepare('DELETE FROM assistant_sessions WHERE id = ?').run(sessionId);
       return { success: true, data: result.changes > 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1342,8 +1345,8 @@ export class AionUIDatabase {
         )
         .all(now) as IChannelPairingCodeRow[];
       return { success: true, data: rows.map(rowToPairingRequest) };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: [] };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error), data: [] };
     }
   }
 
@@ -1356,8 +1359,8 @@ export class AionUIDatabase {
         | IChannelPairingCodeRow
         | undefined;
       return { success: true, data: row ? rowToPairingRequest(row) : null };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1382,8 +1385,8 @@ export class AionUIDatabase {
       );
 
       return { success: true, data: request };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1394,8 +1397,8 @@ export class AionUIDatabase {
     try {
       const result = this.db.prepare('UPDATE assistant_pairing_codes SET status = ? WHERE code = ?').run(status, code);
       return { success: true, data: result.changes > 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1409,8 +1412,8 @@ export class AionUIDatabase {
         .prepare("DELETE FROM assistant_pairing_codes WHERE expires_at < ? OR status != 'pending'")
         .run(now);
       return { success: true, data: result.changes };
-    } catch (error: any) {
-      return { success: false, error: error.message, data: 0 };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error), data: 0 };
     }
   }
 
@@ -1545,8 +1548,8 @@ export class AionUIDatabase {
           config.updatedAt
         );
       return { success: true, data: config };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1570,11 +1573,17 @@ export class AionUIDatabase {
     }>
   ): IQueryResult<boolean> {
     const ENCRYPTED_FIELDS = new Set(['auth_token', 'device_public_key', 'device_private_key', 'device_token']);
+    const ALLOWED_COLUMNS = new Set([
+      'name', 'protocol', 'url', 'auth_type', 'auth_token', 'avatar', 'description',
+      'device_id', 'device_public_key', 'device_private_key', 'device_token',
+      'allow_insecure', 'status', 'last_connected_at',
+    ]);
     try {
       const sets: string[] = [];
       const values: unknown[] = [];
 
       for (const [key, value] of Object.entries(updates)) {
+        if (!ALLOWED_COLUMNS.has(key)) continue;
         sets.push(`${key} = ?`);
         values.push(ENCRYPTED_FIELDS.has(key) && typeof value === 'string' ? encryptString(value) : (value ?? null));
       }
@@ -1585,8 +1594,8 @@ export class AionUIDatabase {
 
       this.db.prepare(`UPDATE remote_agents SET ${sets.join(', ')} WHERE id = ?`).run(...values);
       return { success: true, data: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -1594,8 +1603,8 @@ export class AionUIDatabase {
     try {
       const result = this.db.prepare('DELETE FROM remote_agents WHERE id = ?').run(id);
       return { success: true, data: result.changes > 0 };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error: unknown) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 

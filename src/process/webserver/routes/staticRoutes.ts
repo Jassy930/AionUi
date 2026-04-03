@@ -6,12 +6,14 @@
 
 import type { Express, Request, Response } from 'express';
 import express from 'express';
+import crypto from 'crypto';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { getPlatformServices } from '@/common/platform';
 import { TokenMiddleware } from '@process/webserver/auth/middleware/TokenMiddleware';
 import { AUTH_CONFIG } from '../config/constants';
+import { getCspProd } from '../config/constants';
 import { createRateLimiter } from '../middleware/security';
 
 /**
@@ -115,7 +117,15 @@ function registerProductionStaticRoutes(expressApp: Express, staticRoot: string,
         res.clearCookie(AUTH_CONFIG.COOKIE.NAME);
       }
 
-      const htmlContent = fs.readFileSync(indexHtmlPath, 'utf8');
+      // Generate per-request nonce for CSP
+      const nonce = crypto.randomBytes(16).toString('base64');
+      res.setHeader('Content-Security-Policy', getCspProd(nonce));
+
+      let htmlContent = fs.readFileSync(indexHtmlPath, 'utf8');
+      // Inject nonce into all <script> and <style> tags
+      htmlContent = htmlContent.replace(/<script(?=[\s>])/gi, `<script nonce="${nonce}"`);
+      htmlContent = htmlContent.replace(/<style(?=[\s>])/gi, `<style nonce="${nonce}"`);
+
       res.setHeader('Content-Type', 'text/html');
       res.send(htmlContent);
     } catch (error) {

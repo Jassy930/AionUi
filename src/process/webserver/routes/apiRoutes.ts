@@ -8,6 +8,7 @@ import { type Express, type NextFunction, type Request, type RequestHandler, typ
 import fs from 'fs';
 import fsPromises from 'fs/promises';
 import http from 'node:http';
+import { createRequire } from 'module';
 import path from 'path';
 import multer from 'multer';
 import { getDatabase } from '@process/services/database';
@@ -192,8 +193,8 @@ function resolveMatchedStaticAsset(requestPath: string): MatchedStaticAsset | nu
 }
 
 function registerExtensionWebuiRoutes(app: Express, validateApiAccess: RequestHandler): void {
-  // eslint-disable-next-line no-eval
-  const nativeRequire = eval('require') as NodeRequire;
+  // Use createRequire instead of eval('require') to load extension modules safely
+  const nativeRequire = createRequire(import.meta.url);
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const requestPath = normalizeMountPath(req.path || '/');

@@ -14,7 +14,7 @@ Sentry.init({
 });
 
 import './process/utils/configureConsoleLog';
-import { app, BrowserWindow, nativeImage, net, powerMonitor, protocol, screen } from 'electron';
+import { app, BrowserWindow, nativeImage, net, powerMonitor, protocol, screen, shell } from 'electron';
 import fixPath from 'fix-path';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -22,6 +22,12 @@ import { pathToFileURL } from 'url';
 import { initMainAdapterWithWindow } from './common/adapter/main';
 import { ipcBridge } from './common';
 import { AION_ASSET_PROTOCOL } from '@process/extensions';
+import { isPathWithinDirectory } from '@process/extensions/sandbox/pathSafety';
+import {
+  getUserExtensionsDir,
+  getAppDataExtensionsDir,
+  getEnvExtensionsDirs,
+} from '@process/extensions/constants';
 import { initializeProcess } from './process';
 import { ProcessConfig } from './process/utils/initStorage';
 import { loadShellEnvironmentAsync, logEnvironmentDiagnostics, mergePaths } from './process/utils/shellEnv';
@@ -266,6 +272,23 @@ const createWindow = ({ showOnReady = true }: { showOnReady?: boolean } = {}): v
   }
 
   initMainAdapterWithWindow(mainWindow);
+
+  // Security: restrict navigation and new window creation
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const parsed = new URL(url);
+    // Allow only the app's own URLs (dev server or file://)
+    if (parsed.protocol !== 'file:' && parsed.origin !== new URL(mainWindow.webContents.getURL()).origin) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
+  });
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Open external links in the system browser
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      void shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
   bindMainWindowReferences(mainWindow);
   setupApplicationMenu();
 
@@ -393,10 +416,25 @@ const handleAppReady = async (): Promise<void> => {
     if (process.platform === 'win32' && filePath.startsWith('/') && /^\/[A-Za-z]:/.test(filePath)) {
       filePath = filePath.slice(1);
     }
-    if (!fs.existsSync(filePath)) {
-      console.warn(`[aion-asset] File not found: ${request.url} -> ${filePath}`);
+
+    // Security: restrict to allowed directories (extension dirs + app resources)
+    const allowedDirs = [
+      getUserExtensionsDir(),
+      getAppDataExtensionsDir(),
+      ...getEnvExtensionsDirs(),
+      path.join(app.getAppPath(), 'resources'),
+    ];
+    const resolved = path.resolve(filePath);
+    const isAllowed = allowedDirs.some((dir) => isPathWithinDirectory(resolved, dir));
+    if (!isAllowed) {
+      console.warn(`[aion-asset] Blocked access outside allowed directories: ${resolved}`);
+      return new Response('Forbidden', { status: 403 });
     }
-    return net.fetch(pathToFileURL(filePath).href);
+
+    if (!fs.existsSync(resolved)) {
+      console.warn(`[aion-asset] File not found: ${request.url} -> ${resolved}`);
+    }
+    return net.fetch(pathToFileURL(resolved).href);
   });
 
   // Set dock icon in development mode on macOS

@@ -180,6 +180,7 @@ export const SECURITY_CONFIG = {
     CSP_DEV:
       "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: blob:; media-src 'self' blob:;",
     // 生产环境 CSP（Content-Security-Policy for production）
+    // Note: Use getCspProd(nonce) for nonce-based CSP in production routes
     CSP_PROD:
       "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: blob:; media-src 'self' blob:;",
   },
@@ -195,3 +196,12 @@ export const SECURITY_CONFIG = {
     },
   },
 } as const;
+
+/**
+ * Generate nonce-based CSP for production.
+ * script-src uses nonce instead of 'unsafe-inline' to prevent XSS.
+ * style-src retains 'unsafe-inline' because Arco Design injects inline styles at runtime.
+ */
+export function getCspProd(nonce: string): string {
+  return `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' ws: wss: blob:; media-src 'self' blob:;`;
+}

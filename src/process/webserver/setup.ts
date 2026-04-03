@@ -64,6 +64,7 @@ function getCsrfSecret(): string {
 // 在模块加载时生成一次，整个进程生命周期内保持不变
 // Generate once at module load, remains constant for process lifetime
 const CSRF_SECRET = getCsrfSecret();
+const COOKIE_SECRET = crypto.randomBytes(32).toString('hex');
 
 /**
  * 配置基础中间件
@@ -79,7 +80,7 @@ export function setupBasicMiddleware(app: Express): void {
   // Must be applied after cookieParser and before routes
   // CSRF 保护使用 tiny-csrf（符合 CodeQL 要求）
   // 必须在 cookieParser 之后、路由之前应用
-  app.use(cookieParser('cookie-parser-secret'));
+  app.use(cookieParser(COOKIE_SECRET));
   // P1 安全修复：登录接口启用 CSRF 保护（前端已添加 withCsrfToken）
   // P1 Security fix: Enable CSRF for login (frontend already uses withCsrfToken)
   // 仅排除 QR 登录（有独立的一次性 token 保护机制）
@@ -162,8 +163,9 @@ export function setupCors(app: Express, port: number, allowRemote: boolean): voi
           return;
         }
 
+        // Reject 'null' origin (sent by sandboxed iframes — potential CSRF vector)
         if (origin === 'null') {
-          callback(null, true);
+          callback(new Error('Origin "null" is not allowed'), false);
           return;
         }
 

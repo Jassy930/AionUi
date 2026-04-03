@@ -4,63 +4,88 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { safeStorage } from 'electron';
+
 /**
  * Credential storage utilities
- * Uses Base64 encoding for basic obfuscation when storing in database.
- * Note: This is not cryptographically secure, but provides basic protection
- * against casual inspection of the database file.
+ * Uses Electron safeStorage for OS-level encryption (Keychain on macOS, DPAPI on Windows,
+ * libsecret on Linux). Falls back to Base64 encoding when safeStorage is unavailable.
  */
 
 /**
- * Check if encryption is available (always returns true for database storage)
+ * Check if OS-level encryption is available
  */
 export function isEncryptionAvailable(): boolean {
-  return true;
+  try {
+    return safeStorage.isEncryptionAvailable();
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Encode a string value for storage
- * @param plaintext - The string to encode
- * @returns Base64-encoded string with prefix
+ * Encrypt a string value for storage using safeStorage (preferred) or Base64 (fallback).
+ * @param plaintext - The string to encrypt
+ * @returns Encrypted string with prefix (ss: for safeStorage, b64: for Base64 fallback)
  */
 export function encryptString(plaintext: string): string {
   if (!plaintext) return '';
 
   try {
+    if (safeStorage.isEncryptionAvailable()) {
+      const encrypted = safeStorage.encryptString(plaintext);
+      return `ss:${encrypted.toString('base64')}`;
+    }
+  } catch (error) {
+    console.warn('[CredentialStorage] safeStorage encryption failed, falling back to Base64:', error);
+  }
+
+  // Fallback to Base64 when safeStorage is unavailable
+  try {
     const encoded = Buffer.from(plaintext, 'utf-8').toString('base64');
     return `b64:${encoded}`;
   } catch (error) {
     console.error('[CredentialStorage] Encoding failed:', error);
-    // Fallback to plain storage with prefix
     return `plain:${plaintext}`;
   }
 }
 
 /**
- * Decode a previously encoded string
- * @param encoded - The encoded string (with b64:, enc:, or plain: prefix)
- * @returns The decoded plaintext
+ * Decrypt a previously encrypted string.
+ * Supports all formats: ss: (safeStorage), b64: (Base64), enc: (legacy), plain:, and unencoded.
+ * @param encoded - The encrypted/encoded string
+ * @returns The decrypted plaintext
  */
 export function decryptString(encoded: string): string {
   if (!encoded) return '';
+
+  // Handle ss: prefix (safeStorage format)
+  if (encoded.startsWith('ss:')) {
+    try {
+      const buffer = Buffer.from(encoded.slice(3), 'base64');
+      return safeStorage.decryptString(buffer);
+    } catch (error) {
+      console.error('[CredentialStorage] safeStorage decryption failed:', error);
+      return '';
+    }
+  }
 
   // Handle plain: prefix
   if (encoded.startsWith('plain:')) {
     return encoded.slice(6);
   }
 
-  // Handle b64: prefix (new format)
+  // Handle b64: prefix
   if (encoded.startsWith('b64:')) {
     try {
       return Buffer.from(encoded.slice(4), 'base64').toString('utf-8');
     } catch (error) {
-      console.error('[CredentialStorage] Decoding failed:', error);
+      console.error('[CredentialStorage] Base64 decoding failed:', error);
       return '';
     }
   }
 
-  // Handle enc: prefix (legacy format from safeStorage)
-  // Try to decode as base64 for backward compatibility
+  // Handle enc: prefix (legacy format)
   if (encoded.startsWith('enc:')) {
     console.warn('[CredentialStorage] Found legacy enc: format, attempting base64 decode');
     try {
@@ -72,14 +97,13 @@ export function decryptString(encoded: string): string {
   }
 
   // Legacy: no prefix means it was stored before encoding was added
-  // Return as-is for backward compatibility
   console.warn('[CredentialStorage] Found legacy unencoded value, returning as-is');
   return encoded;
 }
 
 /**
- * Encode credentials object
- * Only encodes sensitive fields (token)
+ * Encrypt credentials object.
+ * Only encrypts sensitive fields (token).
  */
 export function encryptCredentials(
   credentials: Record<string, string | number | boolean | undefined> | undefined
@@ -94,7 +118,7 @@ export function encryptCredentials(
 }
 
 /**
- * Decode credentials object
+ * Decrypt credentials object.
  */
 export function decryptCredentials(
   credentials: Record<string, string | number | boolean | undefined> | undefined
