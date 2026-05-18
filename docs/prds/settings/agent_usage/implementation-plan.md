@@ -46,7 +46,7 @@ Expected: 看到 `aionui-common`、`aionui-api-types`、`axum`、`serde`、`toki
 
 - [ ] **Step 3: 创建 crate Cargo.toml**
 
-Create `crates/aionui-analytics/Cargo.toml` (依赖用 workspace 继承; 若某依赖 workspace 未声明则用具体版本, 以 Step 2 看到的写法为准):
+Create `crates/aionui-analytics/Cargo.toml`。**所有依赖必须 workspace 继承 (回应 review P2)** — 经核实 root `Cargo.toml` 已声明: `dirs = "6"` (非 5)、`walkdir = "2"`、`dashmap = "6"`、`tempfile = "3"`、`chrono`、`tokio`、`axum`、`serde`、`serde_json`、`tracing`、`tower`; **没有 `futures`** (workspace 只有 `futures-util = "0.3"`)。本 crate MVP 用同步 `walkdir` 枚举, 不需要 `futures`/`buffer_unordered` (并发优化非 MVP, YAGNI):
 
 ```toml
 [package]
@@ -63,14 +63,15 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
-walkdir = "2"
-dirs = "5"
-dashmap = "6"
-futures = "0.3"
+walkdir = { workspace = true }
+dirs = { workspace = true }
+dashmap = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
 ```
+
+> 创建前先 `grep -n 'walkdir\|dirs\|dashmap\|tempfile\|chrono' Cargo.toml` 复核 workspace 实际声明; 若某项 workspace 未声明再降级为具体版本并在 PR 说明。Step 3 的 `[dev-dependencies]` 后续 Task 1.9 会追加 `tower = { workspace = true, features = ["util"] }`。
 
 - [ ] **Step 4: 创建占位 lib.rs**
 
@@ -444,6 +445,29 @@ fn parses_codex_session_event_level() {
     assert_eq!(session.events[1].input_tokens, 500);
     assert!(session.events[0].at < session.events[1].at);
 }
+
+#[test]
+fn codex_fallback_when_no_event_level_usage() {
+    // 只有 total_token_usage, 无 last_token_usage / 无行级时间 → 必须 fallback,
+    // 不能静默丢弃整文件 (回应 review P2)。
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let path = dir.join("codex_fallback.jsonl");
+    let session = CodexParser.parse_file(&path).expect("must fallback, not Empty");
+    assert_eq!(session.agent, Agent::Codex);
+    // fallback 单事件归到会话开始日; 总量 = 700+40+0
+    assert_eq!(session.events.len(), 1);
+    let e = &session.events[0];
+    assert_eq!(e.input_tokens, 700);
+    assert_eq!(e.output_tokens, 40);
+    assert_eq!(e.at, session.started_at);
+}
+```
+
+Also create `crates/aionui-analytics/tests/fixtures/codex_fallback.jsonl` (无 last_token_usage, 无 event_msg 行级时间也可被 fallback 覆盖):
+
+```
+{"timestamp":"2026-05-10T08:00:00.000Z","type":"session_meta","payload":{"id":"sess-fb","timestamp":"2026-05-10T08:00:00.000Z","cwd":"/work/fb","cli_version":"0.111.0","model_provider":"crs"}}
+{"timestamp":"2026-05-10T08:00:05.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":700,"cached_input_tokens":0,"output_tokens":40,"reasoning_output_tokens":0,"total_tokens":740}}}}
 ```
 
 - [ ] **Step 3: 运行测试确认失败**
@@ -470,6 +494,8 @@ impl LogParser for CodexParser {
         let mut model = String::new();
         let mut started_at: Option<chrono::DateTime<chrono::Utc>> = None;
         let mut message_count: u64 = 0;
+        // (input, output, cached) 最后一个 total_token_usage, 用于 fallback。
+        let mut last_total: Option<(u64, u64, u64)> = None;
 
         for_each_json_line(path, |v| {
             let line_ts = v.get("timestamp").and_then(|t| t.as_str()).and_then(parse_ts);
@@ -515,7 +541,19 @@ impl LogParser for CodexParser {
                     if !is_tc {
                         return;
                     }
-                    let last = payload.and_then(|p| p.get("info")).and_then(|i| i.get("last_token_usage"));
+                    let info = payload.and_then(|p| p.get("info"));
+                    // 记录最后一个 total_token_usage 作为 fallback 兜底 (回应 review P2)。
+                    if let Some(total) = info.and_then(|i| i.get("total_token_usage")) {
+                        let g = |k: &str| total.get(k).and_then(|x| x.as_u64()).unwrap_or(0);
+                        last_total = Some((
+                            g("input_tokens"),
+                            g("output_tokens"),
+                            g("cached_input_tokens"),
+                        ));
+                    }
+                    let last = info.and_then(|i| i.get("last_token_usage"));
+                    // 事件级: 需要 last_token_usage + 行级时间; 缺任一则不记事件,
+                    // 由文件末尾的 fallback 兜底, 不静默丢弃整段用量。
                     let (last, at) = match (last, line_ts) {
                         (Some(l), Some(at)) => (l, at),
                         _ => return,
@@ -533,8 +571,21 @@ impl LogParser for CodexParser {
             }
         })?;
 
+        // Fallback (回应 review P2, 见 design.md:158): 若无任何事件级用量, 但存在
+        // total_token_usage, 把整会话总量归到会话开始日 (无开始日则跳过该会话)。
         if events.is_empty() {
-            return Err(ParseError::Empty);
+            match (last_total, started_at) {
+                (Some((i, o, c)), Some(start)) if i + o + c > 0 => {
+                    events.push(UsageEvent {
+                        at: start,
+                        input_tokens: i,
+                        output_tokens: o,
+                        cache_read_tokens: c,
+                        cache_creation_tokens: 0,
+                    });
+                }
+                _ => return Err(ParseError::Empty),
+            }
         }
         events.sort_by_key(|e| e.at);
         let started_at = started_at.unwrap_or_else(|| events.first().unwrap().at);
@@ -1285,12 +1336,21 @@ Create `crates/aionui-analytics/src/routes.rs`:
 ```rust
 use axum::Router;
 use axum::extract::{Json, Query, State};
+use axum::http::HeaderMap;
 use axum::routing::get;
 
 use aionui_api_types::{AgentUsageQuery, AgentUsageResponse, ApiResponse};
 use aionui_common::AppError;
 
 use crate::service::{AgentUsageService, UsageRequest};
+
+/// WebHost 反向代理在转发 WebUI 远程请求时注入的标志 header。
+/// 安全模型 (回应 review P1, 见 design.md 访问边界):
+/// - 本机 Electron 直连后端, 不经 WebHost 代理, 不带此 header → is_remote=false → 不脱敏
+/// - WebUI remote 必经 WebHost 代理, WebHost **先剥离客户端同名 header 再注入** → is_remote=true → 脱敏
+/// - 即使公网客户端自带伪造 header, 经 WebHost 时会被剥离重置; 退一步即便到达,
+///   也只会让该客户端看到**更脱敏**的结果 (安全方向), 不会泄露更多
+pub const WEBUI_REMOTE_HEADER: &str = "x-aionui-webui-remote";
 
 #[derive(Clone)]
 pub struct AnalyticsRouterState {
@@ -1305,10 +1365,14 @@ pub fn analytics_routes(state: AnalyticsRouterState) -> Router {
 
 async fn get_agent_usage(
     State(state): State<AnalyticsRouterState>,
+    headers: HeaderMap,
     Query(q): Query<AgentUsageQuery>,
 ) -> Result<Json<ApiResponse<AgentUsageResponse>>, AppError> {
-    // is_remote 由可信内部 header 决定 (实现期细化, 见 design.md 访问边界)。
-    // 当前阶段默认 false; 阶段 3 联调时按 WebHost 注入的 header 解析。
+    let is_remote = headers
+        .get(WEBUI_REMOTE_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == "1")
+        .unwrap_or(false);
     let resp = state
         .service
         .build(UsageRequest {
@@ -1317,7 +1381,7 @@ async fn get_agent_usage(
             refresh: q.refresh.unwrap_or(false),
             sessions_limit: q.sessions_limit.unwrap_or(200),
             sessions_offset: q.sessions_offset.unwrap_or(0),
-            is_remote: false,
+            is_remote,
         })
         .await?;
     Ok(Json(ApiResponse::ok(resp)))
@@ -1355,21 +1419,28 @@ Modify `crates/aionui-app/src/router/routes.rs`:
 Run: `cargo build -p aionui-app`
 Expected: PASS
 
-- [ ] **Step 6: 写 route 鉴权测试**
+- [ ] **Step 6: 加 tower dev-dep (workspace 继承)**
 
-Append to `crates/aionui-analytics/tests/service.rs` 末尾一个轻量 router 测试 (验证 handler 返回 ApiResponse 结构; 鉴权 403 由 aionui-app 集成测试覆盖, 此处只测 handler 契约):
+Modify `crates/aionui-analytics/Cargo.toml` `[dev-dependencies]` 加一行 (workspace 已声明 `tower = { version = "0.5" }`, 见 root `Cargo.toml:63`; util feature 用于 `ServiceExt::oneshot`):
+
+```toml
+tower = { workspace = true, features = ["util"] }
+```
+
+- [ ] **Step 7: 写 handler 契约 + is_remote header 测试**
+
+Append to `crates/aionui-analytics/tests/service.rs` 末尾 (验证 ApiResponse 结构 + header 驱动远程脱敏; app 级 403 鉴权测试见 Task 1.9b):
 
 ```rust
 #[tokio::test]
 async fn handler_returns_apiresponse_envelope() {
     use aionui_analytics::routes::{AnalyticsRouterState, analytics_routes};
     use aionui_analytics::service::AgentUsageService;
+    use tower::ServiceExt;
     let tmp = tempfile::tempdir().unwrap();
     let app = analytics_routes(AnalyticsRouterState {
         service: AgentUsageService::with_home(tmp.path().join("nohome")),
     });
-    // 用 tower::ServiceExt oneshot 发请求。
-    use tower::ServiceExt;
     let res = app
         .oneshot(
             axum::http::Request::builder()
@@ -1385,20 +1456,96 @@ async fn handler_returns_apiresponse_envelope() {
     assert_eq!(v["success"], true);
     assert!(v["data"]["sources"].is_array());
 }
+
+#[tokio::test]
+async fn webui_remote_header_triggers_project_sanitize() {
+    use aionui_analytics::routes::{AnalyticsRouterState, WEBUI_REMOTE_HEADER, analytics_routes};
+    use aionui_analytics::service::AgentUsageService;
+    use tower::ServiceExt;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let home = tmp.path();
+    let cdir = home.join(".claude/projects/encoded");
+    std::fs::create_dir_all(&cdir).unwrap();
+    std::fs::write(
+        cdir.join("s.jsonl"),
+        r#"{"type":"assistant","timestamp":"2026-05-17T10:00:00.000Z","cwd":"/Users/secret/proj","sessionId":"s1","message":{"model":"claude-opus-4-7","role":"assistant","usage":{"input_tokens":1,"output_tokens":1,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}"#,
+    )
+    .unwrap();
+
+    let mk = || {
+        analytics_routes(AnalyticsRouterState {
+            service: AgentUsageService::with_home(home.to_path_buf()),
+        })
+    };
+    let get = |with_header: bool| {
+        let mut b = axum::http::Request::builder().uri("/api/analytics/agent-usage?time_range=all");
+        if with_header {
+            b = b.header(WEBUI_REMOTE_HEADER, "1");
+        }
+        b.body(axum::body::Body::empty()).unwrap()
+    };
+
+    // 无 header → 完整路径。
+    let res = mk().oneshot(get(false)).await.unwrap();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["data"]["sessions"][0]["project"], "/Users/secret/proj");
+
+    // 带 webui-remote header → 脱敏为 basename。
+    let res = mk().oneshot(get(true)).await.unwrap();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["data"]["sessions"][0]["project"], "proj");
+}
 ```
 
-If `tower` not in dev-deps, add to `crates/aionui-analytics/Cargo.toml` `[dev-dependencies]`: `tower = { version = "0.5", features = ["util"] }` (与 workspace 其它 crate 一致, 先 `grep -rn "tower" crates/aionui-app/Cargo.toml` 确认版本)。
-
-- [ ] **Step 7: 运行测试**
+- [ ] **Step 8: 运行测试**
 
 Run: `cargo test -p aionui-analytics`
-Expected: PASS (全部测试)
+Expected: PASS (全部测试, 含 `webui_remote_header_triggers_project_sanitize`)
 
-- [ ] **Step 8: 提交**
+- [ ] **Step 9: 提交**
 
 ```bash
 git add crates/aionui-analytics/src/routes.rs crates/aionui-analytics/Cargo.toml crates/aionui-app/src/router/state.rs crates/aionui-app/src/router/routes.rs crates/aionui-analytics/tests/service.rs
-git commit -m "feat(analytics): wire authenticated /api/analytics/agent-usage route"
+git commit -m "feat(analytics): wire authenticated route with webui-remote sanitize"
+```
+
+---
+
+### Task 1.9b: app 级鉴权 403 集成测试 (回应 review P2)
+
+> design.md:322 要求 analytics 端点未登录返回 403。Task 1.9 的 handler 测试用 naked router (无 auth layer), 不能验证鉴权。此 task 在 aionui-app 层补集成测试。
+
+**Files:**
+- 调查: `crates/aionui-app/tests/` 是否已有路由集成测试范例
+- Create/Modify: `crates/aionui-app/tests/analytics_auth.rs` (或并入现有 app 集成测试文件)
+
+- [ ] **Step 1: 找 app 级鉴权测试范例**
+
+Run:
+```bash
+ls crates/aionui-app/tests/ 2>/dev/null; grep -rn "403\|FORBIDDEN\|auth_middleware\|create_router\|build_module_states" crates/aionui-app/tests/ 2>/dev/null | head
+```
+Expected: 看是否有现成的 "未登录请求受保护端点 → 403" 范例。若有, 完全复用其 setup (构造完整 router + 不带 token 发请求); 若无, 按下一步最小实现。
+
+- [ ] **Step 2: 写 403 测试**
+
+参照 Step 1 找到的范例构造完整 app router (经 `create_router_with_all_state` 或等价路径), 对 `GET /api/analytics/agent-usage` **不带任何 auth token/cookie** 发请求, 断言状态码为 `403`。
+
+> 关键: 必须用**带 auth layer 的完整 app router** (即 `routes.rs` 里 `.merge(analytics_authenticated)` 后的 router), 不能用 Task 1.9 的 naked `analytics_routes`。若现有范例用某 helper 构造 test app, 直接复用; 该测试若依赖较多 app 启动状态而范例缺失, 则记录"app 级鉴权测试需依赖现有集成测试基建", 在 PR 描述注明并保留 handler 级测试作为最低保障 (不谎报已覆盖)。
+
+- [ ] **Step 3: 运行测试**
+
+Run: `cargo test -p aionui-app analytics`
+Expected: PASS — 未登录访问 analytics 端点返回 403
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add crates/aionui-app/tests/
+git commit -m "test(analytics): app-level 403 for unauthenticated analytics endpoint"
 ```
 
 ---
@@ -1449,7 +1596,9 @@ Expected: 推送成功 (不创建 PR, 等阶段 3 联调通过统一处理)
 
 **Files:**
 - Create: `packages/desktop/src/common/types/agentUsage.ts`
-- Create: `packages/desktop/src/common/types/__tests__/agentUsage.test.ts`
+- Create: `tests/unit/common/agentUsage.test.ts`
+
+> **测试路径约束 (回应 review P1)**: AionUi `vitest.config.ts:29-45` 只收 `tests/unit/**/*.test.ts` (node 环境) 与 `tests/unit/**/*.dom.test.tsx` (jsdom 环境)。放在 `packages/desktop/src/**/__tests__/` 的测试**不会被执行**。所有新测试必须放 `tests/unit/`; React 组件/hook 测试必须命名 `*.dom.test.tsx`。
 
 - [ ] **Step 1: 创建分支**
 
@@ -1460,12 +1609,12 @@ git checkout dev && git pull && git checkout -b feat/agent-usage-stats
 
 - [ ] **Step 2: 写失败测试 (snake→camel mapper)**
 
-Create `packages/desktop/src/common/types/__tests__/agentUsage.test.ts`:
+Create `tests/unit/common/agentUsage.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { fromApiAgentUsage } from '../agentUsage';
-import type { AgentUsageResponseRaw } from '../agentUsage';
+import { fromApiAgentUsage } from '@/common/types/agentUsage';
+import type { AgentUsageResponseRaw } from '@/common/types/agentUsage';
 
 describe('fromApiAgentUsage', () => {
   it('maps snake_case API shape to camelCase domain model', () => {
@@ -1519,7 +1668,7 @@ describe('fromApiAgentUsage', () => {
 - [ ] **Step 3: 运行确认失败**
 
 Run: `bun run test -- agentUsage`
-Expected: FAIL — `../agentUsage` 不存在
+Expected: FAIL — `@/common/types/agentUsage` 不存在 (且测试**确实被收集执行** — 因路径在 `tests/unit/`)
 
 - [ ] **Step 4: 写类型 + mapper**
 
@@ -1721,7 +1870,7 @@ Expected: PASS
 - [ ] **Step 6: 提交**
 
 ```bash
-git add packages/desktop/src/common/types/agentUsage.ts packages/desktop/src/common/types/__tests__/agentUsage.test.ts
+git add packages/desktop/src/common/types/agentUsage.ts tests/unit/common/agentUsage.test.ts
 git commit -m "feat(usage-stats): add agent usage types and snake->camel mapper"
 ```
 
@@ -1731,15 +1880,17 @@ git commit -m "feat(usage-stats): add agent usage types and snake->camel mapper"
 
 **Files:**
 - Modify: `packages/desktop/src/common/adapter/ipcBridge.ts`
-- Create: `packages/desktop/src/common/adapter/__tests__/analyticsPath.test.ts`
+- Create: `tests/unit/common-adapter/analyticsPath.test.ts`
+
+> 测试路径同 Task 2.1 约束: 必须放 `tests/unit/`。`tests/unit/common-adapter/` 目录已存在。
 
 - [ ] **Step 1: 写失败测试 (path builder query 拼接)**
 
-Create `packages/desktop/src/common/adapter/__tests__/analyticsPath.test.ts`:
+Create `tests/unit/common-adapter/analyticsPath.test.ts`:
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { buildAgentUsagePath } from '../ipcBridge';
+import { buildAgentUsagePath } from '@/common/adapter/ipcBridge';
 
 describe('buildAgentUsagePath', () => {
   it('builds path with no params', () => {
@@ -1819,7 +1970,7 @@ Expected: 无 error (pre-existing warning 忽略); 若 import 位置报错, 移�
 - [ ] **Step 6: 提交**
 
 ```bash
-git add packages/desktop/src/common/adapter/ipcBridge.ts packages/desktop/src/common/adapter/__tests__/analyticsPath.test.ts
+git add packages/desktop/src/common/adapter/ipcBridge.ts tests/unit/common-adapter/analyticsPath.test.ts
 git commit -m "feat(usage-stats): add ipcBridge.analytics with query path builder"
 ```
 
@@ -2362,11 +2513,13 @@ git commit -m "feat(usage-stats): add container page, route and settings tab"
 ### Task 2.6: 容器逻辑测试
 
 **Files:**
-- Create: `packages/desktop/src/renderer/pages/settings/UsageStats/__tests__/index.test.tsx`
+- Create: `tests/unit/settings/UsageStats.dom.test.tsx`
+
+> React 组件测试: 必须放 `tests/unit/` 且命名 `*.dom.test.tsx` 才会进入 jsdom project (`vitest.config.ts:45`)。参考现有 `tests/unit/settings/SystemSettings.dom.test.tsx`。
 
 - [ ] **Step 1: 写测试 (mock ipcBridge: loading/empty/error/unsupported/翻页)**
 
-Create `packages/desktop/src/renderer/pages/settings/UsageStats/__tests__/index.test.tsx`:
+Create `tests/unit/settings/UsageStats.dom.test.tsx`:
 
 ```tsx
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -2381,7 +2534,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o?.count != null ? `${k}:${o.count}` : k) }),
 }));
 
-import UsageStats from '../index';
+import UsageStats from '@renderer/pages/settings/UsageStats';
 
 const baseResp = {
   scannedAt: 'x',
@@ -2427,13 +2580,133 @@ Expected: PASS (3 个)
 - [ ] **Step 3: 提交**
 
 ```bash
-git add packages/desktop/src/renderer/pages/settings/UsageStats/__tests__
+git add tests/unit/settings/UsageStats.dom.test.tsx
 git commit -m "test(usage-stats): add container logic tests"
 ```
 
 ---
 
 ## 阶段 3 — 联调与收尾
+
+### Task 3.0b: WebHost 注入 webui-remote header (完成 P1 安全闭环)
+
+> **回应 review P1**: Task 1.9 后端已读 `x-aionui-webui-remote` header 决定脱敏, 但必须有人注入它, 否则 WebUI 远程仍暴露完整 project 路径。WebHost 反向代理 `forwardToBackend` 是 WebUI 远程 `/api/*` 的唯一通道, 且能拿到 `allowRemote` 标志 — 在此注入, 并**先剥离客户端可能伪造的同名 header** (防止伪造)。
+
+**Files:**
+- Modify: `packages/web-host/src/static-server.ts` (`forwardToBackend` + 其调用处)
+- Create: `tests/unit/web-cli/webuiRemoteHeader.test.ts`
+
+> 该 task 在 AionUi 仓库 `feat/agent-usage-stats` 分支 (web-host 属 AionUi monorepo)。
+
+- [ ] **Step 1: 写失败测试**
+
+Create `tests/unit/web-cli/webuiRemoteHeader.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { buildBackendHeaders } from '@/web-host/static-server';
+
+describe('buildBackendHeaders', () => {
+  it('injects webui-remote=1 when allowRemote and strips client-forged header', () => {
+    const h = buildBackendHeaders(
+      { host: 'evil', 'x-aionui-webui-remote': '0' },
+      9999,
+      true
+    );
+    expect(h['x-aionui-webui-remote']).toBe('1');
+    expect(h.host).toBe('127.0.0.1:9999');
+  });
+  it('strips header entirely when not remote (local Electron path)', () => {
+    const h = buildBackendHeaders({ 'x-aionui-webui-remote': '1' }, 9999, false);
+    expect(h['x-aionui-webui-remote']).toBeUndefined();
+  });
+});
+```
+
+> 路径前缀别名: 确认 web-host 在 tsconfig/vitest 的别名 (先 `grep -rn "web-host\|@/web-host" tsconfig*.json vitest.config.ts | head`)。若无 `@/web-host` 别名, 用相对路径或为测试加别名; 若 web-host 不在 vitest include 的 source 范围, 测试改放 `tests/unit/web-cli/` 并用其能解析的导入路径 (web-cli 测试目录已存在)。
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `bun run test -- webuiRemoteHeader`
+Expected: FAIL — `buildBackendHeaders` 未导出
+
+- [ ] **Step 3: 重构 forwardToBackend 抽出可测的 header 构造**
+
+Modify `packages/web-host/src/static-server.ts`:
+
+- 新增并导出纯函数 (放在 `forwardToBackend` 上方):
+
+```ts
+export const WEBUI_REMOTE_HEADER = 'x-aionui-webui-remote';
+
+/**
+ * Build headers forwarded to the backend.
+ * Security (review P1): always strip any client-supplied WEBUI_REMOTE_HEADER
+ * first, then set it to "1" only when this WebHost runs in remote mode.
+ * Local Electron talks to the backend directly (not via this proxy) so it
+ * never carries the header → backend treats it as local (no sanitize).
+ */
+export function buildBackendHeaders(
+  reqHeaders: Record<string, string | string[] | undefined>,
+  backendPort: number,
+  allowRemote: boolean
+): Record<string, string | string[] | undefined> {
+  const headers = { ...reqHeaders, host: `127.0.0.1:${backendPort}` };
+  // 不信任客户端自带的该 header — 一律先删除。
+  delete headers[WEBUI_REMOTE_HEADER];
+  if (allowRemote) {
+    headers[WEBUI_REMOTE_HEADER] = '1';
+  }
+  return headers;
+}
+```
+
+- 修改 `forwardToBackend` 签名加 `allowRemote: boolean`, 其 `options.headers` 改为 `buildBackendHeaders(req.headers as Record<string, string | string[] | undefined>, backendPort, allowRemote)`:
+
+```ts
+function forwardToBackend(
+  req: IncomingMessage,
+  res: ServerResponse,
+  backendPort: number,
+  allowRemote: boolean
+): void {
+  const options: http.RequestOptions = {
+    hostname: '127.0.0.1',
+    port: backendPort,
+    path: req.url,
+    method: req.method,
+    headers: buildBackendHeaders(
+      req.headers as Record<string, string | string[] | undefined>,
+      backendPort,
+      allowRemote
+    ),
+  };
+  // ... 其余 proxy 逻辑不变
+```
+
+- 更新调用处 (约 static-server.ts:144): `forwardToBackend(req, res, opts.backendPort, allowRemote);` (`allowRemote` 在 `startStaticServer` 内已计算, 见 static-server.ts:121)
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `bun run test -- webuiRemoteHeader`
+Expected: PASS (2 个)
+
+- [ ] **Step 5: lint/format/typecheck**
+
+Run:
+```bash
+bun run lint:fix && bun run format && bunx tsc --noEmit
+```
+Expected: 无 error
+
+- [ ] **Step 6: 提交**
+
+```bash
+git add packages/web-host/src/static-server.ts tests/unit/web-cli/webuiRemoteHeader.test.ts
+git commit -m "feat(web-host): inject webui-remote header for backend path sanitize"
+```
+
+---
 
 ### Task 3.1: 端到端联调 (前端 + 阶段1 二进制)
 
@@ -2456,6 +2729,14 @@ Run: `bun run dev` (按项目实际 dev 命令; 先 `grep '"dev"' package.json`)
 - 把 `~/.codex` 临时改名模拟目录缺失 → SourceBanner 显示缺失提示, 不崩
 - 超大量日志 (本机真实数据) → 首次有 Spin, 不卡死
 - 无日志环境 → Empty 态
+
+- [ ] **Step 2c: WebUI 远程脱敏验证 (回应 review P1)**
+
+以 WebUI 远程模式启动 (allowRemote, 监听 0.0.0.0; 查启动方式 `grep -rn "allowRemote\|startWebHost\|webui" scripts/webui.ts | head`), 从**另一台机器或非 loopback 地址**访问 `/api/analytics/agent-usage`:
+- 期望: `sessions[].project` 为脱敏 basename (如 `proj`), **不含**完整路径/用户名
+- 对照: 本机 Electron 直接打开同页面 → `project` 为完整路径 (本机用户看自己的)
+- 若无第二台机器: `curl -H 'x-aionui-webui-remote: 1' http://127.0.0.1:<webhostPort>/api/analytics/agent-usage` 应返回脱敏路径; 不带该 header 直连后端端口应返回完整路径
+- 无法验证则如实记录"未能验证 WebUI 远程脱敏", 不谎报 (per verification-before-completion)
 
 - [ ] **Step 3: 记录验证结果**
 
@@ -2518,19 +2799,21 @@ git push
 - ④ 日/周趋势 → Task 1.6 bucket_key + Task 2.4 TrendChart ✓
 - 直接读本地日志不存储 → Task 1.3/1.4 parser, 无 DB 写 ✓
 - High-1 数据量边界 (time_range/分页) → Task 1.5 query DTO + 1.8 service 过滤 + 1.6 分页 ✓
-- High-2 Codex 事件级归桶 → Task 1.4 last_token_usage + 1.6 cross_day 测试 ✓
-- Med-3 path builder 拼 query → Task 2.2 buildAgentUsagePath + 测试 ✓
-- Med-4 鉴权 + 远程脱敏 → Task 1.9 route_layer(auth) + 1.8 sanitize_project + 测试 ✓
-- Med-5 snake→camel 映射 → Task 2.1 fromApiAgentUsage + 测试 ✓
+- High-2 Codex 事件级归桶 + fallback → Task 1.4 last_token_usage + last_total fallback + cross_day/fallback 测试 ✓
+- Med-3 path builder 拼 query → Task 2.2 buildAgentUsagePath + 测试 (路径 `tests/unit/`) ✓
+- Med-4 鉴权 + 远程脱敏 (闭环) → 后端读 header Task 1.9 + WebHost 注入 header Task 3.0b + 1.8 sanitize_project + handler header 测试 + Task 1.9b app 级 403 ✓
+- Med-5 snake→camel 映射 → Task 2.1 fromApiAgentUsage + 测试 (路径 `tests/unit/`) ✓
 - i18n 独立模块 → Task 2.3 ✓
 - 设置页新 Tab → Task 2.5 ✓
 - 缓存 mtime+size → Task 1.7 ✓
 
-**2. 占位符扫描:** 无 TBD/TODO; 每个 code step 含完整代码; 命令含 expected。is_remote 在 Task 1.9 标注为阶段3细化 (有明确说明与 fallback 默认值, 非占位符)。
+**2. 占位符扫描:** 无 TBD/TODO; 每个 code step 含完整代码; 命令含 expected。is_remote 已是**完整闭环** (后端 Task 1.9 读 `x-aionui-webui-remote` header + WebHost Task 3.0b 注入并先剥离客户端伪造同名 header), 非占位符。
 
-**3. 类型一致性:** `ParsedSession`/`UsageEvent`/`Agent` 在 Task 1.2 定义, 1.3/1.4/1.6/1.8 一致使用; `AgentUsageResponse` (Rust) 与 `AgentUsageResponseRaw` (TS) 字段严格对齐 (Task 1.5 vs 2.1 逐字段核对一致); `analytics_routes`/`AnalyticsRouterState` 在 1.9 定义与接入名一致; `fromApiAgentUsage`/`buildAgentUsagePath` 在 2.1/2.2 定义与 2.5 调用一致。
+**3. 类型一致性:** `ParsedSession`/`UsageEvent`/`Agent` 在 Task 1.2 定义, 1.3/1.4/1.6/1.8 一致使用; `last_total` 在 1.4 codex parser 声明与使用一致; `AgentUsageResponse` (Rust) 与 `AgentUsageResponseRaw` (TS) 字段严格对齐 (Task 1.5 vs 2.1 逐字段核对一致); `analytics_routes`/`AnalyticsRouterState`/`WEBUI_REMOTE_HEADER` 在 1.9 定义与 1.9b/3.0b 引用一致; `fromApiAgentUsage`/`buildAgentUsagePath` 在 2.1/2.2 定义与 2.5 调用一致。
+
+**4. 测试可执行性 (回应 review P1):** 所有 TS 测试路径已迁至 `tests/unit/` (node) / `tests/unit/**/*.dom.test.tsx` (jsdom), 与 `vitest.config.ts:29-45` include 规则匹配, 确保 `bun run test` 真正收集执行。Rust 测试均 `cargo test -p aionui-analytics` 可达。
 
 **已知实现期待定项 (非计划缺陷):**
 - TrendChart 是否用现有图表库 → Task 2.4 Step 4 给出"查依赖, 有则用, 无则零依赖 div 方案", 两条路径都可执行
-- is_remote 标志来源 → 阶段 3 按 design.md 访问边界的进程内 secret 方案细化; 当前 default false 不阻塞功能
 - 端口号/二进制名/dev 命令 → 各 Step 给出 grep 验证命令, 不写死
+- app 级 403 测试依赖 aionui-app 现有集成测试基建 → Task 1.9b Step 2 明确"有范例则复用, 无则如实记录不谎报", 不会假装已覆盖

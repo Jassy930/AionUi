@@ -198,7 +198,7 @@ crates/aionui-analytics/
 - `aionui-app/src/router/routes.rs` 按现有模块模式接入: `let analytics_authenticated = analytics_routes(states.analytics).route_layer(from_fn_with_state(auth_mw_state.clone(), auth_middleware));`, 然后 `.merge(analytics_authenticated)`。**不要**直接 `.merge(aionui_analytics::analytics_routes(...))`, 因为当前 AionCLI 不是真正的全局 auth middleware 模型
 - workspace `Cargo.toml` 注册新成员
 
-并发与性能: `walkdir` 同步枚举; 解析用 `spawn_blocking`; 文件间并发 (`buffer_unordered`, 上限 16)。首次几百文件数秒内; 命中缓存毫秒级。
+并发与性能: MVP 用 `walkdir` 同步枚举 + 同步解析 (handler 已在 tokio 多线程运行时, 单请求阻塞可接受); `time_range` 文件级粗筛大幅降低首次扫描量; mtime+size 缓存使后续请求毫秒级。文件间并发 (`spawn_blocking` + `buffer_unordered`) 为后续优化项, **非 MVP** (YAGNI; 实测首次扫描慢再引入, 届时需在 root workspace 显式加并发依赖)。
 
 错误处理: 复用 `aionui-common` 的 `AppError` 和 `aionui-api-types::ApiResponse`。原则: **单文件失败降级、整体请求不失败**, 失败信息经响应 data 透传; 真正的 query 参数错误/内部不可恢复错误才返回 `AppError`。
 
@@ -309,7 +309,7 @@ pages/settings/UsageStats/
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | CLI 升级改日志格式 | 解析失效 | 宽松解析、缺失给默认值; 坏行/坏文件降级; `sources.error` 透传 |
-| 日志量极大 | 首次慢 | mtime+size 增量缓存; 文件并发 (上限 16); `spawn_blocking`; `Spin` 反馈 |
+| 日志量极大 | 首次慢 | mtime+size 增量缓存; `time_range` 文件级粗筛; `Spin` 反馈; 文件并发为后续优化项 (非 MVP) |
 | 两仓库版本不同步 | 调用旧后端 404 | 端点缺失时前端友好降级提示; 契约类型同源 |
 | Codex 趋势精度 | 跨天会话失真 | 见第 4 节 High-2 口径: 按 `last_token_usage` 事件时间归桶, fallback 才会话级 |
 | **WebUI 远程模式暴露** | 远程访问者可读本机会话路径/项目名/用量 | 见下方「访问边界」 |
