@@ -68,6 +68,18 @@
 查询参数 (可选):
 - `trend_granularity`: `day` (默认) | `week`
 - `refresh`: `true` 强制全量重解析 (忽略缓存)
+- `time_range`: `7d` | `30d` (默认) | `90d` | `all` — 限定扫描/聚合的时间窗 (按会话 `last_active_at`)。汇总卡片、按模型、趋势均在此窗内统计
+- `sessions_limit`: 默认 `200`, 上限 `1000` — 会话明细返回条数 (按 `last_active_at` 倒序取前 N)
+- `sessions_offset`: 默认 `0` — 会话明细分页偏移
+
+### 数据量边界 (回应 review High-1)
+
+虚拟滚动只解决前端 DOM, 不解决后端扫描/JSON 序列化/网络传输。本机日志可达数千文件、上万会话, 一次性返回全量 `sessions` 会让首次打开 Tab 卡死。因此:
+
+- **会话明细必须限量**: `sessions` 默认仅返回最近 200 条 (`sessions_limit`/`sessions_offset` 分页), 响应附 `sessions_total` 供前端展示 "共 N 条 / 已加载 M 条" 与翻页
+- **汇总/按模型/趋势仍按 `time_range` 窗口全量聚合** (这些是聚合标量, 数据量小, 不随会话数膨胀)
+- **扫描层面**: `time_range` 非 `all` 时, 后端按文件路径/mtime 先过滤掉窗口外文件再解析 (Codex 路径含日期 `YYYY/MM/DD` 可直接裁剪; Claude 用文件 mtime 粗筛 + 解析后按会话时间精筛), 显著降低首次扫描量
+- 前端默认请求 `time_range=30d`, 提供时间窗切换与会话分页/加载更多
 
 响应 JSON (在 `aionui-api-types` 用 serde 定义, 前后端共享契约):
 
@@ -105,6 +117,10 @@
         "by_agent": { "claude": 2100000, "codex": 450000 } }
     ]
   },
+  "time_range": "30d",
+  "sessions_total": 1480,
+  "sessions_limit": 200,
+  "sessions_offset": 0,
   "sessions": [
     { "agent": "claude", "session_id": "f76eb77b-...",
       "project": "/Users/jassy/Documents/xxx",
@@ -116,6 +132,8 @@
 }
 ```
 
+`sessions_total` 为时间窗内会话总数 (未受 limit 截断), 前端据此显示总数与翻页。
+
 ### 字段口径
 
 | 项 | Claude Code | Codex |
@@ -126,8 +144,12 @@
 | 时间 | 消息 `timestamp` | 行级 `timestamp` |
 | messages | assistant 消息条数 | `response_item` 计数 |
 
-- `total_tokens` 统一 = `input + output + cache_read + cache_creation`; Codex 直接用其 `total_token_usage.total_tokens`
-- 趋势按 `total_tokens` 归桶到日/周; Codex 无逐消息 token 时整会话归到会话开始日
+- `total_tokens` 统一 = `input + output + cache_read + cache_creation`; Codex 会话总量直接用最后一个 `token_count` 的 `info.total_token_usage.total_tokens`
+- **趋势归桶口径 (回应 review High-2)**: Codex 的 `token_count` 事件带 `info.last_token_usage` (单轮增量) 与行级 `timestamp`。趋势必须按**每个 `token_count` 事件**的 `last_token_usage` 按其事件时间归桶, 而非整会话归到开始日 —— 否则跨天长会话的日趋势严重失真。归桶规则:
+  - Codex: 遍历会话内所有 `token_count` 事件, 取 `last_token_usage` 的各项相加为该事件增量, 按事件 `timestamp` 落入日/周桶
+  - Claude: 每条 assistant 消息的 `message.usage` 按该消息 `timestamp` 落桶 (本就逐消息, 天然精确)
+  - Fallback: 仅当 Codex 缺失 `last_token_usage`/事件时间时, 才把该会话总量归到会话开始日
+  - 一致性: 趋势所有桶之和应约等于汇总卡片 `total_tokens` (允许 fallback 会话造成的微小偏差, 文档/tooltip 注明)
 - 坏行/坏文件: 跳过并计入 `files_skipped`, 不让请求失败; 降级状态经 `sources[].available/error` 透传给前端
 
 ## 5. Rust 后端模块设计 (AionCLI)
@@ -159,9 +181,9 @@ crates/aionui-analytics/
 职责与边界:
 - `parser::LogParser` trait: `parse_file(path) -> Result<ParsedSession, ParseError>`。两实现各自封装格式细节, 互不依赖。坏行 `continue`, 坏文件返回 `Err` 由上层计 skipped。
 - `cache::UsageCache`: mtime+size 未变直接返回缓存, 否则重解析。进程常驻。
-- `service::AgentUsageService`: 用 `dirs::home_dir()` 定位目录; 目录不存在 → `available:false` 不报错; `walkdir` 枚举 `*.jsonl`; 逐文件走 cache; `refresh=true` 绕过缓存。
-- `aggregate`: 纯函数, 无 IO, 易测。
-- `routes`: 仅 query 解析 + 调 service + `Json(resp)`。
+- `service::AgentUsageService`: 用 `dirs::home_dir()` 定位目录; 目录不存在 → `available:false` 不报错; `walkdir` 枚举 `*.jsonl`; **按 `time_range` 先做文件级裁剪** (Codex 按路径日期段, Claude 按 mtime 粗筛); 逐文件走 cache; `refresh=true` 绕过缓存。会话明细按 `last_active_at` 倒序后应用 `sessions_offset`/`sessions_limit`, 同时算出 `sessions_total`。**远程脱敏**: 入口接收「请求是否远程」标志, 远程时对输出 `project` 做 basename 脱敏。
+- `aggregate`: 纯函数, 无 IO, 易测。输入含 `time_range` 窗口与粒度; 趋势按事件级 (`last_token_usage`/逐消息 usage) 归桶 (见第 4 节 High-2); 输出汇总/按模型/趋势 + 截断后的会话页 + `sessions_total`。
+- `routes`: 解析全部 query (`trend_granularity`/`time_range`/`refresh`/`sessions_limit`/`sessions_offset`); 从请求提取远程标志传入 service; `Json(resp)`。走全局 `auth_middleware` (不加 auth 白名单)。
 
 接入组装层:
 - `aionui-api-types` 新增 `src/analytics.rs` 定义所有 `AgentUsage*` DTO, `lib.rs` 导出
@@ -176,9 +198,33 @@ crates/aionui-analytics/
 
 ### IPC 桥接
 
-沿用现有 "renderer → process → AionCLI HTTP" 范式 (现 `ipcBridge.conversation.*` 即此模式), 不发明新机制:
-- `packages/desktop/src/common/adapter/ipcBridge.ts` 新增 `analytics.getAgentUsage`, 映射 `GET /api/analytics/agent-usage`, 入参 `{ trendGranularity?, refresh? }`
-- 响应类型 `AgentUsageResponse` 放 `packages/desktop/src/common/types/`, 与第 4 节 JSON 严格对齐
+沿用现有 "renderer → process → AionCLI HTTP" 范式 (现 `ipcBridge.conversation.*` 即此模式), 不发明新机制。
+
+**Path builder 必须手动拼 query (回应 review Med-3)**: 经核验 `httpBridge.ts:205` 的 `httpGet` 不会自动序列化 query —— `resolvedPath = typeof path === 'function' ? path(params) : path`, query 必须在 path builder 函数内手动拼接 (现有 `conversation.get` 等均为此模式)。因此入参为 camelCase, 在 builder 内显式映射到 snake_case query:
+
+```ts
+analytics: {
+  getAgentUsage: withResponseMap(
+    httpGet<AgentUsageResponseRaw, AgentUsageParams>((p) => {
+      const q = new URLSearchParams();
+      if (p?.trendGranularity) q.set('trend_granularity', p.trendGranularity);
+      if (p?.timeRange) q.set('time_range', p.timeRange);
+      if (p?.refresh) q.set('refresh', 'true');
+      if (p?.sessionsLimit != null) q.set('sessions_limit', String(p.sessionsLimit));
+      if (p?.sessionsOffset != null) q.set('sessions_offset', String(p.sessionsOffset));
+      const qs = q.toString();
+      return `/api/analytics/agent-usage${qs ? `?${qs}` : ''}`;
+    }),
+    fromApiAgentUsage // snake_case → camelCase 域模型映射
+  ),
+}
+```
+
+测试必须覆盖 path builder 的 query 拼接 (各参数组合 → 正确 URL), 防止参数被静默忽略。
+
+**响应大小写映射策略 (回应 review Med-5)**: 后端 DTO 是 snake_case (serde 默认), renderer 域模型用 camelCase。明确采用现有 `withResponseMap` 模式: 定义 `AgentUsageResponseRaw` (snake_case, 与第 4 节 JSON 严格对齐, 仅 adapter 层可见) + `fromApiAgentUsage(raw) => AgentUsageResponse` (camelCase, 组件消费)。组件**只消费 camelCase 域模型**, 不直接碰 snake_case, 避免 TS 类型/i18n 展示层与后端 DTO 混杂。
+- `packages/desktop/src/common/adapter/ipcBridge.ts` 新增 `analytics.getAgentUsage`
+- 类型放 `packages/desktop/src/common/types/`: `AgentUsageResponseRaw` (snake) 与 `AgentUsageResponse` (camel) 并存, mapper 同文件
 - preload 走现有通用通道, 无需单独改
 
 ### 页面结构 (Settings 新 Tab)
@@ -219,20 +265,22 @@ pages/settings/UsageStats/
 
 ### 交互
 
-- 进页面自动拉取 (`refresh=false`, 吃后端缓存)
+- 进页面自动拉取 (`refresh=false`, 默认 `time_range=30d`, `sessions_limit=200`, 吃后端缓存)
 - 「刷新」→ `refresh=true` 强制后端重解析
-- 粒度切换整体重取 (保持简单)
-- 数据量大: 会话表虚拟滚动; 前端不做聚合计算
+- 粒度切换 / 时间窗切换 → 整体重取 (保持简单)
+- 会话明细: 显示 `共 sessions_total 条`, 翻页/「加载更多」时仅以新的 `sessions_offset` 重取 (汇总/趋势可不变)
+- 数据量大: 会话表前端虚拟滚动 (DOM 层) + 后端限量 (传输层), 双重防卡; 前端不做聚合计算
 
 ## 7. 测试策略
 
 | 层 | 测什么 | 怎么测 |
 |---|---|---|
 | Rust parser | 口径正确性、坏行跳过、空文件、损坏 JSON | `tests/` + 脱敏 fixtures, 断言 `ParsedSession` |
-| Rust aggregate | 多会话聚合、日/周归桶边界 | 表驱动单测, 构造输入 |
-| Rust service | 目录缺失降级、缓存命中不重解析 | 临时目录 fixture |
-| Rust routes | query 解析、JSON 结构、空数据 200 | Axum 测试 |
-| TS 前端 | 加载/错误/空态、粒度切换触发请求、契约对齐 | Vitest + mock ipcBridge |
+| Rust aggregate | 多会话聚合、日/周归桶边界、**Codex 跨天会话按事件归桶 (High-2)**、趋势之和≈汇总 | 表驱动单测, 构造跨天 `token_count` 事件输入 |
+| Rust service | 目录缺失降级、缓存命中不重解析、**`time_range` 文件裁剪**、**会话分页/`sessions_total`**、**远程 `project` 脱敏** | 临时目录 fixture + loopback/远程标志 |
+| Rust routes | 全量 query 解析、JSON 结构、空数据 200、鉴权生效 | Axum 测试 |
+| TS adapter | **path builder query 拼接 (各参数组合 → URL, Med-3)**、`fromApiAgentUsage` snake→camel 映射 (Med-5) | 纯单测, 断言 URL 与映射结果 |
+| TS 前端 | 加载/错误/空态、粒度/时间窗切换触发请求、会话翻页、契约对齐 | Vitest + mock ipcBridge |
 
 - 覆盖率遵循各项目约定 (AionUi ≥80%)
 - **fixtures 必须脱敏**: 去用户名、对话内容只留结构, 不提交隐私
@@ -246,8 +294,18 @@ pages/settings/UsageStats/
 | CLI 升级改日志格式 | 解析失效 | 宽松解析、缺失给默认值; 坏行/坏文件降级; `sources.error` 透传 |
 | 日志量极大 | 首次慢 | mtime+size 增量缓存; 文件并发 (上限 16); `spawn_blocking`; `Spin` 反馈 |
 | 两仓库版本不同步 | 调用旧后端 404 | 端点缺失时前端友好降级提示; 契约类型同源 |
-| Codex 无逐消息 token | 趋势精度低 | 文档明示口径; UI tooltip 注明 |
-| 隐私 (路径含用户名) | 信息暴露 | 仅本地展示不外传; fixtures 脱敏 |
+| Codex 趋势精度 | 跨天会话失真 | 见第 4 节 High-2 口径: 按 `last_token_usage` 事件时间归桶, fallback 才会话级 |
+| **WebUI 远程模式暴露** | 远程访问者可读本机会话路径/项目名/用量 | 见下方「访问边界」 |
+| 隐私 (路径含用户名) | 信息暴露 | 仅本地展示不外传; fixtures 脱敏; 见「访问边界」 |
+
+### 访问边界 (回应 review Med-4)
+
+经核验: AionCLI 默认绑 `127.0.0.1` (`aionui-common/src/constants.rs:23 DEFAULT_HOST`), 但存在 `REMOTE_HOST = "0.0.0.0"` (constants.rs:24) —— **WebUI 远程模式会监听全网卡**, 该端点将向远程访问者暴露本机 Claude/Codex 的会话路径、项目名与用量统计。约束:
+
+- **端点纳入现有鉴权**: AionCLI 顶层已有 `auth_middleware` (`aionui-app/src/router/routes.rs:16`)。`analytics_routes` 必须走全局鉴权中间件 (即不显式加入任何 auth 白名单), 与其它业务端点同等保护
+- **远程模式默认脱敏 `project` 路径**: 当请求来自非 loopback (远程模式) 时, 后端将 `project` 绝对路径替换为脱敏形式 (仅保留末级目录名, 或 `~/.../<basename>`)。Electron 本机访问保留完整路径 (本机用户看自己的)
+- 实现期确认 AionCLI 是否有现成的「请求是否远程」判定 (peer addr / 中间件), 复用之; 无则在 `analytics` service 入口按 socket 来源判定
+- 文档/PR 明示: 此端点在远程模式下经鉴权且路径脱敏, 不暴露完整本机目录结构
 
 ## 9. 分阶段交付
 
