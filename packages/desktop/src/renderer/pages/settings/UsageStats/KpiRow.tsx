@@ -17,17 +17,26 @@ const KpiRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
   const totalTok = a.reduce((s, x) => s + x.totalTokens, 0);
   const sessions = a.reduce((s, x) => s + x.sessions, 0);
   const messages = a.reduce((s, x) => s + x.messages, 0);
-  const cacheTok = a.reduce((s, x) => s + x.cacheReadTokens + x.cacheCreationTokens, 0);
-  const cacheRatio = pct(cacheTok, totalTok);
+  const cacheRead = a.reduce((s, x) => s + x.cacheReadTokens, 0);
+  const cacheCreation = a.reduce((s, x) => s + x.cacheCreationTokens, 0);
+  const cacheRatio = pct(cacheRead + cacheCreation, totalTok);
   const trendTotals = data.trend.points.map((p) => Object.values(p.bySegment).reduce((s, v) => s + v, 0));
+
+  // 按工具拆分子信息：claude X · codex Y（计数用千分位，与主值口径一致）
+  const byAgentLine = (pick: (x: (typeof a)[number]) => number): string =>
+    a.map((x) => `${x.agent} ${pick(x).toLocaleString()}`).join(' · ');
 
   // sparkline 仅挂在「总 token」卡：trend 仅含 per-bucket token 总量，
   // 给会话/消息/缓存占比卡画同一条 token 曲线会误导（图与指标不符）。
-  const cards: { label: string; value: string; spark?: number[] }[] = [
+  const cards: { label: string; value: string; spark?: number[]; sub?: string }[] = [
     { label: t('usageStats.kpi.totalTokens'), value: formatTokens(totalTok), spark: trendTotals },
-    { label: t('usageStats.kpi.sessions'), value: String(sessions) },
-    { label: t('usageStats.kpi.messages'), value: String(messages) },
-    { label: t('usageStats.kpi.cacheRatio'), value: `${cacheRatio.toFixed(0)}%` },
+    { label: t('usageStats.kpi.sessions'), value: String(sessions), sub: byAgentLine((x) => x.sessions) },
+    { label: t('usageStats.kpi.messages'), value: String(messages), sub: byAgentLine((x) => x.messages) },
+    {
+      label: t('usageStats.kpi.cacheRatio'),
+      value: `${cacheRatio.toFixed(0)}%`,
+      sub: `${t('usageStats.composition.cacheRead')} ${pct(cacheRead, totalTok).toFixed(0)}% · ${t('usageStats.composition.cacheCreation')} ${pct(cacheCreation, totalTok).toFixed(0)}%`,
+    },
   ];
   return (
     <Grid.Row gutter={12} style={{ marginBottom: 16 }}>
@@ -36,7 +45,25 @@ const KpiRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
           <Card bordered>
             <div style={{ fontSize: 12, color: 'var(--text-secondary, #86909c)' }}>{c.label}</div>
             <div style={{ fontSize: 22, fontWeight: 600, margin: '4px 0' }}>{c.value}</div>
-            {c.spark ? <Sparkline values={c.spark} /> : <div style={{ height: 32 }} />}
+            {c.spark ? (
+              <Sparkline values={c.spark} />
+            ) : (
+              <div
+                style={{
+                  height: 32,
+                  fontSize: 11,
+                  color: 'var(--text-secondary, #86909c)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={c.sub}
+              >
+                {c.sub}
+              </div>
+            )}
           </Card>
         </Grid.Col>
       ))}
