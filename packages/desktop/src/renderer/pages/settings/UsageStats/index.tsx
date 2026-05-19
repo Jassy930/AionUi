@@ -26,7 +26,7 @@ const UsageStats: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<'error' | 'unsupported' | null>(null);
   const [gran, setGran] = useState<'day' | 'week'>('day');
-  const [range, setRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [range, setRange] = useState<'today' | '7d' | '30d' | '90d' | 'all'>('30d');
   const [dim, setDim] = useState<'agent' | 'project' | 'model'>('agent');
   const [offset, setOffset] = useState(0);
 
@@ -83,7 +83,12 @@ const UsageStats: React.FC = () => {
   return (
     <SettingsPageWrapper>
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Radio.Group type='button' value={range} onChange={(v: string) => setRange(v as '7d' | '30d' | '90d' | 'all')}>
+        <Radio.Group
+          type='button'
+          value={range}
+          onChange={(v: string) => setRange(v as 'today' | '7d' | '30d' | '90d' | 'all')}
+        >
+          <Radio value='today'>{t('usageStats.timeRange.today')}</Radio>
           <Radio value='7d'>{t('usageStats.timeRange.7d')}</Radio>
           <Radio value='30d'>{t('usageStats.timeRange.30d')}</Radio>
           <Radio value='90d'>{t('usageStats.timeRange.90d')}</Radio>

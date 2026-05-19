@@ -169,7 +169,7 @@ export type AgentUsageResponse = {
 export type AgentUsageParams = {
   trendGranularity?: 'day' | 'week';
   trendDimension?: 'agent' | 'project' | 'model';
-  timeRange?: '7d' | '30d' | '90d' | 'all';
+  timeRange?: 'today' | '7d' | '30d' | '90d' | 'all';
   refresh?: boolean;
   sessionsLimit?: number;
   sessionsOffset?: number;

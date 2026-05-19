@@ -184,6 +184,10 @@ describe('UsageStats container', () => {
     fireEvent.click(screen.getByText((c) => c.includes('usageStats.granularity.week')));
     await waitFor(() => expect(invoke).toHaveBeenCalledTimes(3));
     expect(invoke.mock.calls[2][0]).toMatchObject({ trendGranularity: 'week' });
+
+    fireEvent.click(screen.getByText((c) => c.includes('usageStats.timeRange.today')));
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(4));
+    expect(invoke.mock.calls[3][0]).toMatchObject({ timeRange: 'today' });
   });
 
   it('changing trend dimension refetches with trendDimension', async () => {

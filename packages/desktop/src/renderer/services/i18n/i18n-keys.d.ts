@@ -1945,6 +1945,7 @@ export type I18nKey =
   | 'usageStats.timeRange.7d'
   | 'usageStats.timeRange.90d'
   | 'usageStats.timeRange.all'
+  | 'usageStats.timeRange.today'
   | 'usageStats.title'
   | 'usageStats.trend.dimension.agent'
   | 'usageStats.trend.dimension.label'
