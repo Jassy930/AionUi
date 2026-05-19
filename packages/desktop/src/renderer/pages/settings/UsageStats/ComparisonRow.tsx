@@ -11,7 +11,7 @@ import type { AgentUsageResponse } from '@/common/types/agentUsage';
 import CompositionDonut from './CompositionDonut';
 import RankBar from './RankBar';
 import { SEGMENT_PALETTE } from './Sparkline';
-import { topN, formatTokens } from './chartMath';
+import { topN, formatTokens, pct } from './chartMath';
 
 const ComparisonRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
   const { t } = useTranslation();
@@ -36,8 +36,21 @@ const ComparisonRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
     <Grid.Row gutter={12} style={{ marginBottom: 16 }}>
       <Grid.Col span={8}>
         <Card title={t('usageStats.comparison.title')} bordered>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <CompositionDonut segments={agentSegs} centerLabel={fmtTotal} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <CompositionDonut segments={agentSegs} centerLabel={fmtTotal} centerSub='tokens' />
+            <div style={{ fontSize: 12, lineHeight: 1.9 }}>
+              {agentSegs.map((s) => (
+                <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span
+                    style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: s.color }}
+                  />
+                  <span>{s.name}</span>
+                  <span style={{ color: 'var(--text-secondary, #86909c)' }}>
+                    {formatTokens(s.value)} ({pct(s.value, grandTotal).toFixed(0)}%)
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       </Grid.Col>
