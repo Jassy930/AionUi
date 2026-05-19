@@ -37,7 +37,28 @@ export type UsageByModelRaw = {
   total_tokens: number;
 };
 
-export type TrendPointRaw = { bucket: string; by_segment: Record<string, number> };
+export type TokenKindBreakdownRaw = {
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_creation: number;
+};
+export type TrendPointRaw = {
+  bucket: string;
+  by_segment: Record<string, number>;
+  by_token_kind: TokenKindBreakdownRaw;
+};
+
+export type UsageByProjectRaw = {
+  agent: string;
+  project: string;
+  sessions: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  total_tokens: number;
+};
 
 export type SessionRowRaw = {
   agent: string;
@@ -55,6 +76,7 @@ export type AgentUsageResponseRaw = {
   sources: UsageSourceStatusRaw[];
   summary: { by_agent: UsageByAgentRaw[] };
   by_model: UsageByModelRaw[];
+  by_project: UsageByProjectRaw[];
   trend: { granularity: string; points: TrendPointRaw[] };
   time_range: string;
   sessions_total: number;
@@ -96,7 +118,28 @@ export type UsageByModel = {
   totalTokens: number;
 };
 
-export type TrendPoint = { bucket: string; bySegment: Record<string, number> };
+export type TokenKindBreakdown = {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreation: number;
+};
+export type TrendPoint = {
+  bucket: string;
+  bySegment: Record<string, number>;
+  byTokenKind: TokenKindBreakdown;
+};
+
+export type UsageByProject = {
+  agent: string;
+  project: string;
+  sessions: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  totalTokens: number;
+};
 
 export type SessionRow = {
   agent: string;
@@ -114,6 +157,7 @@ export type AgentUsageResponse = {
   sources: UsageSourceStatus[];
   summary: { byAgent: UsageByAgent[] };
   byModel: UsageByModel[];
+  byProject: UsageByProject[];
   trend: { granularity: string; points: TrendPoint[] };
   timeRange: string;
   sessionsTotal: number;
@@ -164,9 +208,31 @@ export function fromApiAgentUsage(r: AgentUsageResponseRaw): AgentUsageResponse 
       cacheCreationTokens: m.cache_creation_tokens,
       totalTokens: m.total_tokens,
     })),
+    byProject: (r.by_project ?? []).map((p) => ({
+      agent: p.agent,
+      project: p.project,
+      sessions: p.sessions,
+      inputTokens: p.input_tokens,
+      outputTokens: p.output_tokens,
+      cacheReadTokens: p.cache_read_tokens,
+      cacheCreationTokens: p.cache_creation_tokens,
+      totalTokens: p.total_tokens,
+    })),
     trend: {
       granularity: r.trend.granularity,
-      points: r.trend.points.map((p) => ({ bucket: p.bucket, bySegment: p.by_segment })),
+      points: r.trend.points.map((p) => {
+        const tk = p.by_token_kind ?? { input: 0, output: 0, cache_read: 0, cache_creation: 0 };
+        return {
+          bucket: p.bucket,
+          bySegment: p.by_segment,
+          byTokenKind: {
+            input: tk.input,
+            output: tk.output,
+            cacheRead: tk.cache_read,
+            cacheCreation: tk.cache_creation,
+          },
+        };
+      }),
     },
     timeRange: r.time_range,
     sessionsTotal: r.sessions_total,
