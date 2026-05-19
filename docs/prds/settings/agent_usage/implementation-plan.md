@@ -1640,6 +1640,8 @@ git push -u origin feat/agent-usage-analytics
 ```
 Expected: 推送成功 (不创建 PR, 等阶段 3 联调通过统一处理)
 
+> **执行期阻塞 (待阶段 3 解决)**: 当前 `origin` 直指上游 `iOfficeAI/AionCLI`, 执行账号无写权限 (403 denied)。阶段 1 的 10 个 feature commit 已**完成并保留在本地 `feat/agent-usage-analytics` 分支**, 工作区干净, release 二进制 `target/release/aioncli` 已构建。推送需: 用户用有权限账号手动推, 或配置 fork remote 推到 fork 再开 PR。**此阻塞不影响阶段 2** (前端用本地 release 二进制联调即可)。阶段 3 创建 PR 前必须先解决此推送权限。
+
 ---
 
 ## 阶段 2 — AionUi 前端 (Settings Tab)
