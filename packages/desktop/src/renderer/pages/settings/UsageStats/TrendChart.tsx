@@ -9,12 +9,11 @@ import { Card, Radio } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { TrendPoint } from '@/common/types/agentUsage';
 import { SEGMENT_PALETTE } from './Sparkline';
-import { cumulative, logScale } from './chartMath';
+import { cumulative } from './chartMath';
 
 const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({ points, perPointLabel }) => {
   const { t } = useTranslation();
   const [mode, setMode] = React.useState<'split' | 'cumulative'>('split');
-  const [scale, setScale] = React.useState<'linear' | 'log'>('linear');
   const [hidden, setHidden] = React.useState<Set<string>>(new Set());
 
   const allSegments = React.useMemo(() => {
@@ -35,8 +34,7 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
       .reduce((s, [, v]) => s + v, 0)
   );
   const totals = mode === 'cumulative' ? cumulative(totalsRaw) : totalsRaw;
-  const scaled = totals.map((v) => (scale === 'log' ? logScale(v) : v));
-  const max = Math.max(1, ...scaled);
+  const max = Math.max(1, ...totals);
 
   if (points.length === 0) {
     return (
@@ -60,10 +58,6 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
           <Radio value='split'>{t('usageStats.trendCtl.split')}</Radio>
           <Radio value='cumulative'>{t('usageStats.trendCtl.cumulative')}</Radio>
         </Radio.Group>
-        <Radio.Group type='button' size='small' value={scale} onChange={(v: string) => setScale(v as 'linear' | 'log')}>
-          <Radio value='linear'>{t('usageStats.trendCtl.linear')}</Radio>
-          <Radio value='log'>{t('usageStats.trendCtl.log')}</Radio>
-        </Radio.Group>
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary, #86909c)' }}>
           {perPointLabel}
         </span>
@@ -74,15 +68,17 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
           const segs = Object.entries(p.bySegment)
             .filter(([k]) => !hidden.has(k))
             .toSorted(([, x], [, y]) => y - x);
-          const totalHere = scaled[idx];
+          const totalHere = totals[idx];
           const barHeight = totalHere > 0 ? Math.max((totalHere / max) * 130, 4) : 0;
           const rawTotal = totalsRaw[idx];
+          // hover 详情: 日期 + 各 series 分量 + 总量 (原生 title, 多行)
+          const tooltip = [
+            p.bucket,
+            ...segs.map(([name, val]) => `${name}: ${val.toLocaleString()}`),
+            `${t('usageStats.kpi.totalTokens')}: ${rawTotal.toLocaleString()}`,
+          ].join('\n');
           return (
-            <div
-              key={p.bucket}
-              style={{ textAlign: 'center', minWidth: 28 }}
-              title={`${p.bucket}: ${rawTotal.toLocaleString()}`}
-            >
+            <div key={p.bucket} style={{ textAlign: 'center', minWidth: 28 }} title={tooltip}>
               <div
                 style={{
                   height: `${barHeight}px`,

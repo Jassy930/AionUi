@@ -1954,11 +1954,8 @@ export type I18nKey =
   | 'usageStats.trend.title'
   | 'usageStats.trend.tooltipTotal'
   | 'usageStats.trendCtl.cumulative'
-  | 'usageStats.trendCtl.linear'
-  | 'usageStats.trendCtl.log'
   | 'usageStats.trendCtl.mode'
   | 'usageStats.trendCtl.perPoint'
-  | 'usageStats.trendCtl.scale'
   | 'usageStats.trendCtl.split'
   | 'usageStats.unsupported';
 

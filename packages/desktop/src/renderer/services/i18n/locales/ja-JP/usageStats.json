@@ -78,9 +78,6 @@
     "mode": "Mode",
     "split": "Split",
     "cumulative": "Cumulative",
-    "scale": "Scale",
-    "linear": "Linear",
-    "log": "Log",
     "perPoint": "≈ {{span}} / point"
   }
 }

@@ -78,9 +78,6 @@
     "mode": "模式",
     "split": "分时",
     "cumulative": "累计",
-    "scale": "坐标",
-    "linear": "线性",
-    "log": "对数",
     "perPoint": "每点 ≈ {{span}}"
   }
 }
