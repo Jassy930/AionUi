@@ -22,7 +22,7 @@ export function logScale(v: number): number {
 
 /** 按 value 降序取前 n。 */
 export function topN<T>(items: T[], value: (t: T) => number, n: number): T[] {
-  return [...items].sort((a, b) => value(b) - value(a)).slice(0, n);
+  return [...items].toSorted((a, b) => value(b) - value(a)).slice(0, n);
 }
 
 /** 占比百分比，分母 0 返回 0。 */
