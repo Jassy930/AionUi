@@ -9,13 +9,7 @@ import { Card, Grid } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { AgentUsageResponse } from '@/common/types/agentUsage';
 import Sparkline from './Sparkline';
-import { pct } from './chartMath';
-
-const fmt = (n: number): string => {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-};
+import { pct, formatTokens } from './chartMath';
 
 const KpiRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
   const { t } = useTranslation();
@@ -30,7 +24,7 @@ const KpiRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
   // sparkline 仅挂在「总 token」卡：trend 仅含 per-bucket token 总量，
   // 给会话/消息/缓存占比卡画同一条 token 曲线会误导（图与指标不符）。
   const cards: { label: string; value: string; spark?: number[] }[] = [
-    { label: t('usageStats.kpi.totalTokens'), value: fmt(totalTok), spark: trendTotals },
+    { label: t('usageStats.kpi.totalTokens'), value: formatTokens(totalTok), spark: trendTotals },
     { label: t('usageStats.kpi.sessions'), value: String(sessions) },
     { label: t('usageStats.kpi.messages'), value: String(messages) },
     { label: t('usageStats.kpi.cacheRatio'), value: `${cacheRatio.toFixed(0)}%` },

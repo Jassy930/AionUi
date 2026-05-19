@@ -5,12 +5,7 @@
  */
 
 import React from 'react';
-
-const fmt = (n: number): string => {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-};
+import { formatTokens } from './chartMath';
 
 const RankBar: React.FC<{ rows: { label: string; value: number }[] }> = ({ rows }) => {
   if (rows.length === 0) {
@@ -34,7 +29,7 @@ const RankBar: React.FC<{ rows: { label: string; value: number }[] }> = ({ rows 
               }}
             />
           </div>
-          <span style={{ width: 54, textAlign: 'right' }}>{fmt(r.value)}</span>
+          <span style={{ width: 54, textAlign: 'right' }}>{formatTokens(r.value)}</span>
         </div>
       ))}
     </div>

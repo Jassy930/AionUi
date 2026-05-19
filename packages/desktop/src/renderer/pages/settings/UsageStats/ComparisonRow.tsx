@@ -11,7 +11,7 @@ import type { AgentUsageResponse } from '@/common/types/agentUsage';
 import CompositionDonut from './CompositionDonut';
 import RankBar from './RankBar';
 import { SEGMENT_PALETTE } from './Sparkline';
-import { topN } from './chartMath';
+import { topN, formatTokens } from './chartMath';
 
 const ComparisonRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
   const { t } = useTranslation();
@@ -21,7 +21,7 @@ const ComparisonRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
     color: SEGMENT_PALETTE[i % SEGMENT_PALETTE.length],
   }));
   const grandTotal = data.summary.byAgent.reduce((s, x) => s + x.totalTokens, 0);
-  const fmtTotal = grandTotal >= 1_000_000 ? `${(grandTotal / 1_000_000).toFixed(1)}M` : String(grandTotal);
+  const fmtTotal = formatTokens(grandTotal);
 
   const projRows = topN(data.byProject, (p) => p.totalTokens, 8).map((p) => ({
     label: p.project,

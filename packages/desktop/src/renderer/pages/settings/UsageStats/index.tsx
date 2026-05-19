@@ -17,6 +17,7 @@ import CompositionDonut from './CompositionDonut';
 import ComparisonRow from './ComparisonRow';
 import SessionList from './SessionList';
 import { SEGMENT_PALETTE } from './Sparkline';
+import { formatTokens } from './chartMath';
 
 const PAGE = 200;
 
@@ -155,7 +156,7 @@ const CompositionDonutCard: React.FC<{ data: AgentUsageResponse }> = ({ data }) 
   const cr = a.reduce((s, x) => s + x.cacheReadTokens, 0);
   const cc = a.reduce((s, x) => s + x.cacheCreationTokens, 0);
   const total = inp + out + cr + cc;
-  const fmtT = total >= 1_000_000 ? `${(total / 1_000_000).toFixed(1)}M` : String(total);
+  const fmtT = formatTokens(total);
   const segs = [
     { name: t('usageStats.composition.input'), value: inp, color: SEGMENT_PALETTE[0] },
     { name: t('usageStats.composition.output'), value: out, color: SEGMENT_PALETTE[2] },
@@ -188,7 +189,7 @@ const CompositionDonutCard: React.FC<{ data: AgentUsageResponse }> = ({ data }) 
                   marginRight: 6,
                 }}
               />
-              {s.name} {s.value.toLocaleString()}
+              {s.name} {formatTokens(s.value)}
             </div>
           ))}
         </div>

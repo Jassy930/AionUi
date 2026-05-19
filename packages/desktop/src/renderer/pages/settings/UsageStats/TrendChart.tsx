@@ -9,7 +9,7 @@ import { Card, Radio, Tooltip } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { TrendPoint } from '@/common/types/agentUsage';
 import { SEGMENT_PALETTE } from './Sparkline';
-import { cumulative } from './chartMath';
+import { cumulative, formatTokens } from './chartMath';
 
 const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({ points, perPointLabel }) => {
   const { t } = useTranslation();
@@ -90,7 +90,7 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
                     />
                     {name}
                   </span>
-                  <span>{val.toLocaleString()}</span>
+                  <span>{formatTokens(val)}</span>
                 </div>
               ))}
               <div
@@ -105,7 +105,7 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
                 }}
               >
                 <span>{t('usageStats.kpi.totalTokens')}</span>
-                <span>{rawTotal.toLocaleString()}</span>
+                <span>{formatTokens(rawTotal)}</span>
               </div>
             </div>
           );

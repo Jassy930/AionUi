@@ -29,3 +29,12 @@ export function topN<T>(items: T[], value: (t: T) => number, n: number): T[] {
 export function pct(part: number, total: number): number {
   return total <= 0 ? 0 : (part / total) * 100;
 }
+
+/** 统一 token 数字格式：K/M/B 两位小数，绝对值 < 1000 显示原数字。全界面复用。 */
+export function formatTokens(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
+  return String(n);
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cumulative, logScale, topN, pct } from '@renderer/pages/settings/UsageStats/chartMath';
+import { cumulative, logScale, topN, pct, formatTokens } from '@renderer/pages/settings/UsageStats/chartMath';
 
 describe('chartMath', () => {
   it('cumulative = prefix sum', () => {
@@ -26,5 +26,15 @@ describe('chartMath', () => {
   it('pct guards divide-by-zero', () => {
     expect(pct(25, 100)).toBe(25);
     expect(pct(5, 0)).toBe(0);
+  });
+  it('formatTokens uses K/M/B with 2 decimals, raw below 1000', () => {
+    expect(formatTokens(0)).toBe('0');
+    expect(formatTokens(42)).toBe('42');
+    expect(formatTokens(999)).toBe('999');
+    expect(formatTokens(1_000)).toBe('1.00K');
+    expect(formatTokens(1_234)).toBe('1.23K');
+    expect(formatTokens(1_934_382)).toBe('1.93M');
+    expect(formatTokens(2_064_603_210)).toBe('2.06B');
+    expect(formatTokens(-1_500)).toBe('-1.50K'); // 负数对称处理
   });
 });
