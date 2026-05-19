@@ -1,0 +1,35 @@
+{
+  "title": "Usage Stats",
+  "menuLabel": "Usage",
+  "refresh": "Refresh",
+  "granularity": { "day": "Daily", "week": "Weekly" },
+  "timeRange": { "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days", "all": "All time" },
+  "summary": {
+    "sessions": "Sessions",
+    "messages": "Messages",
+    "totalTokens": "Total tokens",
+    "input": "Input",
+    "output": "Output",
+    "cacheRead": "Cache read",
+    "cacheCreation": "Cache creation"
+  },
+  "trend": { "title": "Token usage trend" },
+  "byModel": { "title": "By model", "model": "Model", "agent": "Agent", "sessions": "Sessions", "tokens": "Tokens" },
+  "sessions": {
+    "title": "Sessions",
+    "time": "Time",
+    "agent": "Agent",
+    "model": "Model",
+    "project": "Project",
+    "tokens": "Tokens",
+    "total": "{count} sessions total",
+    "loadMore": "Load more"
+  },
+  "source": {
+    "missing": "{agent} log directory not found",
+    "skipped": "{count} {agent} log file(s) could not be parsed and were skipped"
+  },
+  "empty": "No usage data found",
+  "error": "Failed to load usage data",
+  "unsupported": "Current backend does not support usage stats. Please update."
+}
