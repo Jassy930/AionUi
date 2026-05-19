@@ -2911,6 +2911,7 @@ git push -u origin feat/agent-usage-stats
 ```
 
 > **执行期阻塞 (2026-05-19, 需用户处理)**: 两仓库 `origin` 均直指上游 `iOfficeAI/AionCLI` 与 `iOfficeAI/AionUi`, 执行账号 `Jassy930` 对两者**均无写权限 (403 denied)**。门禁全部通过 (AionCLI: clippy --workspace -D warnings=0 / fmt=0 / analytics+app鉴权测试 pass; AionUi: tsc=0 / check-i18n pass / 本功能 9 测试 pass)。代码完整保留在本地两个 feature 分支:
+>
 > - AionCLI `feat/agent-usage-analytics` (10 feature commits, 基于 main)
 > - AionUi `feat/agent-usage-stats` (含本阶段所有 commits + dev 上的 docs commits, 基于 dev)
 >

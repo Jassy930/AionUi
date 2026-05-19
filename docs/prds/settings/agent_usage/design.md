@@ -1,7 +1,7 @@
 # 本地 Agent 使用统计页面 — 设计文档
 
 - 日期: 2026-05-18 (实现完成 2026-05-19)
-- 状态: **已实现** (本地 feature 分支, 待推送/PR — 见实现计划 Task 3.2 推送权限遗留)。AionCLI `feat/agent-usage-analytics` (后端) + AionUi `feat/agent-usage-stats` (前端 + WebHost)。全部门禁通过, 后端端到端 + P1 远程脱敏已用 release 二进制实测验证; GUI 浏览器视觉/交互待用户本地确认 (见 Task 3.1 验证记录)
+- 状态: **v1 完成** (本地 feature 分支, 待推送/PR — 见实现计划 Task 3.2 推送权限遗留)。AionCLI `feat/agent-usage-analytics` (后端) + AionUi `feat/agent-usage-stats` (前端 + WebHost)。全部门禁通过; 后端端到端 + P1 远程脱敏经 release 二进制实测; GUI 经 CDP 真实 Electron 渲染验证 (修复 5 个执行期缺陷, 见末节)。v1 含趋势图增强: 堆叠多分段柱 + hover 明细 tooltip + 维度切换 (工具/项目/模型) + Arco 官方分类调色板 (light/dark 双主题 CDP 实测可读)。用户已确认 v1 状态定版。后续迭代另起。
 - 涉及仓库: AionUi (TS/React, 主)、AionCLI (Rust/Axum, 后端)
 - 当前文档位置: 本文件 (AionUi settings PRD 目录下的工程设计草案; AionCLI 侧 PR 反向引用本 spec)
 
