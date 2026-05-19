@@ -37,7 +37,7 @@ export type UsageByModelRaw = {
   total_tokens: number;
 };
 
-export type TrendPointRaw = { bucket: string; by_agent: Record<string, number> };
+export type TrendPointRaw = { bucket: string; by_segment: Record<string, number> };
 
 export type SessionRowRaw = {
   agent: string;
@@ -96,7 +96,7 @@ export type UsageByModel = {
   totalTokens: number;
 };
 
-export type TrendPoint = { bucket: string; byAgent: Record<string, number> };
+export type TrendPoint = { bucket: string; bySegment: Record<string, number> };
 
 export type SessionRow = {
   agent: string;
@@ -124,6 +124,7 @@ export type AgentUsageResponse = {
 
 export type AgentUsageParams = {
   trendGranularity?: 'day' | 'week';
+  trendDimension?: 'agent' | 'project' | 'model';
   timeRange?: '7d' | '30d' | '90d' | 'all';
   refresh?: boolean;
   sessionsLimit?: number;
@@ -165,7 +166,7 @@ export function fromApiAgentUsage(r: AgentUsageResponseRaw): AgentUsageResponse 
     })),
     trend: {
       granularity: r.trend.granularity,
-      points: r.trend.points.map((p) => ({ bucket: p.bucket, byAgent: p.by_agent })),
+      points: r.trend.points.map((p) => ({ bucket: p.bucket, bySegment: p.by_segment })),
     },
     timeRange: r.time_range,
     sessionsTotal: r.sessions_total,

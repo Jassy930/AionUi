@@ -1671,6 +1671,7 @@ export const team = {
 export function buildAgentUsagePath(p: AgentUsageParams | undefined): string {
   const q = new URLSearchParams();
   if (p?.trendGranularity) q.set('trend_granularity', p.trendGranularity);
+  if (p?.trendDimension) q.set('trend_dimension', p.trendDimension);
   if (p?.timeRange) q.set('time_range', p.timeRange);
   if (p?.refresh) q.set('refresh', 'true');
   if (p?.sessionsLimit != null) q.set('sessions_limit', String(p.sessionsLimit));

@@ -22,7 +22,7 @@ describe('fromApiAgentUsage', () => {
         ],
       },
       by_model: [],
-      trend: { granularity: 'day', points: [{ bucket: '2026-05-17', by_agent: { claude: 15 } }] },
+      trend: { granularity: 'day', points: [{ bucket: '2026-05-17', by_segment: { claude: 15 } }] },
       time_range: '30d',
       sessions_total: 1,
       sessions_limit: 200,
@@ -46,6 +46,6 @@ describe('fromApiAgentUsage', () => {
     expect(m.sessionsTotal).toBe(1);
     expect(m.sessions[0].sessionId).toBe('s1');
     expect(m.sessions[0].lastActiveAt).toBe('2026-05-17T09:00:00Z');
-    expect(m.trend.points[0].byAgent.claude).toBe(15);
+    expect(m.trend.points[0].bySegment.claude).toBe(15);
   });
 });

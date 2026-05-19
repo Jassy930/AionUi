@@ -11,12 +11,12 @@ import type { TrendPoint } from '@/common/types/agentUsage';
 
 const TrendChart: React.FC<{ points: TrendPoint[] }> = ({ points }) => {
   const { t } = useTranslation();
-  const max = Math.max(1, ...points.map((p) => Object.values(p.byAgent).reduce((s, v) => s + v, 0)));
+  const max = Math.max(1, ...points.map((p) => Object.values(p.bySegment).reduce((s, v) => s + v, 0)));
   return (
     <Card title={t('usageStats.trend.title')} bordered style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 160, overflowX: 'auto' }}>
         {points.map((p) => {
-          const total = Object.values(p.byAgent).reduce((s, v) => s + v, 0);
+          const total = Object.values(p.bySegment).reduce((s, v) => s + v, 0);
           // Linear scale, but clamp to a minimum visible height when there is
           // any usage — token volumes vary by orders of magnitude (cache
           // tokens can spike a single day into the hundreds of millions), so

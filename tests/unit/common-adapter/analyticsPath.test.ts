@@ -8,13 +8,14 @@ describe('buildAgentUsagePath', () => {
   it('maps camelCase params to snake_case query', () => {
     const p = buildAgentUsagePath({
       trendGranularity: 'week',
+      trendDimension: 'project',
       timeRange: '7d',
       refresh: true,
       sessionsLimit: 50,
       sessionsOffset: 100,
     });
     expect(p).toBe(
-      '/api/analytics/agent-usage?trend_granularity=week&time_range=7d&refresh=true&sessions_limit=50&sessions_offset=100'
+      '/api/analytics/agent-usage?trend_granularity=week&trend_dimension=project&time_range=7d&refresh=true&sessions_limit=50&sessions_offset=100'
     );
   });
   it('omits falsy refresh and undefined fields', () => {
