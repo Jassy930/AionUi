@@ -13,7 +13,11 @@
     "cacheRead": "缓存读取",
     "cacheCreation": "缓存创建"
   },
-  "trend": { "title": "Token 用量趋势" },
+  "trend": {
+    "title": "Token 用量趋势",
+    "dimension": { "label": "拆分维度", "agent": "工具", "project": "项目", "model": "模型" },
+    "tooltipTotal": "总计"
+  },
   "byModel": { "title": "按模型", "model": "模型", "agent": "Agent", "sessions": "会话数", "tokens": "Token" },
   "sessions": {
     "title": "会话明细",

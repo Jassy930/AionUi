@@ -1934,7 +1934,12 @@ export type I18nKey =
   | 'usageStats.timeRange.90d'
   | 'usageStats.timeRange.all'
   | 'usageStats.title'
+  | 'usageStats.trend.dimension.agent'
+  | 'usageStats.trend.dimension.label'
+  | 'usageStats.trend.dimension.model'
+  | 'usageStats.trend.dimension.project'
   | 'usageStats.trend.title'
+  | 'usageStats.trend.tooltipTotal'
   | 'usageStats.unsupported';
 
 export type I18nModule =

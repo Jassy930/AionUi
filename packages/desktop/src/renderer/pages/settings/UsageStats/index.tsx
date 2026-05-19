@@ -25,6 +25,7 @@ const UsageStats: React.FC = () => {
   const [err, setErr] = useState<'error' | 'unsupported' | null>(null);
   const [gran, setGran] = useState<'day' | 'week'>('day');
   const [range, setRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
+  const [dim, setDim] = useState<'agent' | 'project' | 'model'>('agent');
   const [offset, setOffset] = useState(0);
 
   const load = useCallback(async (params: AgentUsageParams, append: boolean) => {
@@ -43,13 +44,23 @@ const UsageStats: React.FC = () => {
 
   useEffect(() => {
     setOffset(0);
-    void load({ trendGranularity: gran, timeRange: range, sessionsLimit: PAGE, sessionsOffset: 0 }, false);
-  }, [gran, range, load]);
+    void load(
+      { trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: 0 },
+      false
+    );
+  }, [gran, range, dim, load]);
 
   const refresh = () => {
     setOffset(0);
     void load(
-      { trendGranularity: gran, timeRange: range, refresh: true, sessionsLimit: PAGE, sessionsOffset: 0 },
+      {
+        trendGranularity: gran,
+        timeRange: range,
+        trendDimension: dim,
+        refresh: true,
+        sessionsLimit: PAGE,
+        sessionsOffset: 0,
+      },
       false
     );
   };
@@ -57,7 +68,10 @@ const UsageStats: React.FC = () => {
   const loadMore = () => {
     const next = offset + PAGE;
     setOffset(next);
-    void load({ trendGranularity: gran, timeRange: range, sessionsLimit: PAGE, sessionsOffset: next }, true);
+    void load(
+      { trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: next },
+      true
+    );
   };
 
   return (
@@ -72,6 +86,12 @@ const UsageStats: React.FC = () => {
         <Radio.Group type='button' value={gran} onChange={(v: string) => setGran(v as 'day' | 'week')}>
           <Radio value='day'>{t('usageStats.granularity.day')}</Radio>
           <Radio value='week'>{t('usageStats.granularity.week')}</Radio>
+        </Radio.Group>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{t('usageStats.trend.dimension.label')}</span>
+        <Radio.Group type='button' value={dim} onChange={(v: string) => setDim(v as 'agent' | 'project' | 'model')}>
+          <Radio value='agent'>{t('usageStats.trend.dimension.agent')}</Radio>
+          <Radio value='project'>{t('usageStats.trend.dimension.project')}</Radio>
+          <Radio value='model'>{t('usageStats.trend.dimension.model')}</Radio>
         </Radio.Group>
         <Button onClick={refresh} loading={loading}>
           {t('usageStats.refresh')}
