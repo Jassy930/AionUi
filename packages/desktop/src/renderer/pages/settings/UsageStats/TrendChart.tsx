@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Card, Radio } from '@arco-design/web-react';
+import { Card, Radio, Tooltip } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { TrendPoint } from '@/common/types/agentUsage';
 import { SEGMENT_PALETTE } from './Sparkline';
@@ -71,39 +71,73 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
           const totalHere = totals[idx];
           const barHeight = totalHere > 0 ? Math.max((totalHere / max) * 130, 4) : 0;
           const rawTotal = totalsRaw[idx];
-          // hover 详情: 日期 + 各 series 分量 + 总量 (原生 title, 多行)
-          const tooltip = [
-            p.bucket,
-            ...segs.map(([name, val]) => `${name}: ${val.toLocaleString()}`),
-            `${t('usageStats.kpi.totalTokens')}: ${rawTotal.toLocaleString()}`,
-          ].join('\n');
-          return (
-            <div key={p.bucket} style={{ textAlign: 'center', minWidth: 28 }} title={tooltip}>
+          // hover 详情: 日期 + 各 series 分量 + 总量 (Arco Tooltip, 多行 JSX)
+          const tooltipContent = (
+            <div style={{ fontSize: 12, lineHeight: 1.7, minWidth: 140 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>{p.bucket}</div>
+              {segs.map(([name, val]) => (
+                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+                  <span>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 8,
+                        height: 8,
+                        borderRadius: 2,
+                        background: colorOf.get(name),
+                        marginRight: 6,
+                      }}
+                    />
+                    {name}
+                  </span>
+                  <span>{val.toLocaleString()}</span>
+                </div>
+              ))}
               <div
                 style={{
-                  height: `${barHeight}px`,
                   display: 'flex',
-                  flexDirection: 'column-reverse',
-                  borderRadius: 2,
-                  overflow: 'hidden',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  marginTop: 4,
+                  paddingTop: 4,
+                  borderTop: '1px solid rgba(255,255,255,0.2)',
+                  fontWeight: 600,
                 }}
               >
-                {segs.map(([name, val]) => {
-                  const frac = rawTotal > 0 ? val / rawTotal : 0;
-                  return (
-                    <div
-                      key={name}
-                      style={{ height: `${frac * barHeight}px`, background: colorOf.get(name), flexShrink: 0 }}
-                    />
-                  );
-                })}
-              </div>
-              <div
-                style={{ fontSize: 10, color: 'var(--text-secondary, #86909c)', marginTop: 4, whiteSpace: 'nowrap' }}
-              >
-                {p.bucket.slice(5)}
+                <span>{t('usageStats.kpi.totalTokens')}</span>
+                <span>{rawTotal.toLocaleString()}</span>
               </div>
             </div>
+          );
+          return (
+            <Tooltip key={p.bucket} content={tooltipContent} position='top'>
+              <div style={{ textAlign: 'center', minWidth: 28, cursor: 'default' }}>
+                <div
+                  style={{
+                    height: `${barHeight}px`,
+                    display: 'flex',
+                    flexDirection: 'column-reverse',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {segs.map(([name, val]) => {
+                    const frac = rawTotal > 0 ? val / rawTotal : 0;
+                    return (
+                      <div
+                        key={name}
+                        style={{ height: `${frac * barHeight}px`, background: colorOf.get(name), flexShrink: 0 }}
+                      />
+                    );
+                  })}
+                </div>
+                <div
+                  style={{ fontSize: 10, color: 'var(--text-secondary, #86909c)', marginTop: 4, whiteSpace: 'nowrap' }}
+                >
+                  {p.bucket.slice(5)}
+                </div>
+              </div>
+            </Tooltip>
           );
         })}
       </div>
