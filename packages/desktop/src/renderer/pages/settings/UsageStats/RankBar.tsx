@@ -28,7 +28,7 @@ const RankBar: React.FC<{ rows: { label: string; value: number }[] }> = ({ rows 
             <div
               style={{
                 width: `${Math.max((r.value / max) * 100, 2)}%`,
-                background: 'var(--primary)',
+                background: 'var(--primary, #165dff)',
                 height: 14,
                 borderRadius: 3,
               }}

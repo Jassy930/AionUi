@@ -27,11 +27,13 @@ const KpiRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
   const cacheRatio = pct(cacheTok, totalTok);
   const trendTotals = data.trend.points.map((p) => Object.values(p.bySegment).reduce((s, v) => s + v, 0));
 
-  const cards: { label: string; value: string; spark: number[] }[] = [
+  // sparkline 仅挂在「总 token」卡：trend 仅含 per-bucket token 总量，
+  // 给会话/消息/缓存占比卡画同一条 token 曲线会误导（图与指标不符）。
+  const cards: { label: string; value: string; spark?: number[] }[] = [
     { label: t('usageStats.kpi.totalTokens'), value: fmt(totalTok), spark: trendTotals },
-    { label: t('usageStats.kpi.sessions'), value: String(sessions), spark: trendTotals },
-    { label: t('usageStats.kpi.messages'), value: String(messages), spark: trendTotals },
-    { label: t('usageStats.kpi.cacheRatio'), value: `${cacheRatio.toFixed(0)}%`, spark: trendTotals },
+    { label: t('usageStats.kpi.sessions'), value: String(sessions) },
+    { label: t('usageStats.kpi.messages'), value: String(messages) },
+    { label: t('usageStats.kpi.cacheRatio'), value: `${cacheRatio.toFixed(0)}%` },
   ];
   return (
     <Grid.Row gutter={12} style={{ marginBottom: 16 }}>
@@ -40,7 +42,7 @@ const KpiRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
           <Card bordered>
             <div style={{ fontSize: 12, color: 'var(--text-secondary, #86909c)' }}>{c.label}</div>
             <div style={{ fontSize: 22, fontWeight: 600, margin: '4px 0' }}>{c.value}</div>
-            <Sparkline values={c.spark} />
+            {c.spark ? <Sparkline values={c.spark} /> : <div style={{ height: 32 }} />}
           </Card>
         </Grid.Col>
       ))}
