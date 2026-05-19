@@ -1,7 +1,7 @@
-# 本地 Agent 使用统计页面 — 设计草案
+# 本地 Agent 使用统计页面 — 设计文档
 
-- 日期: 2026-05-18
-- 状态: 设计草案, 已按 AionUi/AionCLI 代码事实复核, 待写实现计划
+- 日期: 2026-05-18 (实现完成 2026-05-19)
+- 状态: **已实现** (本地 feature 分支, 待推送/PR — 见实现计划 Task 3.2 推送权限遗留)。AionCLI `feat/agent-usage-analytics` (后端) + AionUi `feat/agent-usage-stats` (前端 + WebHost)。全部门禁通过, 后端端到端 + P1 远程脱敏已用 release 二进制实测验证; GUI 浏览器视觉/交互待用户本地确认 (见 Task 3.1 验证记录)
 - 涉及仓库: AionUi (TS/React, 主)、AionCLI (Rust/Axum, 后端)
 - 当前文档位置: 本文件 (AionUi settings PRD 目录下的工程设计草案; AionCLI 侧 PR 反向引用本 spec)
 
@@ -32,11 +32,13 @@
 ### 日志数据源 (已实地验证)
 
 **Claude Code**: `~/.claude/projects/<编码后的项目路径>/<sessionId>.jsonl`
+
 - 每条 assistant 行: `message.usage` = `{ input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens }`
 - 行级带 `message.model` (如 `claude-opus-4-7`)、`timestamp`、`cwd`、`gitBranch`、`sessionId`
 - 单会话 token 需自行累加所有 assistant 消息
 
 **Codex**: `~/.codex/sessions/YYYY/MM/DD/rollout-<时间>-<id>.jsonl`
+
 - `session_meta` 行: `payload` 含 `id`、`timestamp`、`cwd`、`cli_version`、`model_provider`
 - `event_msg` 的 `payload.type == "token_count"`: `info.total_token_usage` (**已累计**) 与 `last_token_usage` (单轮), 含 `model_context_window`
 - 单会话 token = 该会话最后一个 `token_count` 事件的 `info.total_token_usage`
@@ -62,6 +64,7 @@
 数据流: 用户打开 Tab → renderer 调 `ipcBridge` → AionUi process 转发 HTTP → AionCLI `aionui-analytics` 扫描两个日志目录 → 解析聚合 → 返回统一 JSON → renderer 渲染四个区块。
 
 关键设计点:
+
 - 解析全部在 Rust 后端 (性能好、不阻塞 UI、符合架构铁律)
 - 后端内存缓存: `path → (mtime, size, 解析结果)`, 下次只重解析变化文件
 - 一次请求返回完整聚合 (总量+模型+会话+趋势), 前端纯展示不计算
@@ -72,6 +75,7 @@
 端点: `GET /api/analytics/agent-usage`
 
 查询参数 (可选):
+
 - `trend_granularity`: `day` (默认) | `week`
 - `refresh`: `true` 强制全量重解析 (忽略缓存)
 - `time_range`: `7d` | `30d` (默认) | `90d` | `all` — 限定统计时间窗。汇总卡片、按模型、趋势、会话行 token 均按**用量事件时间**统计; 会话列表只返回窗口内有用量事件的会话, 并按 `last_active_at` 倒序
@@ -93,48 +97,72 @@
 {
   "scanned_at": "2026-05-18T10:30:00Z",
   "sources": [
-    { "agent": "claude", "files_total": 412, "files_parsed": 410,
-      "files_skipped": 2, "available": true, "error": null },
-    { "agent": "codex",  "files_total": 88,  "files_parsed": 88,
-      "files_skipped": 0, "available": true, "error": null }
+    {
+      "agent": "claude",
+      "files_total": 412,
+      "files_parsed": 410,
+      "files_skipped": 2,
+      "available": true,
+      "error": null,
+    },
+    { "agent": "codex", "files_total": 88, "files_parsed": 88, "files_skipped": 0, "available": true, "error": null },
   ],
   "summary": {
     "by_agent": [
-      { "agent": "claude", "sessions": 412, "messages": 9821,
-        "input_tokens": 12000000, "output_tokens": 850000,
-        "cache_read_tokens": 30000000, "cache_creation_tokens": 4000000,
-        "total_tokens": 46850000 },
-      { "agent": "codex", "sessions": 88, "messages": 1203,
-        "input_tokens": 3400000, "output_tokens": 210000,
-        "cache_read_tokens": 1200000, "cache_creation_tokens": 0,
-        "total_tokens": 4810000 }
-    ]
+      {
+        "agent": "claude",
+        "sessions": 412,
+        "messages": 9821,
+        "input_tokens": 12000000,
+        "output_tokens": 850000,
+        "cache_read_tokens": 30000000,
+        "cache_creation_tokens": 4000000,
+        "total_tokens": 46850000,
+      },
+      {
+        "agent": "codex",
+        "sessions": 88,
+        "messages": 1203,
+        "input_tokens": 3400000,
+        "output_tokens": 210000,
+        "cache_read_tokens": 1200000,
+        "cache_creation_tokens": 0,
+        "total_tokens": 4810000,
+      },
+    ],
   },
   "by_model": [
-    { "agent": "claude", "model": "claude-opus-4-7",
-      "sessions": 210, "input_tokens": 8000000, "output_tokens": 600000,
-      "cache_read_tokens": 20000000, "cache_creation_tokens": 3000000,
-      "total_tokens": 31600000 }
+    {
+      "agent": "claude",
+      "model": "claude-opus-4-7",
+      "sessions": 210,
+      "input_tokens": 8000000,
+      "output_tokens": 600000,
+      "cache_read_tokens": 20000000,
+      "cache_creation_tokens": 3000000,
+      "total_tokens": 31600000,
+    },
   ],
   "trend": {
     "granularity": "day",
-    "points": [
-      { "bucket": "2026-05-16",
-        "by_agent": { "claude": 2100000, "codex": 450000 } }
-    ]
+    "points": [{ "bucket": "2026-05-16", "by_agent": { "claude": 2100000, "codex": 450000 } }],
   },
   "time_range": "30d",
   "sessions_total": 1480,
   "sessions_limit": 200,
   "sessions_offset": 0,
   "sessions": [
-    { "agent": "claude", "session_id": "f76eb77b-...",
+    {
+      "agent": "claude",
+      "session_id": "f76eb77b-...",
       "project": "/Users/jassy/Documents/xxx",
       "model": "claude-opus-4-7",
       "started_at": "2026-05-17T08:03:08Z",
       "last_active_at": "2026-05-17T09:12:00Z",
-      "messages": 42, "total_tokens": 1850000 }
-  ]
+      "messages": 42,
+      "total_tokens": 1850000,
+    },
+  ],
 }
 ```
 
@@ -142,13 +170,13 @@
 
 ### 字段口径
 
-| 项 | Claude Code | Codex |
-|---|---|---|
-| 单会话 token | 累加每条 assistant `message.usage` | 最后一个 `token_count` 的 `info.total_token_usage` |
-| model | 每条消息 `message.model`, 会话级取出现最多者 | `session_meta`/`turn_context` 模型, 缺失标 `unknown` |
-| project | 消息 `cwd` | `session_meta.payload.cwd` |
-| 时间 | 消息 `timestamp` | 行级 `timestamp` |
-| messages | assistant 消息条数 | `response_item.payload.type == "message" && payload.role == "assistant"` 计数 |
+| 项           | Claude Code                                  | Codex                                                                         |
+| ------------ | -------------------------------------------- | ----------------------------------------------------------------------------- |
+| 单会话 token | 累加每条 assistant `message.usage`           | 最后一个 `token_count` 的 `info.total_token_usage`                            |
+| model        | 每条消息 `message.model`, 会话级取出现最多者 | `session_meta`/`turn_context` 模型, 缺失标 `unknown`                          |
+| project      | 消息 `cwd`                                   | `session_meta.payload.cwd`                                                    |
+| 时间         | 消息 `timestamp`                             | 行级 `timestamp`                                                              |
+| messages     | assistant 消息条数                           | `response_item.payload.type == "message" && payload.role == "assistant"` 计数 |
 
 - `total_tokens` 统一 = `input + output + cache_read + cache_creation`; Codex 会话总量直接用最后一个 `token_count` 的 `info.total_token_usage.total_tokens`
 - **统计窗口与归桶口径 (回应 review High-2)**: Codex 的 `token_count` 事件带 `info.last_token_usage` (单轮增量) 与行级 `timestamp`。汇总、按模型、趋势、会话行 token 都必须按**用量事件时间**过滤和归桶, 而非把整会话按开始日或最后活跃日整体纳入 —— 否则跨天/跨窗口长会话会让汇总与趋势不一致。归桶规则:
@@ -187,6 +215,7 @@ crates/aionui-analytics/
 ```
 
 职责与边界:
+
 - `parser::LogParser` trait: `parse_file(path) -> Result<ParsedSession, ParseError>`。两实现各自封装格式细节, 互不依赖。坏行 `continue`, 坏文件返回 `Err` 由上层计 skipped。
 - `cache::UsageCache`: mtime+size 未变直接返回缓存, 否则重解析。进程常驻。
 - `service::AgentUsageService`: 用 `dirs::home_dir()` 定位目录; 目录不存在 → `available:false` 不报错; `walkdir` 枚举 `*.jsonl`; **按 `time_range` 先做文件级粗筛** (Codex 按路径日期段, Claude 按 mtime 粗筛), 解析后再按用量事件时间精筛; 逐文件走 cache; `refresh=true` 绕过缓存。会话明细按 `last_active_at` 倒序后应用 `sessions_offset`/`sessions_limit`, 同时算出 `sessions_total`。**远程/WebUI 脱敏**: 入口接收可信远程/WebUI 标志, 远程时对输出 `project` 做 basename 脱敏。
@@ -194,6 +223,7 @@ crates/aionui-analytics/
 - `routes`: 解析全部 query (`trend_granularity`/`time_range`/`refresh`/`sessions_limit`/`sessions_offset`); 从请求提取远程/WebUI 标志传入 service; 返回 `Json(ApiResponse::ok(resp))`。不要在该 crate 内自行加 auth 白名单。
 
 接入组装层:
+
 - `aionui-api-types` 新增 `src/analytics.rs` 定义所有 `AgentUsage*` DTO, `lib.rs` 导出
 - `aionui-app/src/router/state.rs` 给 `ModuleStates` 增加 `analytics: AnalyticsRouterState`, 并在 `build_module_states` 中构造该 state
 - `aionui-app/src/router/routes.rs` 按现有模块模式接入: `let analytics_authenticated = analytics_routes(states.analytics).route_layer(from_fn_with_state(auth_mw_state.clone(), auth_middleware));`, 然后 `.merge(analytics_authenticated)`。**不要**直接 `.merge(aionui_analytics::analytics_routes(...))`, 因为当前 AionCLI 不是真正的全局 auth middleware 模型
@@ -232,6 +262,7 @@ analytics: {
 测试必须覆盖 path builder 的 query 拼接 (各参数组合 → 正确 URL), 防止参数被静默忽略。
 
 **响应大小写映射策略 (回应 review Med-5)**: 后端 DTO 是 snake_case (serde 默认), renderer 域模型用 camelCase。明确采用现有 `withResponseMap` 模式: 定义 `AgentUsageResponseRaw` (snake_case, 与第 4 节 JSON 严格对齐, 仅 adapter 层可见) + `fromApiAgentUsage(raw) => AgentUsageResponse` (camelCase, 组件消费)。组件**只消费 camelCase 域模型**, 不直接碰 snake_case, 避免 TS 类型/i18n 展示层与后端 DTO 混杂。
+
 - `packages/desktop/src/common/adapter/ipcBridge.ts` 新增 `analytics.getAgentUsage`
 - 类型放 `packages/desktop/src/common/types/`: `AgentUsageResponseRaw` (snake) 与 `AgentUsageResponse` (camel) 并存, mapper 同文件
 - preload 走现有通用通道, 无需单独改
@@ -291,14 +322,14 @@ pages/settings/UsageStats/
 
 ## 7. 测试策略
 
-| 层 | 测什么 | 怎么测 |
-|---|---|---|
-| Rust parser | 口径正确性、坏行跳过、空文件、损坏 JSON | `tests/` + 脱敏 fixtures, 断言 `ParsedSession` |
-| Rust aggregate | 多会话聚合、日/周归桶边界、**Codex 跨天/跨窗口会话按事件时间过滤与归桶 (High-2)**、趋势之和≈汇总 | 表驱动单测, 构造跨天 `token_count` 事件输入 |
-| Rust service | 目录缺失降级、缓存命中不重解析、**`time_range` 文件粗筛 + 事件精筛**、**会话分页/`sessions_total`**、**远程/WebUI `project` 脱敏** | 临时目录 fixture + loopback/远程标志 |
-| Rust routes | 全量 query 解析、`ApiResponse` JSON 结构、空数据 200、鉴权生效 | Axum 测试; 未登录访问 analytics 端点必须 403 |
-| TS adapter | **path builder query 拼接 (各参数组合 → URL, Med-3)**、`fromApiAgentUsage` snake→camel 映射 (Med-5) | 纯单测, 断言 URL 与映射结果 |
-| TS 前端 | 加载/错误/空态、粒度/时间窗切换触发请求、会话翻页、契约对齐、i18n key 完整 | Vitest + mock ipcBridge + i18n 校验 |
+| 层             | 测什么                                                                                                                             | 怎么测                                         |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Rust parser    | 口径正确性、坏行跳过、空文件、损坏 JSON                                                                                            | `tests/` + 脱敏 fixtures, 断言 `ParsedSession` |
+| Rust aggregate | 多会话聚合、日/周归桶边界、**Codex 跨天/跨窗口会话按事件时间过滤与归桶 (High-2)**、趋势之和≈汇总                                   | 表驱动单测, 构造跨天 `token_count` 事件输入    |
+| Rust service   | 目录缺失降级、缓存命中不重解析、**`time_range` 文件粗筛 + 事件精筛**、**会话分页/`sessions_total`**、**远程/WebUI `project` 脱敏** | 临时目录 fixture + loopback/远程标志           |
+| Rust routes    | 全量 query 解析、`ApiResponse` JSON 结构、空数据 200、鉴权生效                                                                     | Axum 测试; 未登录访问 analytics 端点必须 403   |
+| TS adapter     | **path builder query 拼接 (各参数组合 → URL, Med-3)**、`fromApiAgentUsage` snake→camel 映射 (Med-5)                                | 纯单测, 断言 URL 与映射结果                    |
+| TS 前端        | 加载/错误/空态、粒度/时间窗切换触发请求、会话翻页、契约对齐、i18n key 完整                                                         | Vitest + mock ipcBridge + i18n 校验            |
 
 - 覆盖率遵循各项目约定 (AionUi ≥80%)
 - **fixtures 必须脱敏**: 去用户名、对话内容只留结构, 不提交隐私
@@ -307,14 +338,14 @@ pages/settings/UsageStats/
 
 ## 8. 风险与缓解
 
-| 风险 | 影响 | 缓解 |
-|---|---|---|
-| CLI 升级改日志格式 | 解析失效 | 宽松解析、缺失给默认值; 坏行/坏文件降级; `sources.error` 透传 |
-| 日志量极大 | 首次慢 | mtime+size 增量缓存; `time_range` 文件级粗筛; `Spin` 反馈; 文件并发为后续优化项 (非 MVP) |
-| 两仓库版本不同步 | 调用旧后端 404 | 端点缺失时前端友好降级提示; 契约类型同源 |
-| Codex 趋势精度 | 跨天会话失真 | 见第 4 节 High-2 口径: 按 `last_token_usage` 事件时间归桶, fallback 才会话级 |
-| **WebUI 远程模式暴露** | 远程访问者可读本机会话路径/项目名/用量 | 见下方「访问边界」 |
-| 隐私 (路径含用户名) | 信息暴露 | 仅本地展示不外传; fixtures 脱敏; 见「访问边界」 |
+| 风险                   | 影响                                   | 缓解                                                                                     |
+| ---------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| CLI 升级改日志格式     | 解析失效                               | 宽松解析、缺失给默认值; 坏行/坏文件降级; `sources.error` 透传                            |
+| 日志量极大             | 首次慢                                 | mtime+size 增量缓存; `time_range` 文件级粗筛; `Spin` 反馈; 文件并发为后续优化项 (非 MVP) |
+| 两仓库版本不同步       | 调用旧后端 404                         | 端点缺失时前端友好降级提示; 契约类型同源                                                 |
+| Codex 趋势精度         | 跨天会话失真                           | 见第 4 节 High-2 口径: 按 `last_token_usage` 事件时间归桶, fallback 才会话级             |
+| **WebUI 远程模式暴露** | 远程访问者可读本机会话路径/项目名/用量 | 见下方「访问边界」                                                                       |
+| 隐私 (路径含用户名)    | 信息暴露                               | 仅本地展示不外传; fixtures 脱敏; 见「访问边界」                                          |
 
 ### 访问边界 (回应 review Med-4)
 

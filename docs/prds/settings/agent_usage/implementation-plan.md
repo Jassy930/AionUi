@@ -11,6 +11,7 @@
 **关联设计文档:** `docs/prds/settings/agent_usage/design.md`
 
 **仓库与分支:**
+
 - AionCLI: `/Users/jassy/Documents/glm/aionui_ws/AionCLI`, 从 `main` 切 `feat/agent-usage-analytics`
 - AionUi: `/Users/jassy/Documents/glm/aionui_ws/AionUi`, 从 `dev` 切 `feat/agent-usage-stats`
 
@@ -25,6 +26,7 @@
 ### Task 1.1: 创建分支与 crate 骨架
 
 **Files:**
+
 - Create: `crates/aionui-analytics/Cargo.toml`
 - Create: `crates/aionui-analytics/src/lib.rs`
 - Modify: `Cargo.toml` (workspace members)
@@ -32,6 +34,7 @@
 - [ ] **Step 1: 创建分支**
 
 Run:
+
 ```bash
 git checkout main && git pull && git checkout -b feat/agent-usage-analytics
 ```
@@ -39,9 +42,11 @@ git checkout main && git pull && git checkout -b feat/agent-usage-analytics
 - [ ] **Step 2: 查现有 crate 的 Cargo.toml 依赖版本基线**
 
 Run:
+
 ```bash
 cat crates/aionui-system/Cargo.toml
 ```
+
 Expected: 看到 `aionui-common`、`aionui-api-types`、`axum`、`serde`、`tokio` 等的声明方式 (多为 `xxx = { workspace = true }`)。记下写法。
 
 - [ ] **Step 3: 创建 crate Cargo.toml**
@@ -105,6 +110,7 @@ git commit -m "feat(analytics): scaffold aionui-analytics crate"
 ### Task 1.2: 内部类型 `types.rs`
 
 **Files:**
+
 - Create: `crates/aionui-analytics/src/types.rs`
 
 - [ ] **Step 1: 写类型 (无测试, 纯数据结构)**
@@ -196,6 +202,7 @@ git commit -m "feat(analytics): add internal types"
 ### Task 1.3: Claude 解析器 (TDD)
 
 **Files:**
+
 - Create: `crates/aionui-analytics/src/parser/mod.rs`
 - Create: `crates/aionui-analytics/src/parser/claude.rs`
 - Create: `crates/aionui-analytics/tests/fixtures/claude_sample.jsonl`
@@ -400,6 +407,7 @@ git commit -m "feat(analytics): add claude log parser with TDD"
 ### Task 1.4: Codex 解析器 (TDD)
 
 **Files:**
+
 - Create: `crates/aionui-analytics/tests/fixtures/codex_sample.jsonl`
 - Create: `crates/aionui-analytics/tests/codex_parser.rs`
 - Modify: `crates/aionui-analytics/src/parser/codex.rs`
@@ -642,6 +650,7 @@ git commit -m "feat(analytics): add codex log parser with TDD"
 ### Task 1.5: api-types DTO (`AgentUsage*`)
 
 **Files:**
+
 - Create: `crates/aionui-api-types/src/analytics.rs`
 - Modify: `crates/aionui-api-types/src/lib.rs`
 
@@ -749,8 +758,10 @@ pub struct AgentUsageResponse {
 - [ ] **Step 3: 注册到 lib.rs**
 
 Modify `crates/aionui-api-types/src/lib.rs`:
+
 - 在 `mod` 列表的字母序位置加 `mod analytics;` (在 `mod acp;` 后)
 - 在 `pub use` 区加 (按现有字母序/风格放置):
+
 ```rust
 pub use analytics::{
     AgentUsageQuery, AgentUsageResponse, SessionRow, TrendPoint, UsageByAgent, UsageByModel, UsageSourceStatus,
@@ -775,6 +786,7 @@ git commit -m "feat(api-types): add AgentUsage DTOs"
 ### Task 1.6: 聚合纯函数 `aggregate.rs` (TDD)
 
 **Files:**
+
 - Create: `crates/aionui-analytics/src/aggregate.rs`
 - Create: `crates/aionui-analytics/tests/aggregate.rs`
 
@@ -1009,6 +1021,7 @@ git commit -m "feat(analytics): add aggregate pure function with TDD"
 ### Task 1.7: 缓存 `cache.rs`
 
 **Files:**
+
 - Create: `crates/aionui-analytics/src/cache.rs`
 
 - [ ] **Step 1: 写缓存 (含内联单测)**
@@ -1089,6 +1102,7 @@ git commit -m "feat(analytics): add mtime+size based usage cache"
 ### Task 1.8: service 编排 + 时间窗过滤 + 远程脱敏 (TDD)
 
 **Files:**
+
 - Create: `crates/aionui-analytics/src/service.rs`
 - Create: `crates/aionui-analytics/tests/service.rs`
 
@@ -1362,9 +1376,11 @@ Expected: PASS
 - [ ] **Step 5: 全 crate 测试 + clippy + fmt**
 
 Run:
+
 ```bash
 cargo test -p aionui-analytics && cargo clippy -p aionui-analytics -- -D warnings && cargo fmt -p aionui-analytics
 ```
+
 Expected: 全 PASS (clippy 如有可修复 warning 当场修)
 
 - [ ] **Step 6: 提交**
@@ -1379,6 +1395,7 @@ git commit -m "feat(analytics): add service with time-window filter and remote s
 ### Task 1.9: routes + state 接入 (受鉴权保护)
 
 **Files:**
+
 - Create: `crates/aionui-analytics/src/routes.rs`
 - Modify: `crates/aionui-app/src/router/state.rs`
 - Modify: `crates/aionui-app/src/router/routes.rs`
@@ -1445,14 +1462,17 @@ async fn get_agent_usage(
 - [ ] **Step 2: 看 state.rs 现有模块 state 接入模式**
 
 Run:
+
 ```bash
 grep -n "pub system: SystemRouterState\|system: build_system_state\|use aionui_system" crates/aionui-app/src/router/state.rs
 ```
+
 Expected: 看到 `ModuleStates` 字段声明处 + `build_module_states` 中 `system: build_system_state(services)` 的构造处 + use 导入处。
 
 - [ ] **Step 3: 在 state.rs 注册 analytics state**
 
 Modify `crates/aionui-app/src/router/state.rs`:
+
 - use 区加 (按文件现有 import 分组风格; 同时导入 state 与 service 以便构造处用短名, 与其它模块如 assistant 风格一致): `use aionui_analytics::{AnalyticsRouterState, service::AgentUsageService};`
 - `ModuleStates` 结构体加字段: `pub analytics: AnalyticsRouterState,`
 - `build_module_states` 的 `let states = ModuleStates { ... }` 中加: `analytics: AnalyticsRouterState { service: AgentUsageService::new() },`
@@ -1460,12 +1480,15 @@ Modify `crates/aionui-app/src/router/state.rs`:
 - [ ] **Step 4: 在 routes.rs 接成受鉴权保护的 router**
 
 Modify `crates/aionui-app/src/router/routes.rs`:
+
 - use 区加: `use aionui_analytics::analytics_routes;`
 - 在 `system_authenticated` 定义之后 (约 routes.rs:111 附近) 加:
+
 ```rust
     let analytics_authenticated =
         analytics_routes(states.analytics).route_layer(from_fn_with_state(auth_mw_state.clone(), auth_middleware));
 ```
+
 - 在 `.merge(system_authenticated)` 那一段 (约 routes.rs:197) 加一行: `.merge(analytics_authenticated)`
 
 - [ ] **Step 5: 全量编译**
@@ -1573,15 +1596,18 @@ git commit -m "feat(analytics): wire authenticated route with webui-remote sanit
 > design.md:322 要求 analytics 端点未登录返回 403。Task 1.9 的 handler 测试用 naked router (无 auth layer), 不能验证鉴权。此 task 在 aionui-app 层补集成测试。
 
 **Files:**
+
 - 调查: `crates/aionui-app/tests/` 是否已有路由集成测试范例
 - Create/Modify: `crates/aionui-app/tests/analytics_auth.rs` (或并入现有 app 集成测试文件)
 
 - [ ] **Step 1: 找 app 级鉴权测试范例**
 
 Run:
+
 ```bash
 ls crates/aionui-app/tests/ 2>/dev/null; grep -rn "403\|FORBIDDEN\|auth_middleware\|create_router\|build_module_states" crates/aionui-app/tests/ 2>/dev/null | head
 ```
+
 Expected: 看是否有现成的 "未登录请求受保护端点 → 403" 范例。若有, 完全复用其 setup (构造完整 router + 不带 token 发请求); 若无, 按下一步最小实现。
 
 - [ ] **Step 2: 写 403 测试**
@@ -1609,20 +1635,24 @@ git commit -m "test(analytics): app-level 403 for unauthenticated analytics endp
 - [ ] **Step 1: 全 workspace 检查**
 
 Run:
+
 ```bash
 cargo build && cargo clippy --workspace -- -D warnings && cargo fmt --all -- --check
 ```
+
 Expected: PASS (fmt 不通过则 `cargo fmt --all` 后重测; clippy warning 当场修)
 
 - [ ] **Step 2: 启动后端冒烟 (需要本机有 ~/.claude 或 ~/.codex 日志)**
 
 Run (后台启动, 端口以项目默认为准, 通常 7689):
+
 ```bash
 cargo run -p aionui-app -- --local &
 sleep 3
 curl -s "http://127.0.0.1:7689/api/analytics/agent-usage?time_range=7d&sessions_limit=5" | head -c 800
 kill %1
 ```
+
 Expected: 返回 `{"success":true,"data":{...}}`, `data.sources` 有 claude/codex 两项, `data.summary.by_agent` 非空 (若本机有日志)。
 
 > 若端口非 7689: `grep -rn "7689\|DEFAULT_PORT\|socket_addr" crates/aionui-common/src/constants.rs` 确认。
@@ -1635,9 +1665,11 @@ Expected: 产出 `target/release/aioncli` (或对应二进制名; `ls target/rel
 - [ ] **Step 4: 推送分支 (阶段 1 完成)**
 
 Run:
+
 ```bash
 git push -u origin feat/agent-usage-analytics
 ```
+
 Expected: 推送成功 (不创建 PR, 等阶段 3 联调通过统一处理)
 
 > **执行期阻塞 (待阶段 3 解决)**: 当前 `origin` 直指上游 `iOfficeAI/AionCLI`, 执行账号无写权限 (403 denied)。阶段 1 的 10 个 feature commit 已**完成并保留在本地 `feat/agent-usage-analytics` 分支**, 工作区干净, release 二进制 `target/release/aioncli` 已构建。推送需: 用户用有权限账号手动推, 或配置 fork remote 推到 fork 再开 PR。**此阻塞不影响阶段 2** (前端用本地 release 二进制联调即可)。阶段 3 创建 PR 前必须先解决此推送权限。
@@ -1651,6 +1683,7 @@ Expected: 推送成功 (不创建 PR, 等阶段 3 联调通过统一处理)
 ### Task 2.1: 创建分支 + 响应类型与 mapper (TDD)
 
 **Files:**
+
 - Create: `packages/desktop/src/common/types/agentUsage.ts`
 - Create: `tests/unit/common/agentUsage.test.ts`
 
@@ -1659,6 +1692,7 @@ Expected: 推送成功 (不创建 PR, 等阶段 3 联调通过统一处理)
 - [ ] **Step 1: 创建分支**
 
 Run:
+
 ```bash
 git checkout dev && git pull && git checkout -b feat/agent-usage-stats
 ```
@@ -1935,6 +1969,7 @@ git commit -m "feat(usage-stats): add agent usage types and snake->camel mapper"
 ### Task 2.2: ipcBridge analytics (path builder 拼 query, TDD)
 
 **Files:**
+
 - Modify: `packages/desktop/src/common/adapter/ipcBridge.ts`
 - Create: `tests/unit/common-adapter/analyticsPath.test.ts`
 
@@ -1965,9 +2000,7 @@ describe('buildAgentUsagePath', () => {
     );
   });
   it('omits falsy refresh and undefined fields', () => {
-    expect(buildAgentUsagePath({ timeRange: '30d', refresh: false })).toBe(
-      '/api/analytics/agent-usage?time_range=30d'
-    );
+    expect(buildAgentUsagePath({ timeRange: '30d', refresh: false })).toBe('/api/analytics/agent-usage?time_range=30d');
   });
 });
 ```
@@ -2018,9 +2051,11 @@ Expected: PASS
 - [ ] **Step 5: lint/format/typecheck**
 
 Run:
+
 ```bash
 bun run lint:fix && bun run format && bunx tsc --noEmit
 ```
+
 Expected: 无 error (pre-existing warning 忽略); 若 import 位置报错, 移动到文件顶部 import 区后重跑
 
 - [ ] **Step 6: 提交**
@@ -2035,6 +2070,7 @@ git commit -m "feat(usage-stats): add ipcBridge.analytics with query path builde
 ### Task 2.3: i18n 模块 `usageStats`
 
 **Files:**
+
 - Modify: `packages/desktop/src/common/config/i18n-config.json`
 - Create: `packages/desktop/src/renderer/services/i18n/locales/<each>/usageStats.json` (8 个)
 - Modify: `packages/desktop/src/renderer/services/i18n/locales/<each>/index.ts` (8 个)
@@ -2136,9 +2172,11 @@ Create `packages/desktop/src/renderer/services/i18n/locales/en-US/usageStats.jso
 - [ ] **Step 5: 生成 i18n 类型 + 校验**
 
 Run:
+
 ```bash
 bun run i18n:types && node scripts/check-i18n.js
 ```
+
 Expected: 类型生成成功, check-i18n 无缺 key 报错
 
 - [ ] **Step 6: 提交**
@@ -2153,6 +2191,7 @@ git commit -m "feat(usage-stats): add usageStats i18n module"
 ### Task 2.4: 展示组件
 
 **Files:**
+
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/SummaryCards.tsx`
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/TrendChart.tsx`
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/ModelTable.tsx`
@@ -2262,7 +2301,11 @@ const ModelTable: React.FC<{ rows: UsageByModel[] }> = ({ rows }) => {
   const columns = [
     { title: t('usageStats.byModel.agent'), dataIndex: 'agent' },
     { title: t('usageStats.byModel.model'), dataIndex: 'model' },
-    { title: t('usageStats.byModel.sessions'), dataIndex: 'sessions', sorter: (a: UsageByModel, b: UsageByModel) => a.sessions - b.sessions },
+    {
+      title: t('usageStats.byModel.sessions'),
+      dataIndex: 'sessions',
+      sorter: (a: UsageByModel, b: UsageByModel) => a.sessions - b.sessions,
+    },
     {
       title: t('usageStats.byModel.tokens'),
       dataIndex: 'totalTokens',
@@ -2354,25 +2397,19 @@ const SessionList: React.FC<{
 }> = ({ rows, total, hasMore, onLoadMore }) => {
   const { t } = useTranslation();
   const columns = [
-    { title: t('usageStats.sessions.time'), dataIndex: 'lastActiveAt', render: (v: string) => v.replace('T', ' ').slice(0, 16) },
+    {
+      title: t('usageStats.sessions.time'),
+      dataIndex: 'lastActiveAt',
+      render: (v: string) => v.replace('T', ' ').slice(0, 16),
+    },
     { title: t('usageStats.sessions.agent'), dataIndex: 'agent' },
     { title: t('usageStats.sessions.model'), dataIndex: 'model' },
     { title: t('usageStats.sessions.project'), dataIndex: 'project', ellipsis: true },
     { title: t('usageStats.sessions.tokens'), dataIndex: 'totalTokens' },
   ];
   return (
-    <Card
-      title={`${t('usageStats.sessions.title')} · ${t('usageStats.sessions.total', { count: total })}`}
-      bordered
-    >
-      <Table
-        rowKey='sessionId'
-        columns={columns}
-        data={rows}
-        pagination={false}
-        scroll={{ y: 360 }}
-        virtualized
-      />
+    <Card title={`${t('usageStats.sessions.title')} · ${t('usageStats.sessions.total', { count: total })}`} bordered>
+      <Table rowKey='sessionId' columns={columns} data={rows} pagination={false} scroll={{ y: 360 }} virtualized />
       {hasMore && (
         <div style={{ textAlign: 'center', marginTop: 12 }}>
           <Button onClick={onLoadMore}>{t('usageStats.sessions.loadMore')}</Button>
@@ -2388,9 +2425,11 @@ export default SessionList;
 - [ ] **Step 6: lint/format/typecheck**
 
 Run:
+
 ```bash
 bun run lint:fix && bun run format && bunx tsc --noEmit
 ```
+
 Expected: 无 error
 
 - [ ] **Step 7: 提交**
@@ -2405,6 +2444,7 @@ git commit -m "feat(usage-stats): add display components"
 ### Task 2.5: 容器页 + 路由 + Settings Tab 注册
 
 **Files:**
+
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/index.tsx`
 - Modify: `packages/desktop/src/renderer/components/layout/Router.tsx`
 - Modify: `packages/desktop/src/renderer/pages/settings/components/SettingsSider.tsx`
@@ -2443,24 +2483,19 @@ const UsageStats: React.FC = () => {
   const [range, setRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
   const [offset, setOffset] = useState(0);
 
-  const load = useCallback(
-    async (params: AgentUsageParams, append: boolean) => {
-      setLoading(true);
-      setErr(null);
-      try {
-        const r = await ipcBridge.analytics.getAgentUsage.invoke(params);
-        setData((prev) =>
-          append && prev ? { ...r, sessions: [...prev.sessions, ...r.sessions] } : r
-        );
-      } catch (e: unknown) {
-        const status = (e as { status?: number })?.status;
-        setErr(status === 404 ? 'unsupported' : 'error');
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  const load = useCallback(async (params: AgentUsageParams, append: boolean) => {
+    setLoading(true);
+    setErr(null);
+    try {
+      const r = await ipcBridge.analytics.getAgentUsage.invoke(params);
+      setData((prev) => (append && prev ? { ...r, sessions: [...prev.sessions, ...r.sessions] } : r));
+    } catch (e: unknown) {
+      const status = (e as { status?: number })?.status;
+      setErr(status === 404 ? 'unsupported' : 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setOffset(0);
@@ -2469,7 +2504,10 @@ const UsageStats: React.FC = () => {
 
   const refresh = () => {
     setOffset(0);
-    void load({ trendGranularity: gran, timeRange: range, refresh: true, sessionsLimit: PAGE, sessionsOffset: 0 }, false);
+    void load(
+      { trendGranularity: gran, timeRange: range, refresh: true, sessionsLimit: PAGE, sessionsOffset: 0 },
+      false
+    );
   };
 
   const loadMore = () => {
@@ -2531,14 +2569,17 @@ export default UsageStats;
 - [ ] **Step 2: 注册路由**
 
 Modify `packages/desktop/src/renderer/components/layout/Router.tsx`:
+
 - 在 lazy import 区 (约 Router.tsx:8-15) 加: `const UsageStats = React.lazy(() => import('@renderer/pages/settings/UsageStats'));`
 - 在 settings 路由区 (约 Router.tsx:73, `/settings/system` 附近) 加: `<Route path='/settings/usage' element={withRouteFallback(UsageStats)} />`
 
 - [ ] **Step 3: 注册 Settings Tab**
 
 Modify `packages/desktop/src/renderer/pages/settings/components/SettingsSider.tsx`:
+
 - `BUILTIN_TAB_IDS` 数组在 `'system'` 前加 `'usage'` (即放在 about/system 附近合理位置)
 - `builtinMap` 加条目 (参考现有 agent 条目格式, icon 从 `@icon-park/react` 选图表类如 `ChartHistogram`; 文件顶部 import 区已 import 其它 icon, 加 `ChartHistogram`):
+
 ```tsx
       usage: {
         id: 'usage',
@@ -2547,14 +2588,17 @@ Modify `packages/desktop/src/renderer/pages/settings/components/SettingsSider.ts
         path: 'usage',
       },
 ```
+
 > 先 `grep -n "@icon-park/react" packages/desktop/src/renderer/pages/settings/components/SettingsSider.tsx` 看 import 行, 把 `ChartHistogram` 加入既有解构 import。确认该图标名存在: `grep -rn "ChartHistogram\|ChartPie\|DataAll" node_modules/@icon-park/react/es/map.js 2>/dev/null | head` — 若不存在换一个确实存在的图表类图标名。
 
 - [ ] **Step 4: lint/format/typecheck/i18n**
 
 Run:
+
 ```bash
 bun run lint:fix && bun run format && bunx tsc --noEmit && node scripts/check-i18n.js
 ```
+
 Expected: 无 error
 
 - [ ] **Step 5: 提交**
@@ -2569,6 +2613,7 @@ git commit -m "feat(usage-stats): add container page, route and settings tab"
 ### Task 2.6: 容器逻辑测试
 
 **Files:**
+
 - Create: `tests/unit/settings/UsageStats.dom.test.tsx`
 
 > React 组件测试: 必须放 `tests/unit/` 且命名 `*.dom.test.tsx` 才会进入 jsdom project (`vitest.config.ts:45`)。参考现有 `tests/unit/settings/SystemSettings.dom.test.tsx`。
@@ -2595,14 +2640,38 @@ import UsageStats from '@renderer/pages/settings/UsageStats';
 const baseResp = {
   scannedAt: 'x',
   sources: [],
-  summary: { byAgent: [{ agent: 'claude', sessions: 1, messages: 2, inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreationTokens: 0, totalTokens: 3 }] },
+  summary: {
+    byAgent: [
+      {
+        agent: 'claude',
+        sessions: 1,
+        messages: 2,
+        inputTokens: 1,
+        outputTokens: 1,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+        totalTokens: 3,
+      },
+    ],
+  },
   byModel: [],
   trend: { granularity: 'day', points: [] },
   timeRange: '30d',
   sessionsTotal: 1,
   sessionsLimit: 200,
   sessionsOffset: 0,
-  sessions: [{ agent: 'claude', sessionId: 's1', project: '/p', model: 'm', startedAt: 'a', lastActiveAt: 'b', messages: 2, totalTokens: 3 }],
+  sessions: [
+    {
+      agent: 'claude',
+      sessionId: 's1',
+      project: '/p',
+      model: 'm',
+      startedAt: 'a',
+      lastActiveAt: 'b',
+      messages: 2,
+      totalTokens: 3,
+    },
+  ],
 };
 
 describe('UsageStats container', () => {
@@ -2649,6 +2718,7 @@ git commit -m "test(usage-stats): add container logic tests"
 > **回应 review P1**: Task 1.9 后端已读 `x-aionui-webui-remote` header 决定脱敏, 但必须有人注入它, 否则 WebUI 远程仍暴露完整 project 路径。WebHost 反向代理 `forwardToBackend` 是 WebUI 远程 `/api/*` 的唯一通道, 且能拿到 `allowRemote` 标志 — 在此注入, 并**先剥离客户端可能伪造的同名 header** (防止伪造)。
 
 **Files:**
+
 - Modify: `packages/web-host/src/static-server.ts` (`forwardToBackend` + 其调用处)
 - Create: `tests/unit/web-cli/webuiRemoteHeader.test.ts`
 
@@ -2664,11 +2734,7 @@ import { buildBackendHeaders } from '@/web-host/static-server';
 
 describe('buildBackendHeaders', () => {
   it('injects webui-remote=1 when allowRemote and strips client-forged header', () => {
-    const h = buildBackendHeaders(
-      { host: 'evil', 'x-aionui-webui-remote': '0' },
-      9999,
-      true
-    );
+    const h = buildBackendHeaders({ host: 'evil', 'x-aionui-webui-remote': '0' }, 9999, true);
     expect(h['x-aionui-webui-remote']).toBe('1');
     expect(h.host).toBe('127.0.0.1:9999');
   });
@@ -2750,9 +2816,11 @@ Expected: PASS (2 个)
 - [ ] **Step 5: lint/format/typecheck**
 
 Run:
+
 ```bash
 bun run lint:fix && bun run format && bunx tsc --noEmit
 ```
+
 Expected: 无 error
 
 - [ ] **Step 6: 提交**
@@ -2774,6 +2842,7 @@ git commit -m "feat(web-host): inject webui-remote header for backend path sanit
 
 Run: `bun run dev` (按项目实际 dev 命令; 先 `grep '"dev"' package.json`)
 手动验证 (golden path):
+
 - Settings 侧边栏出现「使用统计」Tab
 - 进入后自动加载, 显示汇总卡片 (claude/codex)、趋势、按模型、会话明细
 - 切换时间窗 7d/30d/90d/all → 数据变化
@@ -2789,6 +2858,7 @@ Run: `bun run dev` (按项目实际 dev 命令; 先 `grep '"dev"' package.json`)
 - [ ] **Step 2c: WebUI 远程脱敏验证 (回应 review P1)**
 
 以 WebUI 远程模式启动 (allowRemote, 监听 0.0.0.0; 查启动方式 `grep -rn "allowRemote\|startWebHost\|webui" scripts/webui.ts | head`), 从**另一台机器或非 loopback 地址**访问 `/api/analytics/agent-usage`:
+
 - 期望: `sessions[].project` 为脱敏 basename (如 `proj`), **不含**完整路径/用户名
 - 对照: 本机 Electron 直接打开同页面 → `project` 为完整路径 (本机用户看自己的)
 - 若无第二台机器: `curl -H 'x-aionui-webui-remote: 1' http://127.0.0.1:<webhostPort>/api/analytics/agent-usage` 应返回脱敏路径; 不带该 header 直连后端端口应返回完整路径
@@ -2798,22 +2868,36 @@ Run: `bun run dev` (按项目实际 dev 命令; 先 `grep '"dev"' package.json`)
 
 如 UI 无法在当前环境跑起来 (无 GUI), 明确说明"未能浏览器验证 UI", 不谎报成功 (per verification-before-completion)。
 
+#### 实际验证结果 (2026-05-19, 执行期记录)
+
+- ✅ **后端端到端 (release 二进制)**: 用阶段 1 `target/release/aioncli --local` 实测 `GET /api/analytics/agent-usage`。真实日志聚合正确 (Task 1.10 已验证: claude 28 会话 / codex 13 会话 / 176M tokens, sources/summary/by_model 正确)。
+- ✅ **P1 远程脱敏端到端 (回应 review P1, 关键安全证明)**: 同一 release 二进制对比测试:
+  - 不带 header (本机 Electron 直连): `sessions[0].project = "/Users/jassy/Documents/glm/aionui_ws/AionUi"` (完整路径, 符合本机设计)
+  - 带 `x-aionui-webui-remote: 1` (模拟 WebUI 远程): `sessions[0].project = "AionUi"` (仅 basename, 无 `/` 分隔, **不泄露用户名/完整路径**)
+  - 证明 Task 1.8 service 脱敏 + Task 1.9 后端读 header + Task 3.0b WebHost 注入 三者构成的 P1 闭环端到端真实有效。
+- ✅ **边界 (部分)**: Task 1.10 已验证目录缺失降级 (sources available 计数正确)、真实大量日志不崩 (秒级返回)。
+- ⚠️ **GUI 浏览器验证未执行 (如实声明)**: 执行环境无 GUI / 无法启动 Electron dev server 人工交互。前端逻辑由 Task 2.6 容器测试 (loading/data/404/error, 3 测试 passed) + tsc 类型检查覆盖, 但**「实际浏览器中 Settings Tab 渲染、点击交互、视觉外观」未经人工验证**。**遗留**: 用户需在本地 GUI 环境 `bun run dev` 做最终视觉/交互确认 (golden path: Tab 出现 → 自动加载 → 切时间窗/粒度 → 加载更多 → 刷新; 边界: ~/.codex 改名看 SourceBanner、无日志 Empty 态)。
+
 ### Task 3.2: 各仓库质量门禁 + 推送
 
 - [ ] **Step 1: AionCLI 门禁**
 
 在 AionCLI:
+
 ```bash
 cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --all -- --check
 ```
+
 Expected: 全 PASS
 
 - [ ] **Step 2: AionUi 门禁**
 
 在 AionUi:
+
 ```bash
 just push
 ```
+
 (若未配置 just 远程, 等价跑 `bun run lint:fix && bun run format && bunx tsc --noEmit && bun run test && node scripts/check-i18n.js`)
 Expected: 全 PASS (按 exit code 判定, 忽略 pre-existing warning)
 
@@ -2825,6 +2909,12 @@ git push -u origin feat/agent-usage-analytics
 # AionUi
 git push -u origin feat/agent-usage-stats
 ```
+
+> **执行期阻塞 (2026-05-19, 需用户处理)**: 两仓库 `origin` 均直指上游 `iOfficeAI/AionCLI` 与 `iOfficeAI/AionUi`, 执行账号 `Jassy930` 对两者**均无写权限 (403 denied)**。门禁全部通过 (AionCLI: clippy --workspace -D warnings=0 / fmt=0 / analytics+app鉴权测试 pass; AionUi: tsc=0 / check-i18n pass / 本功能 9 测试 pass)。代码完整保留在本地两个 feature 分支:
+> - AionCLI `feat/agent-usage-analytics` (10 feature commits, 基于 main)
+> - AionUi `feat/agent-usage-stats` (含本阶段所有 commits + dev 上的 docs commits, 基于 dev)
+>
+> **遗留 (用户操作)**: 用有写权限的账号推送, 或配置 fork remote 推到各自 fork 再开 PR。Step 4 PR 创建依赖此推送, 同样遗留。
 
 - [ ] **Step 4: 创建两个 PR (互相反向链接 spec)**
 
@@ -2851,6 +2941,7 @@ git push
 ## Self-Review (计划自审)
 
 **1. Spec 覆盖检查:**
+
 - ① 总量汇总卡片 → Task 2.4 SummaryCards ✓
 - ② 按模型细分 → Task 1.6 aggregate by_model + Task 2.4 ModelTable ✓
 - ③ 会话明细列表 → Task 1.6 sessions 分页 + Task 2.4 SessionList ✓
@@ -2872,6 +2963,7 @@ git push
 **4. 测试可执行性 (回应 review P1):** 所有 TS 测试路径已迁至 `tests/unit/` (node) / `tests/unit/**/*.dom.test.tsx` (jsdom), 与 `vitest.config.ts:29-45` include 规则匹配, 确保 `bun run test` 真正收集执行。Rust 测试均 `cargo test -p aionui-analytics` 可达。
 
 **已知实现期待定项 (非计划缺陷):**
+
 - TrendChart 是否用现有图表库 → Task 2.4 Step 4 给出"查依赖, 有则用, 无则零依赖 div 方案", 两条路径都可执行
 - 端口号/二进制名/dev 命令 → 各 Step 给出 grep 验证命令, 不写死
 - app 级 403 测试依赖 aionui-app 现有集成测试基建 → Task 1.9b Step 2 明确"有范例则复用, 无则如实记录不谎报", 不会假装已覆盖
