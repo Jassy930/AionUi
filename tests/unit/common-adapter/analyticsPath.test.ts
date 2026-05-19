@@ -1,0 +1,23 @@
+import { describe, it, expect } from 'vitest';
+import { buildAgentUsagePath } from '@/common/adapter/ipcBridge';
+
+describe('buildAgentUsagePath', () => {
+  it('builds path with no params', () => {
+    expect(buildAgentUsagePath(undefined)).toBe('/api/analytics/agent-usage');
+  });
+  it('maps camelCase params to snake_case query', () => {
+    const p = buildAgentUsagePath({
+      trendGranularity: 'week',
+      timeRange: '7d',
+      refresh: true,
+      sessionsLimit: 50,
+      sessionsOffset: 100,
+    });
+    expect(p).toBe(
+      '/api/analytics/agent-usage?trend_granularity=week&time_range=7d&refresh=true&sessions_limit=50&sessions_offset=100'
+    );
+  });
+  it('omits falsy refresh and undefined fields', () => {
+    expect(buildAgentUsagePath({ timeRange: '30d', refresh: false })).toBe('/api/analytics/agent-usage?time_range=30d');
+  });
+});

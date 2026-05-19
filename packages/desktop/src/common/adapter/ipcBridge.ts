@@ -53,6 +53,8 @@ import type {
   UpdateDownloadResult,
 } from '../update/updateTypes';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '../utils/protocolDetector';
+import type { AgentUsageParams, AgentUsageResponseRaw } from '@/common/types/agentUsage';
+import { fromApiAgentUsage } from '@/common/types/agentUsage';
 import { fromApiConversation, fromApiPaginatedConversations, toApiModelOptional } from './apiModelMapper';
 import {
   httpDelete,
@@ -1660,4 +1662,26 @@ export const team = {
   listChanged: wsEmitter<ITeamListChangedEvent>('team.list-changed'),
   created: wsEmitter<ITeamCreatedEvent>('team.created'),
   teammateMessage: wsEmitter<ITeamTeammateMessageEvent>('team.teammate.message'),
+};
+
+// ---------------------------------------------------------------------------
+// Analytics — /api/analytics/agent-usage (受鉴权保护)
+// ---------------------------------------------------------------------------
+
+export function buildAgentUsagePath(p: AgentUsageParams | undefined): string {
+  const q = new URLSearchParams();
+  if (p?.trendGranularity) q.set('trend_granularity', p.trendGranularity);
+  if (p?.timeRange) q.set('time_range', p.timeRange);
+  if (p?.refresh) q.set('refresh', 'true');
+  if (p?.sessionsLimit != null) q.set('sessions_limit', String(p.sessionsLimit));
+  if (p?.sessionsOffset != null) q.set('sessions_offset', String(p.sessionsOffset));
+  const qs = q.toString();
+  return `/api/analytics/agent-usage${qs ? `?${qs}` : ''}`;
+}
+
+export const analytics = {
+  getAgentUsage: withResponseMap(
+    httpGet<AgentUsageResponseRaw, AgentUsageParams | undefined>((p) => buildAgentUsagePath(p)),
+    fromApiAgentUsage
+  ),
 };
