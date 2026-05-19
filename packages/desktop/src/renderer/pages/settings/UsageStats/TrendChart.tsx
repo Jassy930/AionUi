@@ -5,44 +5,41 @@
  */
 
 import React from 'react';
-import { Card, Tooltip } from '@arco-design/web-react';
+import { Card, Radio } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { TrendPoint } from '@/common/types/agentUsage';
+import { SEGMENT_PALETTE } from './Sparkline';
+import { cumulative, logScale } from './chartMath';
 
-// Arco Design official categorical sequence. Bright, saturated hues with high
-// contrast on BOTH light and dark backgrounds (avoids the muted blue-grey
-// #7583b2 and dim #165dff that were hard to read). Adjacent colors are
-// hue-distinct (blue → green → orange ...) so stacked segments separate
-// clearly even with only two segments.
-const SEGMENT_PALETTE = ['#3491FA', '#00B42A', '#FF7D00', '#F53F3F', '#722ED1', '#14C9C9', '#F7BA1E', '#D91AD9'];
-
-const TrendChart: React.FC<{ points: TrendPoint[] }> = ({ points }) => {
+const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({ points, perPointLabel }) => {
   const { t } = useTranslation();
+  const [mode, setMode] = React.useState<'split' | 'cumulative'>('split');
+  const [scale, setScale] = React.useState<'linear' | 'log'>('linear');
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
 
-  // Build stable sorted list of all distinct segment names across all points
   const allSegments = React.useMemo(() => {
-    const nameSet = new Set<string>();
-    for (const p of points) {
-      for (const name of Object.keys(p.bySegment)) {
-        nameSet.add(name);
-      }
-    }
-    return Array.from(nameSet).toSorted();
+    const set = new Set<string>();
+    for (const p of points) for (const k of Object.keys(p.bySegment)) set.add(k);
+    return Array.from(set).toSorted();
   }, [points]);
 
-  // Map segment name → color (stable, cycles if > palette length)
-  const segmentColor = React.useMemo(
-    () => new Map(allSegments.map((name, i) => [name, SEGMENT_PALETTE[i % SEGMENT_PALETTE.length]])),
-    [allSegments]
-  );
+  const colorOf = React.useMemo(() => new Map(allSegments.map((n, i) => [n, SEGMENT_PALETTE[i % SEGMENT_PALETTE.length]])), [allSegments]);
 
-  const max = Math.max(1, ...points.map((p) => Object.values(p.bySegment).reduce((s, v) => s + v, 0)));
+  // 每桶（应用 hidden 过滤后）总量序列；累计模式做前缀和
+  const totalsRaw = points.map((p) =>
+    Object.entries(p.bySegment)
+      .filter(([k]) => !hidden.has(k))
+      .reduce((s, [, v]) => s + v, 0)
+  );
+  const totals = mode === 'cumulative' ? cumulative(totalsRaw) : totalsRaw;
+  const scaled = totals.map((v) => (scale === 'log' ? logScale(v) : v));
+  const max = Math.max(1, ...scaled);
 
   if (points.length === 0) {
     return (
       <Card title={t('usageStats.trend.title')} bordered style={{ marginBottom: 16 }}>
         <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>—</span>
+          <span style={{ color: 'var(--text-secondary, #86909c)', fontSize: 13 }}>—</span>
         </div>
       </Card>
     );
@@ -50,134 +47,76 @@ const TrendChart: React.FC<{ points: TrendPoint[] }> = ({ points }) => {
 
   return (
     <Card title={t('usageStats.trend.title')} bordered style={{ marginBottom: 16 }}>
-      {/* Legend */}
-      {allSegments.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '4px 12px',
-            marginBottom: 10,
-          }}
-        >
-          {allSegments.map((name) => (
-            <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Radio.Group type='button' size='small' value={mode} onChange={(v: string) => setMode(v as 'split' | 'cumulative')}>
+          <Radio value='split'>{t('usageStats.trendCtl.split')}</Radio>
+          <Radio value='cumulative'>{t('usageStats.trendCtl.cumulative')}</Radio>
+        </Radio.Group>
+        <Radio.Group type='button' size='small' value={scale} onChange={(v: string) => setScale(v as 'linear' | 'log')}>
+          <Radio value='linear'>{t('usageStats.trendCtl.linear')}</Radio>
+          <Radio value='log'>{t('usageStats.trendCtl.log')}</Radio>
+        </Radio.Group>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary, #86909c)' }}>{perPointLabel}</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 160, overflowX: 'auto' }}>
+        {points.map((p, idx) => {
+          const segs = Object.entries(p.bySegment)
+            .filter(([k]) => !hidden.has(k))
+            .toSorted(([, x], [, y]) => y - x);
+          const totalHere = scaled[idx];
+          const barHeight = totalHere > 0 ? Math.max((totalHere / max) * 130, 4) : 0;
+          const rawTotal = totalsRaw[idx];
+          return (
+            <div key={p.bucket} style={{ textAlign: 'center', minWidth: 28 }} title={`${p.bucket}: ${rawTotal.toLocaleString()}`}>
+              <div
+                style={{
+                  height: `${barHeight}px`,
+                  display: 'flex',
+                  flexDirection: 'column-reverse',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                }}
+              >
+                {segs.map(([name, val]) => {
+                  const frac = rawTotal > 0 ? val / rawTotal : 0;
+                  return <div key={name} style={{ height: `${frac * barHeight}px`, background: colorOf.get(name), flexShrink: 0 }} />;
+                })}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary, #86909c)', marginTop: 4, whiteSpace: 'nowrap' }}>{p.bucket.slice(5)}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 11 }}>
+        {allSegments.map((name) => {
+          const off = hidden.has(name);
+          return (
+            <span
+              key={name}
+              onClick={() => {
+                setHidden((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(name)) next.delete(name);
+                  else next.add(name);
+                  return next;
+                });
+              }}
+              style={{ cursor: 'pointer', opacity: off ? 0.4 : 1, textDecoration: off ? 'line-through' : 'none' }}
+            >
               <span
                 style={{
                   display: 'inline-block',
                   width: 10,
                   height: 10,
                   borderRadius: 2,
-                  background: segmentColor.get(name),
-                  flexShrink: 0,
+                  background: colorOf.get(name),
+                  marginRight: 4,
                 }}
               />
-              <span
-                style={{
-                  fontSize: 11,
-                  color: 'var(--text-secondary)',
-                  maxWidth: 140,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {name}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Bar chart */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 130, overflowX: 'auto' }}>
-        {points.map((p) => {
-          const total = Object.values(p.bySegment).reduce((s, v) => s + v, 0);
-          // Clamp on whole bar; individual segments share the clamped height proportionally
-          const barHeight = total > 0 ? Math.max((total / max) * 130, 4) : 0;
-
-          // Sort segments by value desc for tooltip display
-          const sortedSegments = Object.entries(p.bySegment)
-            .filter(([, v]) => v > 0)
-            .toSorted(([, a], [, b]) => b - a);
-
-          const tooltipContent = (
-            <div style={{ minWidth: 120, maxWidth: 240 }}>
-              <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12 }}>{p.bucket}</div>
-              <div style={{ marginBottom: 4, fontSize: 12 }}>
-                {t('usageStats.trend.tooltipTotal')}: {total.toLocaleString()}
-              </div>
-              {sortedSegments.map(([name, val]) => (
-                <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, marginTop: 2 }}>
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      width: 8,
-                      height: 8,
-                      borderRadius: 1,
-                      background: segmentColor.get(name),
-                      flexShrink: 0,
-                    }}
-                  />
-                  <span
-                    style={{
-                      color: 'var(--text-secondary)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      maxWidth: 160,
-                    }}
-                  >
-                    {name}
-                  </span>
-                  <span style={{ marginLeft: 'auto', paddingLeft: 8, flexShrink: 0 }}>{val.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          );
-
-          return (
-            <div key={p.bucket} style={{ textAlign: 'center', minWidth: 28 }}>
-              <Tooltip content={tooltipContent} mini>
-                {/* Stacked bar: each segment is a sub-rect */}
-                <div
-                  style={{
-                    height: `${barHeight}px`,
-                    display: 'flex',
-                    flexDirection: 'column-reverse',
-                    borderRadius: 2,
-                    overflow: 'hidden',
-                    cursor: 'default',
-                  }}
-                >
-                  {total > 0
-                    ? sortedSegments.map(([name, val]) => {
-                        const segHeight = (val / total) * barHeight;
-                        return (
-                          <div
-                            key={name}
-                            style={{
-                              height: `${segHeight}px`,
-                              background: segmentColor.get(name),
-                              flexShrink: 0,
-                            }}
-                          />
-                        );
-                      })
-                    : null}
-                </div>
-              </Tooltip>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: 'var(--text-secondary)',
-                  marginTop: 4,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {p.bucket.slice(5)}
-              </div>
-            </div>
+              {name}
+            </span>
           );
         })}
       </div>
