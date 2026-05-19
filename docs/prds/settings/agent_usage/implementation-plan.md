@@ -321,15 +321,15 @@ impl LogParser for ClaudeParser {
                 (Some(ts), Some(u)) => (ts, u),
                 _ => return,
             };
-            if session_id.is_empty() {
-                if let Some(s) = v.get("sessionId").and_then(|s| s.as_str()) {
-                    session_id = s.to_string();
-                }
+            if session_id.is_empty()
+                && let Some(s) = v.get("sessionId").and_then(|s| s.as_str())
+            {
+                session_id = s.to_string();
             }
-            if project.is_empty() {
-                if let Some(c) = v.get("cwd").and_then(|c| c.as_str()) {
-                    project = c.to_string();
-                }
+            if project.is_empty()
+                && let Some(c) = v.get("cwd").and_then(|c| c.as_str())
+            {
+                project = c.to_string();
             }
             if let Some(m) = msg.and_then(|m| m.get("model")).and_then(|m| m.as_str()) {
                 *model_counts.entry(m.to_string()).or_insert(0) += 1;
@@ -517,10 +517,10 @@ impl LogParser for CodexParser {
                     }
                 }
                 "turn_context" => {
-                    if model.is_empty() {
-                        if let Some(m) = payload.and_then(|p| p.get("model")).and_then(|m| m.as_str()) {
-                            model = m.to_string();
-                        }
+                    if model.is_empty()
+                        && let Some(m) = payload.and_then(|p| p.get("model")).and_then(|m| m.as_str())
+                    {
+                        model = m.to_string();
                     }
                 }
                 "response_item" => {
