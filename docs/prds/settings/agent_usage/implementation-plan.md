@@ -854,7 +854,7 @@ Expected: FAIL — `aggregate` 不存在
 Create `crates/aionui-analytics/src/aggregate.rs`:
 
 ```rust
-use crate::types::{Agent, ParsedSession};
+use crate::types::ParsedSession;
 use aionui_api_types::{
     AgentUsageResponse, SessionRow, TrendPoint, UsageByAgent, UsageByModel, UsageSummary, UsageTrend,
 };
@@ -946,7 +946,7 @@ pub fn aggregate(
 
     // ---- sessions (倒序 + 分页) ----
     let mut rows: Vec<&ParsedSession> = sessions.iter().collect();
-    rows.sort_by(|a, b| b.last_active_at.cmp(&a.last_active_at));
+    rows.sort_by_key(|b| std::cmp::Reverse(b.last_active_at));
     let sessions_total = rows.len() as u64;
     let page: Vec<SessionRow> = rows
         .into_iter()
@@ -990,9 +990,6 @@ fn bucket_key(at: chrono::DateTime<chrono::Utc>, gran: &str) -> String {
         at.format("%Y-%m-%d").to_string()
     }
 }
-
-#[allow(unused_imports)]
-use Agent as _; // keep types import meaningful
 ```
 
 - [ ] **Step 4: 运行确认通过**
