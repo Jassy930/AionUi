@@ -17,17 +17,22 @@ const TrendChart: React.FC<{ points: TrendPoint[] }> = ({ points }) => {
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 160, overflowX: 'auto' }}>
         {points.map((p) => {
           const total = Object.values(p.byAgent).reduce((s, v) => s + v, 0);
+          // Linear scale, but clamp to a minimum visible height when there is
+          // any usage — token volumes vary by orders of magnitude (cache
+          // tokens can spike a single day into the hundreds of millions), so
+          // an unclamped linear bar renders normal days as sub-pixel slivers.
+          const barHeight = total > 0 ? Math.max((total / max) * 130, 4) : 0;
           return (
             <div key={p.bucket} style={{ textAlign: 'center', minWidth: 28 }}>
               <div
                 title={`${p.bucket}: ${total}`}
                 style={{
-                  height: `${(total / max) * 130}px`,
-                  background: 'var(--color-primary-6)',
+                  height: `${barHeight}px`,
+                  background: 'var(--primary)',
                   borderRadius: 2,
                 }}
               />
-              <div style={{ fontSize: 10, color: 'var(--color-text-3)', marginTop: 4, whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4, whiteSpace: 'nowrap' }}>
                 {p.bucket.slice(5)}
               </div>
             </div>

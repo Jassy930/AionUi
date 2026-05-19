@@ -22,12 +22,12 @@
     "model": "Model",
     "project": "Project",
     "tokens": "Tokens",
-    "total": "{count} sessions total",
+    "total": "{{count}} sessions total",
     "loadMore": "Load more"
   },
   "source": {
-    "missing": "{agent} log directory not found",
-    "skipped": "{count} {agent} log file(s) could not be parsed and were skipped"
+    "missing": "{{agent}} log directory not found",
+    "skipped": "{{count}} {{agent}} log file(s) could not be parsed and were skipped"
   },
   "empty": "No usage data found",
   "error": "Failed to load usage data",

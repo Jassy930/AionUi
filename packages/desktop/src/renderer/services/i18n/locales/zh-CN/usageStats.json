@@ -22,12 +22,12 @@
     "model": "模型",
     "project": "项目",
     "tokens": "Token",
-    "total": "共 {count} 个会话",
+    "total": "共 {{count}} 个会话",
     "loadMore": "加载更多"
   },
   "source": {
-    "missing": "未找到 {agent} 日志目录",
-    "skipped": "有 {count} 个 {agent} 日志文件无法解析, 已跳过"
+    "missing": "未找到 {{agent}} 日志目录",
+    "skipped": "有 {{count}} 个 {{agent}} 日志文件无法解析, 已跳过"
   },
   "empty": "未找到使用数据",
   "error": "加载使用数据失败",

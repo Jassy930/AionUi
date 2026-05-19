@@ -28,7 +28,7 @@ const SummaryCards: React.FC<{ byAgent: UsageByAgent[] }> = ({ byAgent }) => {
             <div style={{ fontSize: 20, fontWeight: 600, margin: '8px 0' }}>
               {t('usageStats.summary.totalTokens')}: {fmt(a.totalTokens)}
             </div>
-            <div style={{ color: 'var(--color-text-3)' }}>
+            <div style={{ color: 'var(--text-secondary)' }}>
               {t('usageStats.summary.input')} {fmt(a.inputTokens)} · {t('usageStats.summary.output')}{' '}
               {fmt(a.outputTokens)} · {t('usageStats.summary.cacheRead')} {fmt(a.cacheReadTokens)} ·{' '}
               {t('usageStats.summary.cacheCreation')} {fmt(a.cacheCreationTokens)}
