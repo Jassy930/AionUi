@@ -2,8 +2,16 @@
   "title": "Usage Stats",
   "menuLabel": "Usage",
   "refresh": "Refresh",
-  "granularity": { "day": "Daily", "week": "Weekly" },
-  "timeRange": { "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days", "all": "All time" },
+  "granularity": {
+    "day": "Daily",
+    "week": "Weekly"
+  },
+  "timeRange": {
+    "7d": "Last 7 days",
+    "30d": "Last 30 days",
+    "90d": "Last 90 days",
+    "all": "All time"
+  },
   "summary": {
     "sessions": "Sessions",
     "messages": "Messages",
@@ -15,10 +23,21 @@
   },
   "trend": {
     "title": "Token usage trend",
-    "dimension": { "label": "Split by", "agent": "Tool", "project": "Project", "model": "Model" },
+    "dimension": {
+      "label": "Split by",
+      "agent": "Tool",
+      "project": "Project",
+      "model": "Model"
+    },
     "tooltipTotal": "Total"
   },
-  "byModel": { "title": "By model", "model": "Model", "agent": "Agent", "sessions": "Sessions", "tokens": "Tokens" },
+  "byModel": {
+    "title": "By model",
+    "model": "Model",
+    "agent": "Agent",
+    "sessions": "Sessions",
+    "tokens": "Tokens"
+  },
   "sessions": {
     "title": "Sessions",
     "time": "Time",
@@ -35,5 +54,32 @@
   },
   "empty": "No usage data found",
   "error": "Failed to load usage data",
-  "unsupported": "Current backend does not support usage stats. Please update."
+  "unsupported": "Current backend does not support usage stats. Please update.",
+  "kpi": {
+    "totalTokens": "Total tokens",
+    "sessions": "Sessions",
+    "messages": "Messages",
+    "cacheRatio": "Cache ratio"
+  },
+  "composition": {
+    "title": "Token composition",
+    "input": "Input",
+    "output": "Output",
+    "cacheRead": "Cache read",
+    "cacheCreation": "Cache creation"
+  },
+  "comparison": {
+    "title": "By tool",
+    "projectsTitle": "Top projects",
+    "modelsTitle": "Top models"
+  },
+  "trendCtl": {
+    "mode": "Mode",
+    "split": "Split",
+    "cumulative": "Cumulative",
+    "scale": "Scale",
+    "linear": "Linear",
+    "log": "Log",
+    "perPoint": "≈ {{span}} / point"
+  }
 }
