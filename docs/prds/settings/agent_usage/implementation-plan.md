@@ -1051,12 +1051,12 @@ impl UsageCache {
         let mtime = meta.modified()?;
         let size = meta.len();
 
-        if !bypass {
-            if let Some(e) = self.map.get(path) {
-                if e.mtime == mtime && e.size == size {
-                    return Ok(e.session.clone());
-                }
-            }
+        if !bypass
+            && let Some(e) = self.map.get(path)
+            && e.mtime == mtime
+            && e.size == size
+        {
+            return Ok(e.session.clone());
         }
         let session = Arc::new(parser.parse_file(path)?);
         self.map.insert(
