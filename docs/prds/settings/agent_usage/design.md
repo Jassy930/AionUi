@@ -156,6 +156,7 @@
   - Claude: 每条 assistant 消息的 `message.usage` 按该消息 `timestamp` 落桶 (本就逐消息, 天然精确)
   - 会话列表: 只返回时间窗内至少有一个用量事件的会话; `last_active_at` 仅用于排序, 不作为聚合口径
   - Fallback: 仅当 Codex 缺失 `last_token_usage`/事件时间时, 才把该会话总量归到会话开始日; 如果开始日不在 `time_range`, 该 fallback 用量不计入当前窗口
+  - 已知边界 (有意取舍): 若 Codex 日志损坏/截断到**连 `session_meta` 都没有** (无从得知会话开始日), 即便有 `total_token_usage` 也会被丢弃 (`ParseError::Empty`, 计入 `files_skipped`)。损坏日志罕见, 故不为此再引入行级时间兜底; 有专门测试锁定该行为
   - 一致性: 趋势所有桶之和应约等于汇总卡片 `total_tokens` (允许 fallback/坏行造成的微小偏差, 文档/tooltip 注明)
 - 坏行/坏文件: 跳过并计入 `files_skipped`, 不让请求失败; 降级状态经 `sources[].available/error` 透传给前端
 

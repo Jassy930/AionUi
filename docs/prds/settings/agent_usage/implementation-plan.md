@@ -461,6 +461,16 @@ fn codex_fallback_when_no_event_level_usage() {
     assert_eq!(e.output_tokens, 40);
     assert_eq!(e.at, session.started_at);
 }
+
+#[test]
+fn codex_truncated_log_without_session_meta_is_dropped() {
+    // 文档化已知取舍 (回应 review Important): 损坏/截断的 Codex 日志若缺 session_meta,
+    // started_at 无从得知, 即便有 total_token_usage 也会被丢弃 (ParseError::Empty)。
+    // 这是有意取舍 (损坏日志罕见); 此测试锁定该行为, 防止未来无意改变语义。
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/codex_no_meta.jsonl");
+    let result = CodexParser.parse_file(&path);
+    assert!(result.is_err(), "无 session_meta 的截断日志当前被丢弃 (已知取舍)");
+}
 ```
 
 Also create `crates/aionui-analytics/tests/fixtures/codex_fallback.jsonl` (无 last_token_usage, 无 event_msg 行级时间也可被 fallback 覆盖):
@@ -468,6 +478,12 @@ Also create `crates/aionui-analytics/tests/fixtures/codex_fallback.jsonl` (无 l
 ```
 {"timestamp":"2026-05-10T08:00:00.000Z","type":"session_meta","payload":{"id":"sess-fb","timestamp":"2026-05-10T08:00:00.000Z","cwd":"/work/fb","cli_version":"0.111.0","model_provider":"crs"}}
 {"timestamp":"2026-05-10T08:00:05.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":700,"cached_input_tokens":0,"output_tokens":40,"reasoning_output_tokens":0,"total_tokens":740}}}}
+```
+
+And create `crates/aionui-analytics/tests/fixtures/codex_no_meta.jsonl` (截断日志: 无 session_meta, 仅一个带 total_token_usage 的 event_msg — 文档化已知丢弃行为):
+
+```
+{"timestamp":"2026-05-11T08:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":500,"cached_input_tokens":0,"output_tokens":30,"reasoning_output_tokens":0,"total_tokens":530}}}}
 ```
 
 - [ ] **Step 3: 运行测试确认失败**
