@@ -23,7 +23,10 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
     return Array.from(set).toSorted();
   }, [points]);
 
-  const colorOf = React.useMemo(() => new Map(allSegments.map((n, i) => [n, SEGMENT_PALETTE[i % SEGMENT_PALETTE.length]])), [allSegments]);
+  const colorOf = React.useMemo(
+    () => new Map(allSegments.map((n, i) => [n, SEGMENT_PALETTE[i % SEGMENT_PALETTE.length]])),
+    [allSegments]
+  );
 
   // 每桶（应用 hidden 过滤后）总量序列；累计模式做前缀和
   const totalsRaw = points.map((p) =>
@@ -48,7 +51,12 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
   return (
     <Card title={t('usageStats.trend.title')} bordered style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', gap: 12, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Radio.Group type='button' size='small' value={mode} onChange={(v: string) => setMode(v as 'split' | 'cumulative')}>
+        <Radio.Group
+          type='button'
+          size='small'
+          value={mode}
+          onChange={(v: string) => setMode(v as 'split' | 'cumulative')}
+        >
           <Radio value='split'>{t('usageStats.trendCtl.split')}</Radio>
           <Radio value='cumulative'>{t('usageStats.trendCtl.cumulative')}</Radio>
         </Radio.Group>
@@ -56,7 +64,9 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
           <Radio value='linear'>{t('usageStats.trendCtl.linear')}</Radio>
           <Radio value='log'>{t('usageStats.trendCtl.log')}</Radio>
         </Radio.Group>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary, #86909c)' }}>{perPointLabel}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary, #86909c)' }}>
+          {perPointLabel}
+        </span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 160, overflowX: 'auto' }}>
@@ -68,7 +78,11 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
           const barHeight = totalHere > 0 ? Math.max((totalHere / max) * 130, 4) : 0;
           const rawTotal = totalsRaw[idx];
           return (
-            <div key={p.bucket} style={{ textAlign: 'center', minWidth: 28 }} title={`${p.bucket}: ${rawTotal.toLocaleString()}`}>
+            <div
+              key={p.bucket}
+              style={{ textAlign: 'center', minWidth: 28 }}
+              title={`${p.bucket}: ${rawTotal.toLocaleString()}`}
+            >
               <div
                 style={{
                   height: `${barHeight}px`,
@@ -80,10 +94,19 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
               >
                 {segs.map(([name, val]) => {
                   const frac = rawTotal > 0 ? val / rawTotal : 0;
-                  return <div key={name} style={{ height: `${frac * barHeight}px`, background: colorOf.get(name), flexShrink: 0 }} />;
+                  return (
+                    <div
+                      key={name}
+                      style={{ height: `${frac * barHeight}px`, background: colorOf.get(name), flexShrink: 0 }}
+                    />
+                  );
                 })}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--text-secondary, #86909c)', marginTop: 4, whiteSpace: 'nowrap' }}>{p.bucket.slice(5)}</div>
+              <div
+                style={{ fontSize: 10, color: 'var(--text-secondary, #86909c)', marginTop: 4, whiteSpace: 'nowrap' }}
+              >
+                {p.bucket.slice(5)}
+              </div>
             </div>
           );
         })}

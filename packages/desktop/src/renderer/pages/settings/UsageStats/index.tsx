@@ -46,21 +46,39 @@ const UsageStats: React.FC = () => {
 
   useEffect(() => {
     setOffset(0);
-    void load({ trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: 0 }, false);
+    void load(
+      { trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: 0 },
+      false
+    );
   }, [gran, range, dim, load]);
 
   const refresh = () => {
     setOffset(0);
-    void load({ trendGranularity: gran, timeRange: range, trendDimension: dim, refresh: true, sessionsLimit: PAGE, sessionsOffset: 0 }, false);
+    void load(
+      {
+        trendGranularity: gran,
+        timeRange: range,
+        trendDimension: dim,
+        refresh: true,
+        sessionsLimit: PAGE,
+        sessionsOffset: 0,
+      },
+      false
+    );
   };
 
   const loadMore = () => {
     const next = offset + PAGE;
     setOffset(next);
-    void load({ trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: next }, true);
+    void load(
+      { trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: next },
+      true
+    );
   };
 
-  const perPointLabel = t('usageStats.trendCtl.perPoint', { span: gran === 'week' ? t('usageStats.granularity.week') : t('usageStats.granularity.day') });
+  const perPointLabel = t('usageStats.trendCtl.perPoint', {
+    span: gran === 'week' ? t('usageStats.granularity.week') : t('usageStats.granularity.day'),
+  });
 
   return (
     <SettingsPageWrapper>
@@ -75,7 +93,9 @@ const UsageStats: React.FC = () => {
           <Radio value='day'>{t('usageStats.granularity.day')}</Radio>
           <Radio value='week'>{t('usageStats.granularity.week')}</Radio>
         </Radio.Group>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary, #86909c)' }}>{t('usageStats.trend.dimension.label')}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary, #86909c)' }}>
+          {t('usageStats.trend.dimension.label')}
+        </span>
         <Radio.Group type='button' value={dim} onChange={(v: string) => setDim(v as 'agent' | 'project' | 'model')}>
           <Radio value='agent'>{t('usageStats.trend.dimension.agent')}</Radio>
           <Radio value='project'>{t('usageStats.trend.dimension.project')}</Radio>
@@ -153,7 +173,16 @@ const CompositionDonutCard: React.FC<{ data: AgentUsageResponse }> = ({ data }) 
         <div style={{ fontSize: 12, lineHeight: 1.9 }}>
           {segs.map((s) => (
             <div key={s.name}>
-              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: s.color, marginRight: 6 }} />
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 2,
+                  background: s.color,
+                  marginRight: 6,
+                }}
+              />
               {s.name} {s.value.toLocaleString()}
             </div>
           ))}

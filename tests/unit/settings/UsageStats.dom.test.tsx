@@ -33,7 +33,18 @@ const baseResp = {
     ],
   },
   byModel: [],
-  byProject: [{ agent: 'claude', project: '/p', sessions: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 1, cacheCreationTokens: 0, totalTokens: 3 }],
+  byProject: [
+    {
+      agent: 'claude',
+      project: '/p',
+      sessions: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cacheReadTokens: 1,
+      cacheCreationTokens: 0,
+      totalTokens: 3,
+    },
+  ],
   trend: {
     granularity: 'day',
     points: [

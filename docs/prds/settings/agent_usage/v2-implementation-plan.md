@@ -11,6 +11,7 @@
 **关联设计:** `docs/prds/settings/agent_usage/v2-observability-design.md`
 
 **仓库与分支:**
+
 - AionCLI: `/Users/jassy/Documents/glm/aionui_ws/AionCLI`,分支 `feat/agent-usage-analytics`(已存在,续提交)
 - AionUi: `/Users/jassy/Documents/glm/aionui_ws/AionUi`,分支 `feat/agent-usage-stats`(已存在,续提交)
 
@@ -27,11 +28,13 @@
 ### Task 1.1: api-types 新增 TokenKindBreakdown / UsageByProject + 扩展 TrendPoint/AgentUsageResponse
 
 **Files:**
+
 - Modify: `crates/aionui-api-types/src/analytics.rs`
 
 - [ ] **Step 1: 在 TrendPoint(当前 55-59 行)上方加 TokenKindBreakdown,并给 TrendPoint 加字段**
 
 把 `crates/aionui-api-types/src/analytics.rs` 中现有的:
+
 ```rust
 #[derive(Debug, Serialize)]
 pub struct TrendPoint {
@@ -40,7 +43,9 @@ pub struct TrendPoint {
     pub by_segment: std::collections::BTreeMap<String, u64>,
 }
 ```
+
 替换为:
+
 ```rust
 #[derive(Debug, Serialize, Default)]
 pub struct TokenKindBreakdown {
@@ -63,6 +68,7 @@ pub struct TrendPoint {
 - [ ] **Step 2: 在 UsageByModel(当前 43-52 行)下方加 UsageByProject**
 
 在 `pub struct UsageByModel { ... }` 闭合 `}` 之后,新增:
+
 ```rust
 #[derive(Debug, Serialize)]
 pub struct UsageByProject {
@@ -80,6 +86,7 @@ pub struct UsageByProject {
 - [ ] **Step 3: AgentUsageResponse 加 by_project 字段**
 
 在 `pub struct AgentUsageResponse { ... }` 里 `pub by_model: Vec<UsageByModel>,` 那一行**下方**加一行:
+
 ```rust
     pub by_project: Vec<UsageByProject>,
 ```
@@ -101,12 +108,14 @@ git commit -m "feat(api-types): add TokenKindBreakdown + UsageByProject DTOs (v2
 ### Task 1.2: aggregate.rs 聚合 by_token_kind + by_project(TDD)
 
 **Files:**
+
 - Modify: `crates/aionui-analytics/src/aggregate.rs`
 - Modify: `crates/aionui-analytics/tests/aggregate.rs`
 
 - [ ] **Step 1: 写失败测试(不变量 + by_project 聚合)**
 
 在 `crates/aionui-analytics/tests/aggregate.rs` 末尾追加(该文件已有 `ev(day,tok)` / `session()` 辅助、`use aionui_analytics::types::{Agent, ParsedSession, UsageEvent}`、`use chrono::{TimeZone, Utc}`):
+
 ```rust
 #[test]
 fn token_kind_breakdown_sums_match_segment_totals() {
@@ -167,6 +176,7 @@ Expected: 编译失败或断言失败(aggregate 还没产出 by_token_kind/by_pr
 `crates/aionui-analytics/src/aggregate.rs` 三处改动:
 
 (a) use 行(当前第 2-4 行)加入新类型:
+
 ```rust
 use aionui_api_types::{
     AgentUsageResponse, SessionRow, TokenKindBreakdown, TrendPoint, UsageByAgent, UsageByModel, UsageByProject,
@@ -175,6 +185,7 @@ use aionui_api_types::{
 ```
 
 (b) 累加器区(当前第 29-31 行 `let mut by_agent...` `by_model...` `trend...` 之后)新增两个累加结构:
+
 ```rust
     let mut by_project: BTreeMap<(&'static str, String), Acc> = BTreeMap::new();
     // 每个 bucket 的 token 类型分层 (input, output, cache_read, cache_creation)
@@ -182,6 +193,7 @@ use aionui_api_types::{
 ```
 
 (c) `for s in &sessions` 循环内:在 `let m = by_model.entry(...)` 之后加 by_project 入口;在事件循环 `for e in &s.events` 内同时累加 by_project token 与 trend_kind。把现有循环体:
+
 ```rust
         let m = by_model.entry((an, s.model.clone())).or_default();
         m.sessions += 1;
@@ -203,7 +215,9 @@ use aionui_api_types::{
             *trend.entry(bucket).or_default().entry(seg.clone()).or_insert(0) += e.total();
         }
 ```
+
 替换为:
+
 ```rust
         let m = by_model.entry((an, s.model.clone())).or_default();
         m.sessions += 1;
@@ -238,6 +252,7 @@ use aionui_api_types::{
 ```
 
 (d) `by_model_vec` 构造(当前 76-88 行)之后,新增 `by_project_vec`:
+
 ```rust
     let by_project_vec: Vec<UsageByProject> = by_project
         .iter()
@@ -255,6 +270,7 @@ use aionui_api_types::{
 ```
 
 (e) `trend_points` 构造(当前 90-96 行)替换为带 by_token_kind 的版本:
+
 ```rust
     let trend_points: Vec<TrendPoint> = trend
         .into_iter()
@@ -275,6 +291,7 @@ use aionui_api_types::{
 ```
 
 (f) `AgentUsageResponse { ... }` 构造里(当前 `by_model: by_model_vec,` 那行下方)加:
+
 ```rust
         by_project: by_project_vec,
 ```
@@ -287,12 +304,14 @@ Expected: 全部 PASS(含新 2 个 + 原有测试)。
 - [ ] **Step 5: 全 crate 测试 + clippy + fmt**
 
 Run:
+
 ```bash
 cargo test -p aionui-analytics 2>&1 | grep "test result" | tail -1
 cargo clippy -p aionui-analytics -- -D warnings 2>&1 | tail -1; echo "clippy: $?"
 cargo clippy -p aionui-api-types -- -D warnings 2>&1 | tail -1; echo "clippy: $?"
 cargo fmt -p aionui-analytics && cargo fmt -p aionui-api-types
 ```
+
 Expected: 测试全 ok;两个 clippy 退出 0。若 clippy 报新 warning(如未用 import / collapsible),在不改逻辑下按建议修正。
 
 - [ ] **Step 6: 提交**
@@ -309,20 +328,24 @@ git commit -m "feat(analytics): aggregate by_token_kind + by_project with invari
 - [ ] **Step 1: 全 workspace 门禁**
 
 Run:
+
 ```bash
 cargo clippy --workspace -- -D warnings 2>&1 | tail -1; echo $?
 cargo fmt --all -- --check 2>&1 | tail -1; echo $?
 ```
+
 Expected: 均退出 0(fmt 不过则 `cargo fmt --all` 后重检)。
 
 - [ ] **Step 2: cargo run 真实数据冒烟(端口 25930)**
 
 Run:
+
 ```bash
 (cargo run -q -p aionui-app -- --local --port 25930 > /tmp/v2smoke.log 2>&1 &) && sleep 12
 curl -s "http://127.0.0.1:25930/api/analytics/agent-usage?time_range=30d&sessions_limit=1" | python3 -c "import sys,json; d=json.load(sys.stdin)['data']; p=d['trend']['points'][0]; print('by_token_kind:', p['by_token_kind']); ks=sum(p['by_token_kind'].values()); ss=sum(p['by_segment'].values()); print('不变量 kind_sum==seg_sum:', ks==ss, ks, ss); print('by_project 条数:', len(d['by_project']), '示例:', d['by_project'][0] if d['by_project'] else 'EMPTY')"
 pkill -f "port 25930" 2>/dev/null
 ```
+
 Expected: `by_token_kind` 有 input/output/cache_read/cache_creation 非负值;不变量 `kind_sum==seg_sum` 为 True;`by_project` 非空且每项有 project + total_tokens。若不变量 False → 回 Task 1.2 检查累加逻辑(不要继续)。
 
 - [ ] **Step 3: 构建 release 二进制**
@@ -345,12 +368,14 @@ git status --short | grep -q . && git add -A && git commit -m "chore(analytics):
 ### Task 2.1: 契约同步 agentUsage.ts(TDD)
 
 **Files:**
+
 - Modify: `packages/desktop/src/common/types/agentUsage.ts`
 - Modify: `tests/unit/common/agentUsage.test.ts`
 
 - [ ] **Step 1: 写失败测试(byTokenKind / byProject 映射)**
 
 `tests/unit/common/agentUsage.test.ts` 现有 `fromApiAgentUsage` 测试。在该测试的 `raw` 对象里,给 `trend.points[0]` 加 `by_token_kind`,顶层加 `by_project`,并加断言。具体:在现有 raw fixture 的 `trend: { granularity:'day', points:[{ bucket:'2026-05-17', by_segment:{ claude:15 } }] }` 改为:
+
 ```ts
       trend: {
         granularity: 'day',
@@ -363,7 +388,9 @@ git status --short | grep -q . && git add -A && git commit -m "chore(analytics):
         ],
       },
 ```
+
 在 raw 顶层(与 `by_model` 同级)加:
+
 ```ts
       by_project: [
         {
@@ -378,10 +405,12 @@ git status --short | grep -q . && git add -A && git commit -m "chore(analytics):
         },
       ],
 ```
+
 在该测试断言区追加:
+
 ```ts
-    expect(m.trend.points[0].byTokenKind).toEqual({ input: 5, output: 4, cacheRead: 3, cacheCreation: 3 });
-    expect(m.byProject[0]).toMatchObject({ project: '/work/p', totalTokens: 15, cacheReadTokens: 3 });
+expect(m.trend.points[0].byTokenKind).toEqual({ input: 5, output: 4, cacheRead: 3, cacheCreation: 3 });
+expect(m.byProject[0]).toMatchObject({ project: '/work/p', totalTokens: 15, cacheReadTokens: 3 });
 ```
 
 - [ ] **Step 2: 运行确认失败**
@@ -394,6 +423,7 @@ Expected: FAIL(byTokenKind/byProject 未定义)。
 `packages/desktop/src/common/types/agentUsage.ts`:
 
 (a) `TrendPointRaw`(第 40 行)改为:
+
 ```ts
 export type TokenKindBreakdownRaw = {
   input: number;
@@ -409,6 +439,7 @@ export type TrendPointRaw = {
 ```
 
 (b) `UsageByModelRaw`(第 29 行块)下方加 `UsageByProjectRaw`(字段同 UsageByModelRaw):
+
 ```ts
 export type UsageByProjectRaw = {
   agent: string;
@@ -423,11 +454,13 @@ export type UsageByProjectRaw = {
 ```
 
 (c) `AgentUsageResponseRaw`(第 53 行块)里 `by_model: UsageByModelRaw[];` 下方加:
+
 ```ts
   by_project: UsageByProjectRaw[];
 ```
 
 (d) camel 侧:`TrendPoint`(第 99 行)改为:
+
 ```ts
 export type TokenKindBreakdown = {
   input: number;
@@ -443,6 +476,7 @@ export type TrendPoint = {
 ```
 
 (e) `UsageByModel`(第 88 行块)下方加 `UsageByProject`(camel 字段同 UsageByModel + project):
+
 ```ts
 export type UsageByProject = {
   agent: string;
@@ -457,11 +491,13 @@ export type UsageByProject = {
 ```
 
 (f) `AgentUsageResponse`(第 112 行块)里 `byModel: UsageByModel[];` 下方加:
+
 ```ts
   byProject: UsageByProject[];
 ```
 
 (g) `fromApiAgentUsage`(第 134 行)里:trend points map(第 169 行)改为:
+
 ```ts
       points: r.trend.points.map((p) => ({
         bucket: p.bucket,
@@ -474,7 +510,9 @@ export type UsageByProject = {
         },
       })),
 ```
+
 并在 mapper return 对象里(`byModel: r.by_model.map(...)` 之后)加 `byProject` 映射:
+
 ```ts
     byProject: (r.by_project ?? []).map((p) => ({
       agent: p.agent,
@@ -487,15 +525,18 @@ export type UsageByProject = {
       totalTokens: p.total_tokens,
     })),
 ```
+
 > 用 `r.by_project ?? []` 与 `p.by_token_kind` 缺省保护:旧后端无这些字段时不崩(向后兼容)。`by_token_kind` 缺失时给零值——在 mapper 顶部对 `p.by_token_kind` 用 `const tk = p.by_token_kind ?? { input:0, output:0, cache_read:0, cache_creation:0 };` 再映射 tk(把上面 (g) 的 `p.by_token_kind.xxx` 改为 `tk.xxx`)。
 
 - [ ] **Step 4: 运行确认通过 + 类型检查**
 
 Run:
+
 ```bash
 bun run test -- agentUsage 2>&1 | grep "Tests " | tail -1
 bunx tsc --noEmit 2>&1 | grep -ci "agentUsage" | sed 's/^/agentUsage tsc 错误: /'
 ```
+
 Expected: 测试 PASS;tsc agentUsage 错误 0。
 
 - [ ] **Step 5: 提交**
@@ -510,12 +551,14 @@ git commit -m "feat(usage-stats): sync byTokenKind + byProject contract (v2)"
 ### Task 2.2: 纯函数(累计/对数/topN/占比)+ 单测(TDD)
 
 **Files:**
+
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/chartMath.ts`
 - Create: `tests/unit/common/chartMath.test.ts`
 
 - [ ] **Step 1: 写失败测试**
 
 Create `tests/unit/common/chartMath.test.ts`:
+
 ```ts
 import { describe, it, expect } from 'vitest';
 import { cumulative, logScale, topN, pct } from '@renderer/pages/settings/UsageStats/chartMath';
@@ -531,7 +574,15 @@ describe('chartMath', () => {
     expect(logScale(99)).toBeCloseTo(2, 5);
   });
   it('topN sorts desc by value and slices', () => {
-    const r = topN([{ k: 'a', v: 3 }, { k: 'b', v: 9 }, { k: 'c', v: 1 }], (x) => x.v, 2);
+    const r = topN(
+      [
+        { k: 'a', v: 3 },
+        { k: 'b', v: 9 },
+        { k: 'c', v: 1 },
+      ],
+      (x) => x.v,
+      2
+    );
     expect(r.map((x) => x.k)).toEqual(['b', 'a']);
   });
   it('pct guards divide-by-zero', () => {
@@ -549,6 +600,7 @@ Expected: FAIL(模块不存在)。
 - [ ] **Step 3: 实现 chartMath.ts**
 
 Create `packages/desktop/src/renderer/pages/settings/UsageStats/chartMath.ts`:
+
 ```ts
 /**
  * @license
@@ -600,23 +652,27 @@ git commit -m "feat(usage-stats): add chart math pure functions with TDD (v2)"
 ### Task 2.3: i18n 扩展 usageStats(KPI/构成/对比/趋势新键)
 
 **Files:**
+
 - Modify: `packages/desktop/src/renderer/services/i18n/locales/<8 locale>/usageStats.json`
 - 影响: `i18n-keys.d.ts`(由 `bun run i18n:types` 生成)
 
 - [ ] **Step 1: en-US 加键**
 
 `packages/desktop/src/renderer/services/i18n/locales/en-US/usageStats.json` 顶层加(用 i18next 双括号,本批无插值变量):
+
 ```json
 "kpi": { "totalTokens": "Total tokens", "sessions": "Sessions", "messages": "Messages", "cacheRatio": "Cache ratio" },
 "composition": { "title": "Token composition", "input": "Input", "output": "Output", "cacheRead": "Cache read", "cacheCreation": "Cache creation" },
 "comparison": { "title": "By tool", "projectsTitle": "Top projects", "modelsTitle": "Top models" },
 "trendCtl": { "mode": "Mode", "split": "Split", "cumulative": "Cumulative", "scale": "Scale", "linear": "Linear", "log": "Log", "perPoint": "≈ {{span}} / point" }
 ```
+
 > 注意:`perPoint` 用 `{{span}}` 双括号插值(自适应粒度标注,如 "≈ 1 day / point")。
 
 - [ ] **Step 2: zh-CN 加同结构中文**
 
 `zh-CN/usageStats.json` 加:
+
 ```json
 "kpi": { "totalTokens": "总 token", "sessions": "会话数", "messages": "消息数", "cacheRatio": "缓存占比" },
 "composition": { "title": "Token 构成", "input": "输入", "output": "输出", "cacheRead": "缓存读取", "cacheCreation": "缓存创建" },
@@ -631,9 +687,11 @@ git commit -m "feat(usage-stats): add chart math pure functions with TDD (v2)"
 - [ ] **Step 4: 生成类型 + 校验**
 
 Run:
+
 ```bash
 bun run i18n:types && node scripts/check-i18n.js 2>&1 | grep -E "configuration check passed|❌" | tail -1
 ```
+
 Expected: `✅ i18n configuration check passed`(8 locale 键完整)。
 
 - [ ] **Step 5: 提交**
@@ -648,6 +706,7 @@ git commit -m "feat(usage-stats): add v2 dashboard i18n keys"
 ### Task 2.4: Sparkline + CompositionDonut + RankBar 通用 SVG 组件
 
 **Files:**
+
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/Sparkline.tsx`
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/CompositionDonut.tsx`
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/RankBar.tsx`
@@ -657,6 +716,7 @@ git commit -m "feat(usage-stats): add v2 dashboard i18n keys"
 - [ ] **Step 1: Sparkline.tsx**
 
 Create:
+
 ```tsx
 /**
  * @license
@@ -696,6 +756,7 @@ export default Sparkline;
 - [ ] **Step 2: CompositionDonut.tsx**(通用环形:输入分段数组 `{name,value,color}` + 中心文案)
 
 Create:
+
 ```tsx
 /**
  * @license
@@ -759,11 +820,13 @@ const CompositionDonut: React.FC<{ segments: Seg[]; centerLabel: string; centerS
 export type { Seg };
 export default CompositionDonut;
 ```
+
 > `var(--color-fill, #e5e6eb)` 写法：优先项目变量,缺失回退 hex（避免 v1 那种变量未定义→透明的坑;`--text-primary`/`--text-secondary` 已在 v1 CDP 实测存在,给回退是双保险）。
 
 - [ ] **Step 3: RankBar.tsx**(水平排行条:`{label,value}[]` + 最大值归一)
 
 Create:
+
 ```tsx
 /**
  * @license
@@ -810,6 +873,7 @@ const RankBar: React.FC<{ rows: { label: string; value: number }[] }> = ({ rows 
 
 export default RankBar;
 ```
+
 > 条宽 `Math.max(..., 2)%` clamp 最小可见（v1 教训④）；`var(--primary)` v1 CDP 实测存在。
 
 - [ ] **Step 4: tsc + lint**
@@ -829,12 +893,14 @@ git commit -m "feat(usage-stats): add Sparkline/CompositionDonut/RankBar SVG com
 ### Task 2.5: KpiRow + ComparisonRow 组装组件
 
 **Files:**
+
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/KpiRow.tsx`
 - Create: `packages/desktop/src/renderer/pages/settings/UsageStats/ComparisonRow.tsx`
 
 - [ ] **Step 1: KpiRow.tsx**(4 KPI 卡 + sparkline)
 
 Create:
+
 ```tsx
 /**
  * @license
@@ -892,6 +958,7 @@ export default KpiRow;
 - [ ] **Step 2: ComparisonRow.tsx**(工具对比环 + 项目排行 + 模型排行)
 
 Create:
+
 ```tsx
 /**
  * @license
@@ -970,11 +1037,13 @@ git commit -m "feat(usage-stats): add KpiRow + ComparisonRow (v2)"
 ### Task 2.6: TrendChart 重写(堆叠/折线 + 分时累计 + 线性对数 + 构成环旁挂)
 
 **Files:**
+
 - Modify: `packages/desktop/src/renderer/pages/settings/UsageStats/TrendChart.tsx`(整体重写)
 
 - [ ] **Step 1: 重写 TrendChart.tsx**
 
 整体替换 `packages/desktop/src/renderer/pages/settings/UsageStats/TrendChart.tsx` 为:
+
 ```tsx
 /**
  * @license
@@ -1029,7 +1098,12 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
   return (
     <Card title={t('usageStats.trend.title')} bordered style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', gap: 12, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <Radio.Group type='button' size='small' value={mode} onChange={(v: string) => setMode(v as 'split' | 'cumulative')}>
+        <Radio.Group
+          type='button'
+          size='small'
+          value={mode}
+          onChange={(v: string) => setMode(v as 'split' | 'cumulative')}
+        >
           <Radio value='split'>{t('usageStats.trendCtl.split')}</Radio>
           <Radio value='cumulative'>{t('usageStats.trendCtl.cumulative')}</Radio>
         </Radio.Group>
@@ -1037,7 +1111,9 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
           <Radio value='linear'>{t('usageStats.trendCtl.linear')}</Radio>
           <Radio value='log'>{t('usageStats.trendCtl.log')}</Radio>
         </Radio.Group>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary, #86909c)' }}>{perPointLabel}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-secondary, #86909c)' }}>
+          {perPointLabel}
+        </span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 160, overflowX: 'auto' }}>
@@ -1049,7 +1125,11 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
           const barHeight = totalHere > 0 ? Math.max((totalHere / max) * 130, 4) : 0;
           const rawTotal = totalsRaw[idx];
           return (
-            <div key={p.bucket} style={{ textAlign: 'center', minWidth: 28 }} title={`${p.bucket}: ${rawTotal.toLocaleString()}`}>
+            <div
+              key={p.bucket}
+              style={{ textAlign: 'center', minWidth: 28 }}
+              title={`${p.bucket}: ${rawTotal.toLocaleString()}`}
+            >
               <div
                 style={{
                   height: `${barHeight}px`,
@@ -1062,11 +1142,16 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
                 {segs.map(([name, val]) => {
                   const frac = rawTotal > 0 ? val / rawTotal : 0;
                   return (
-                    <div key={name} style={{ height: `${frac * barHeight}px`, background: colorOf.get(name), flexShrink: 0 }} />
+                    <div
+                      key={name}
+                      style={{ height: `${frac * barHeight}px`, background: colorOf.get(name), flexShrink: 0 }}
+                    />
                   );
                 })}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--text-secondary, #86909c)', marginTop: 4, whiteSpace: 'nowrap' }}>
+              <div
+                style={{ fontSize: 10, color: 'var(--text-secondary, #86909c)', marginTop: 4, whiteSpace: 'nowrap' }}
+              >
                 {p.bucket.slice(5)}
               </div>
             </div>
@@ -1111,6 +1196,7 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
 
 export default TrendChart;
 ```
+
 > 累计/对数/图例点选全部本地 state,不触发后端请求(设计第 5.1 节)。条高 clamp 4px(v1 教训④);颜色 SEGMENT_PALETTE 固定 hex + `var(--text-secondary,回退)`(v1 教训⑤)。
 
 - [ ] **Step 2: tsc + lint**
@@ -1130,12 +1216,14 @@ git commit -m "feat(usage-stats): rewrite TrendChart with split/cumulative + log
 ### Task 2.7: 容器 index.tsx 重构为仪表盘 + 容器测试(TDD)
 
 **Files:**
+
 - Modify: `packages/desktop/src/renderer/pages/settings/UsageStats/index.tsx`
 - Modify: `tests/unit/settings/UsageStats.dom.test.tsx`
 
 - [ ] **Step 1: 改容器测试 baseResp + 加仪表盘渲染断言**
 
 `tests/unit/settings/UsageStats.dom.test.tsx` 的 `baseResp` 对象:`trend.points` 的元素加 `byTokenKind`,顶层加 `byProject`。即把 `trend: { granularity: 'day', points: [] }` 改为:
+
 ```ts
   trend: {
     granularity: 'day',
@@ -1148,8 +1236,10 @@ git commit -m "feat(usage-stats): rewrite TrendChart with split/cumulative + log
     ],
   },
 ```
+
 并在 `byModel: []` 同级加 `byProject: [{ agent:'claude', project:'/p', sessions:1, inputTokens:1, outputTokens:1, cacheReadTokens:1, cacheCreationTokens:0, totalTokens:3 }],`。
 现有 4 个测试断言不动(loading/data/404/error/refresh/loadMore/dimension 等仍有效)。追加一个仪表盘渲染断言:
+
 ```ts
   it('renders dashboard sections (KPI + comparison)', async () => {
     invoke.mockResolvedValue(baseResp);
@@ -1169,6 +1259,7 @@ Expected: FAIL(容器还没渲染 KpiRow/ComparisonRow;且 baseResp 类型变了
 - [ ] **Step 3: 重写容器 index.tsx**
 
 整体替换 `packages/desktop/src/renderer/pages/settings/UsageStats/index.tsx` 为(保留 v1 全部状态机/load/控制栏,组装改为仪表盘布局):
+
 ```tsx
 /**
  * @license
@@ -1218,21 +1309,39 @@ const UsageStats: React.FC = () => {
 
   useEffect(() => {
     setOffset(0);
-    void load({ trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: 0 }, false);
+    void load(
+      { trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: 0 },
+      false
+    );
   }, [gran, range, dim, load]);
 
   const refresh = () => {
     setOffset(0);
-    void load({ trendGranularity: gran, timeRange: range, trendDimension: dim, refresh: true, sessionsLimit: PAGE, sessionsOffset: 0 }, false);
+    void load(
+      {
+        trendGranularity: gran,
+        timeRange: range,
+        trendDimension: dim,
+        refresh: true,
+        sessionsLimit: PAGE,
+        sessionsOffset: 0,
+      },
+      false
+    );
   };
 
   const loadMore = () => {
     const next = offset + PAGE;
     setOffset(next);
-    void load({ trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: next }, true);
+    void load(
+      { trendGranularity: gran, timeRange: range, trendDimension: dim, sessionsLimit: PAGE, sessionsOffset: next },
+      true
+    );
   };
 
-  const perPointLabel = t('usageStats.trendCtl.perPoint', { span: gran === 'week' ? t('usageStats.granularity.week') : t('usageStats.granularity.day') });
+  const perPointLabel = t('usageStats.trendCtl.perPoint', {
+    span: gran === 'week' ? t('usageStats.granularity.week') : t('usageStats.granularity.day'),
+  });
 
   return (
     <SettingsPageWrapper>
@@ -1247,7 +1356,9 @@ const UsageStats: React.FC = () => {
           <Radio value='day'>{t('usageStats.granularity.day')}</Radio>
           <Radio value='week'>{t('usageStats.granularity.week')}</Radio>
         </Radio.Group>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary, #86909c)' }}>{t('usageStats.trend.dimension.label')}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary, #86909c)' }}>
+          {t('usageStats.trend.dimension.label')}
+        </span>
         <Radio.Group type='button' value={dim} onChange={(v: string) => setDim(v as 'agent' | 'project' | 'model')}>
           <Radio value='agent'>{t('usageStats.trend.dimension.agent')}</Radio>
           <Radio value='project'>{t('usageStats.trend.dimension.project')}</Radio>
@@ -1325,7 +1436,16 @@ const CompositionDonutCard: React.FC<{ data: AgentUsageResponse }> = ({ data }) 
         <div style={{ fontSize: 12, lineHeight: 1.9 }}>
           {segs.map((s) => (
             <div key={s.name}>
-              <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: s.color, marginRight: 6 }} />
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 2,
+                  background: s.color,
+                  marginRight: 6,
+                }}
+              />
               {s.name} {s.value.toLocaleString()}
             </div>
           ))}
@@ -1337,16 +1457,19 @@ const CompositionDonutCard: React.FC<{ data: AgentUsageResponse }> = ({ data }) 
 
 export default UsageStats;
 ```
+
 > `var(--color-border, #e5e6eb)` 回退保护。`Radio.Group onChange` 用 `(v:string)=>set(v as ...)` 包装(v1 tsc 适配经验)。`perPointLabel` 用 i18next 插值 `{{span}}`。
 
 - [ ] **Step 4: 运行测试 + tsc + i18n**
 
 Run:
+
 ```bash
 bun run test -- UsageStats agentUsage chartMath 2>&1 | grep -E "Test Files|Tests " | tail -2
 bunx tsc --noEmit 2>&1 | tail -1; echo "tsc: $?"
 node scripts/check-i18n.js 2>&1 | grep -E "passed|❌" | tail -1
 ```
+
 Expected: 测试全 passed;tsc 0;i18n passed。若 UsageStats.dom 旧测试因 Arco Grid jsdom 报 matchMedia,沿用 v1 已有的 `window.matchMedia` mock(该测试文件 beforeEach 已有,无需新增)。
 
 - [ ] **Step 5: 提交**
@@ -1365,6 +1488,7 @@ git commit -m "feat(usage-stats): refactor container into dashboard layout (v2)"
 - [ ] **Step 1: 软链阶段1二进制 + 起 dev**
 
 Run:
+
 ```bash
 ln -sf /Users/jassy/Documents/glm/aionui_ws/AionCLI/target/release/aioncli ~/.local/bin/aioncli
 pkill -9 -f "node_modules/.bun/electron@" 2>/dev/null; pkill -9 -f "\.local/bin/aioncli\|aionui-dev" 2>/dev/null; pkill -9 -f "electron-vite" 2>/dev/null; sleep 3
@@ -1372,6 +1496,7 @@ PATH="$HOME/.local/bin:$PATH" nohup bun run dev > /tmp/v2dev.log 2>&1 &
 sleep 35
 grep -iE "main process built|Another instance|Remote debugging port" /tmp/v2dev.log | tail -3
 ```
+
 Expected: `electron main process built successfully`,无 "Another instance",有 CDP 端口(通常 9230)。若有 "Another instance" → 残留进程没杀干净,重跑 pkill。
 
 - [ ] **Step 2: CDP 抓仪表盘真实渲染(替换占位)**
@@ -1393,29 +1518,35 @@ Expected:卡片底色变深(如 rgb(35,35,36)),段色仍是 SEGMENT_PALETTE 亮�
 - [ ] **Step 1: AionCLI 门禁**
 
 Run(在 AionCLI):
+
 ```bash
 cargo clippy --workspace -- -D warnings 2>&1 | tail -1; echo $?
 cargo fmt --all -- --check 2>&1 | tail -1; echo $?
 cargo test -p aionui-analytics 2>&1 | grep "test result" | tail -1
 ```
+
 Expected: clippy/fmt 退出 0;测试 ok。
 
 - [ ] **Step 2: AionUi 门禁(prek replicates CI)**
 
 Run(在 AionUi):
+
 ```bash
 prek run --from-ref origin/dev --to-ref HEAD 2>&1 | tail -15
 bun run test -- agentUsage chartMath UsageStats 2>&1 | grep -E "Test Files|Tests " | tail -2
 ```
+
 Expected: prek 全 Passed(TypeScript/Oxlint/Oxfmt/i18n/EOF/trailing-ws);测试全 passed。prek 报问题则按 `bun run lint:fix && bun run format` 修复后 commit 再重跑。
 
 - [ ] **Step 3: 推送两仓库到 fork**
 
 Run:
+
 ```bash
 cd /Users/jassy/Documents/glm/aionui_ws/AionCLI && git push fork feat/agent-usage-analytics 2>&1 | tail -2
 cd /Users/jassy/Documents/glm/aionui_ws/AionUi && git push fork feat/agent-usage-stats 2>&1 | tail -2
 ```
+
 Expected: 两仓库各推送成功到 `Jassy930/AionCore` / `Jassy930/AionUi`。(上游 `iOfficeAI/*` 无写权限,只推 fork — 沿用 v1。)
 
 ### Task 3.3: 文档同步
@@ -1437,6 +1568,7 @@ git push fork feat/agent-usage-stats 2>&1 | tail -1
 ## Self-Review (计划自审)
 
 **1. Spec 覆盖检查:**
+
 - ① token 构成可视化 → Task 2.4 CompositionDonut + Task 2.7 CompositionDonutCard ✓
 - ② 汇总卡 sparkline+构成条 → Task 2.4 Sparkline + Task 2.5 KpiRow ✓
 - ③ 趋势图增强(分时累计/线性对数/series点选/粒度标注/token类型分层) → Task 2.6 TrendChart(分时累计/对数/图例点选)+ Task 1.2 by_token_kind + Task 2.7 perPointLabel ✓
@@ -1453,5 +1585,34 @@ git push fork feat/agent-usage-stats 2>&1 | tail -1
 **3. 类型一致性:** `TokenKindBreakdown`/`UsageByProject`(Rust)↔ `TokenKindBreakdownRaw/byTokenKind`、`UsageByProjectRaw/UsageByProject/byProject`(TS)字段逐一对齐(Task 1.1 vs 2.1);`cumulative/logScale/topN/pct`(Task 2.2 定义)在 Task 2.5/2.6 调用名一致;`SEGMENT_PALETTE` 在 Sparkline 定义并被 ComparisonRow/TrendChart/index.tsx import 一致;`CompositionDonut` props `{segments,centerLabel,centerSub}`(Task 2.4)与 Task 2.5/2.7 调用一致;`RankBar` props `{rows:{label,value}[]}` 一致;`TrendChart` props `{points,perPointLabel}`(Task 2.6)与 Task 2.7 调用一致。
 
 **已知实现期注意(非缺陷):**
+
 - KpiRow sessions/messages 的 sparkline 暂用 trend 总量序列(trend 无 per-bucket 会话/消息数)——设计未要求精确,作"微趋势示意"可接受;若 review 认为需精确可后续 v2.1。
 - Task 3.1 CDP 端口默认 9230,Step1 已让先读日志确认实际端口。
+
+---
+
+## 验证结果 (Task 3.1 CDP 真实环境)
+
+- 日期: 2026-05-19
+- 环境: dev server (renderer 5173, CDP 9230, aioncli backend release 二进制 51599), 真实本地日志数据
+- 工具: node + ws CDP 探针, 导航 `#/settings/usage`, 等 9s
+
+### Light 主题 (实测 JSON)
+
+- KPI: 9 个 `.arco-card` (4 KPI 卡 + 趋势/构成/对比排行卡), **4 个 sparkline** stroke 全 `rgb(52,145,250)` = SEGMENT_PALETTE[0] ✅
+- 趋势控制: Radio 全部存在 — Split/Cumulative/Linear/Log + Tool/Project/Model + 4 时间窗 ✅
+- 堆叠段: 24 个 palette 着色 div, 样本 `rgb(52,145,250)`/`rgb(0,180,42)` = SEGMENT_PALETTE ✅ (非 rgba(0,0,0,0))
+- 构成环: 10 段 stroke, palette 色 `rgb(52,145,250)/rgb(255,125,0)/rgb(114,46,209)/rgb(20,201,201)` 非透明 ✅
+- 真实数据渲染: Total tokens 3849.04M / Sessions 259 / Messages 16182 ✅
+- 无 TypeError / exceptionThrown ✅
+
+### Dark 主题 (项目真实选择器 data-theme=dark)
+
+- palette 色 (sparkline/构成环) 保持亮色不变, dark 下仍清晰 ✅
+- `perPointColor` 由浅色文字正确切换为 `rgb(206,211,218)` (--text-secondary dark 值) ✅
+- 构成环底圈 stroke 由 `rgb(69,77,95)` → `rgb(206,211,218)` (--text-secondary 跟随主题) ✅
+- 已知: `.arco-card` 背景 CDP attribute-set 下未变深 (rgb(255,255,255))。与 v1 一致 — Arco 表层完整重绘需应用自带主题切换器, 非仅 `data-theme` 属性; CDP 仅翻转 CSS 变量 (故文字/语义色已正确变 dark)。lesson ④⑤ 实际管控的 SVG/palette/文字变量色在双主题均验证正确, 不构成缺陷。
+
+### 结论
+
+仪表盘整体渲染正确, SVG 图表 (sparkline/堆叠趋势/构成环/排行条) 配色符合 SEGMENT_PALETTE + 语义变量回退设计, 真实数据下无异常。Light 全绿; Dark 下 lesson ④⑤ 范畴 (SVG/palette/文字变量) 全绿, Arco 表层底色重绘属已知非缺陷 (沿用 v1 结论, 诚实记录 per verification-before-completion)。

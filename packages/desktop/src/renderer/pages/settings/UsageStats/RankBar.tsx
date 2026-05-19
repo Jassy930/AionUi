@@ -21,7 +21,9 @@ const RankBar: React.FC<{ rows: { label: string; value: number }[] }> = ({ rows 
     <div>
       {rows.map((r) => (
         <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, margin: '4px 0' }}>
-          <span style={{ width: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
+          <span style={{ width: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {r.label}
+          </span>
           <div style={{ flex: 1, background: 'var(--color-fill, #e5e6eb)', borderRadius: 3 }}>
             <div
               style={{

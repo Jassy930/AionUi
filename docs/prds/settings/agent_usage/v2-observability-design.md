@@ -61,6 +61,7 @@ v1 已交付: 汇总卡片(文字) + 堆叠趋势柱(可切维度) + 按模型�
 数据流: 打开页面 → 现有 `ipcBridge.analytics.getAgentUsage` (查询参数不变) → 后端 aggregate 同时产出维度分段(by_segment)+token类型分层(by_token_kind)+项目汇总(by_project) → 前端仪表盘各区块从**同一响应**取数渲染, 无额外请求。累计/对数/图例点选是前端对响应数据的展示变换。
 
 关键设计点:
+
 - 后端改动最小化、向后兼容: `by_segment` 完全不动; 新增字段旧前端忽略也能跑
 - 前端整页重构但**复用** SessionList/SourceBanner/ipcBridge/mapper (扩展非重写)
 - 沿用 v1 全部踩坑教训 (见第 6 节)
@@ -109,6 +110,7 @@ pub struct UsageByProject {   // 新增, 结构同 UsageByModel
 ### 3.3 aggregate.rs 改动
 
 现有事件聚合循环已按 `bucket_key(e.at, gran)` 把 `e.total()` 累加到 `by_segment`、按 `(agent,model)` 聚合 by_model。**同一循环内**额外:
+
 - 把 `e.input_tokens/output_tokens/cache_read_tokens/cache_creation_tokens` 累加到该桶的 `TokenKindBreakdown`
 - 按 `(agent, project)` key 聚合 `by_project` (镜像 by_model 写法)
 
@@ -160,16 +162,16 @@ UsageStats/
 
 ### 4.2 各组件数据来源 (全部来自单次 AgentUsageResponse)
 
-| 组件 | 数据 |
-|---|---|
-| KpiRow 总token/会话/消息 | `summary.byAgent` 求和 |
-| KpiRow cache 占比 | `sum(cacheRead+cacheCreation)/sum(total)` |
-| KpiRow sparkline | `trend.points` 每桶对应指标序列 |
-| CompositionDonut (构成) | `summary.byAgent` 的 input/output/cacheRead/cacheCreation 求和 |
-| TrendChart | `trend.points`: `bySegment` (维度 series) + `byTokenKind` (token 类型 series) |
-| 工具对比环 | `summary.byAgent` 各 agent total 占比 |
-| 模型排行 RankBar | `byModel` top N |
-| 项目排行 RankBar | `byProject` top N (新增后端字段) |
+| 组件                     | 数据                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| KpiRow 总token/会话/消息 | `summary.byAgent` 求和                                                        |
+| KpiRow cache 占比        | `sum(cacheRead+cacheCreation)/sum(total)`                                     |
+| KpiRow sparkline         | `trend.points` 每桶对应指标序列                                               |
+| CompositionDonut (构成)  | `summary.byAgent` 的 input/output/cacheRead/cacheCreation 求和                |
+| TrendChart               | `trend.points`: `bySegment` (维度 series) + `byTokenKind` (token 类型 series) |
+| 工具对比环               | `summary.byAgent` 各 agent total 占比                                         |
+| 模型排行 RankBar         | `byModel` top N                                                               |
+| 项目排行 RankBar         | `byProject` top N (新增后端字段)                                              |
 
 ## 5. 交互、状态、错误处理、测试
 
@@ -190,13 +192,13 @@ UsageStats/
 
 ### 5.3 测试策略
 
-| 层 | 测什么 | 怎么测 |
-|---|---|---|
-| Rust aggregate | by_token_kind 和==by_segment 总和 (不变量); by_project 聚合正确; 跨 token 类型 fixture | 表驱动单测 (扩 aggregate.rs 测试) |
-| TS mapper | byTokenKind/byProject snake→camel 映射 | 扩 agentUsage.test.ts |
-| TS 纯函数 | 累计前缀和 / 对数坐标 / topN 排序 / 占比计算 | 抽纯函数单测 (tests/unit/, 不依赖 DOM) |
-| TS 组件 | 容器状态机 (trendMode/scale/hiddenSeries 切换不重新请求; 维度切换重新请求); 各图表空态不崩 | UsageStats.dom.test.tsx 扩展 |
-| 真实环境 | 仪表盘整体渲染、SVG 图表可见性/配色、light/dark 双主题 | CDP 真实 Electron 验证 |
+| 层             | 测什么                                                                                     | 怎么测                                 |
+| -------------- | ------------------------------------------------------------------------------------------ | -------------------------------------- |
+| Rust aggregate | by_token_kind 和==by_segment 总和 (不变量); by_project 聚合正确; 跨 token 类型 fixture     | 表驱动单测 (扩 aggregate.rs 测试)      |
+| TS mapper      | byTokenKind/byProject snake→camel 映射                                                     | 扩 agentUsage.test.ts                  |
+| TS 纯函数      | 累计前缀和 / 对数坐标 / topN 排序 / 占比计算                                               | 抽纯函数单测 (tests/unit/, 不依赖 DOM) |
+| TS 组件        | 容器状态机 (trendMode/scale/hiddenSeries 切换不重新请求; 维度切换重新请求); 各图表空态不崩 | UsageStats.dom.test.tsx 扩展           |
+| 真实环境       | 仪表盘整体渲染、SVG 图表可见性/配色、light/dark 双主题                                     | CDP 真实 Electron 验证                 |
 
 覆盖率: **核心逻辑 (mapper/累计/对数/排序/聚合) 100%**; SVG 渲染/布局走 CDP 集成验证 (沿用既定"核心100%+展示集成验证"约定)。
 
