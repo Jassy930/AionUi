@@ -33,7 +33,17 @@ const baseResp = {
     ],
   },
   byModel: [],
-  trend: { granularity: 'day', points: [] },
+  byProject: [{ agent: 'claude', project: '/p', sessions: 1, inputTokens: 1, outputTokens: 1, cacheReadTokens: 1, cacheCreationTokens: 0, totalTokens: 3 }],
+  trend: {
+    granularity: 'day',
+    points: [
+      {
+        bucket: '2026-05-17',
+        bySegment: { claude: 3 },
+        byTokenKind: { input: 1, output: 1, cacheRead: 1, cacheCreation: 0 },
+      },
+    ],
+  },
   timeRange: '30d',
   sessionsTotal: 1,
   sessionsLimit: 200,
@@ -74,7 +84,7 @@ describe('UsageStats container', () => {
     invoke.mockResolvedValue(baseResp);
     render(<UsageStats />);
     await waitFor(() => {
-      const el = screen.queryAllByText((c) => c.includes('usageStats.summary.totalTokens'));
+      const el = screen.queryAllByText((c) => c.includes('usageStats.kpi.totalTokens'));
       expect(el.length).toBeGreaterThan(0);
     });
   });
@@ -177,5 +187,14 @@ describe('UsageStats container', () => {
 
     await waitFor(() => expect(invoke).toHaveBeenCalledTimes(2));
     expect(invoke.mock.calls[1][0]).toMatchObject({ trendDimension: 'project' });
+  });
+
+  it('renders dashboard sections (KPI + comparison)', async () => {
+    invoke.mockResolvedValue(baseResp);
+    render(<UsageStats />);
+    await waitFor(() => {
+      expect(screen.queryAllByText((c) => c.includes('usageStats.kpi.totalTokens')).length).toBeGreaterThan(0);
+      expect(screen.queryAllByText((c) => c.includes('usageStats.comparison.title')).length).toBeGreaterThan(0);
+    });
   });
 });
