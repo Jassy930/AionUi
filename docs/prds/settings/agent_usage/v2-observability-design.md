@@ -1,7 +1,7 @@
 # 使用统计 v2 — 可观测性增强设计文档
 
 - 日期: 2026-05-19
-- 状态: 设计已确认 (五节经用户逐节批准), 待写实现计划
+- 状态: v2 已实现 (本地 feature 分支 + fork); CDP 双主题验证通过; 双仓库门禁 (cargo / prek) 全绿
 - 关联: v1 设计 `docs/prds/settings/agent_usage/design.md`、v1 实现计划 `implementation-plan.md`
 - 涉及仓库: AionUi `feat/agent-usage-stats` (前端, 主)、AionCLI `feat/agent-usage-analytics` (后端)
 - 对标参考: CodexScope (JUk1-GH/CodexScope)、ccusage (ryoppippi/ccusage)、Claude-Code-Usage-Monitor、phuryn/claude-usage
