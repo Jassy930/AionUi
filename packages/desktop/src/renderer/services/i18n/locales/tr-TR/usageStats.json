@@ -1,83 +1,66 @@
 {
-  "title": "Usage Stats",
-  "menuLabel": "Usage",
-  "refresh": "Refresh",
+  "title": "Kullanım İstatistikleri",
+  "menuLabel": "Kullanım",
+  "refresh": "Yenile",
   "granularity": {
-    "day": "Daily",
-    "week": "Weekly"
+    "day": "Günlük",
+    "week": "Haftalık"
   },
   "timeRange": {
-    "today": "Today",
-    "7d": "Last 7 days",
-    "30d": "Last 30 days",
-    "90d": "Last 90 days",
-    "all": "All time"
-  },
-  "summary": {
-    "sessions": "Sessions",
-    "messages": "Messages",
-    "totalTokens": "Total tokens",
-    "input": "Input",
-    "output": "Output",
-    "cacheRead": "Cache read",
-    "cacheCreation": "Cache creation"
+    "today": "Bugün",
+    "7d": "Son 7 gün",
+    "30d": "Son 30 gün",
+    "90d": "Son 90 gün",
+    "all": "Tüm zamanlar"
   },
   "trend": {
-    "title": "Token usage trend",
+    "title": "Token kullanım eğilimi",
     "dimension": {
-      "label": "Split by",
-      "agent": "Tool",
-      "project": "Project",
+      "label": "Ayır",
+      "agent": "Araç",
+      "project": "Proje",
       "model": "Model"
-    },
-    "tooltipTotal": "Total"
-  },
-  "byModel": {
-    "title": "By model",
-    "model": "Model",
-    "agent": "Agent",
-    "sessions": "Sessions",
-    "tokens": "Tokens"
+    }
   },
   "sessions": {
-    "title": "Sessions",
-    "time": "Time",
-    "agent": "Agent",
+    "title": "Oturumlar",
+    "time": "Zaman",
+    "agent": "Araç",
     "model": "Model",
-    "project": "Project",
-    "tokens": "Tokens",
-    "total": "{{count}} sessions total",
-    "loadMore": "Load more"
+    "project": "Proje",
+    "tokens": "Token",
+    "total": "Toplam {{count}} oturum",
+    "loadMore": "Daha fazla yükle"
   },
   "source": {
-    "missing": "{{agent}} log directory not found",
-    "skipped": "{{count}} {{agent}} log file(s) could not be parsed and were skipped"
+    "missing": "{{agent}} günlük dizini bulunamadı",
+    "skipped": "{{count}} {{agent}} günlük dosyası ayrıştırılamadı ve atlandı"
   },
-  "empty": "No usage data found",
-  "error": "Failed to load usage data",
-  "unsupported": "Current backend does not support usage stats. Please update.",
+  "empty": "Kullanım verisi bulunamadı",
+  "error": "Kullanım verisi yüklenemedi",
+  "unsupported": "Geçerli arka uç kullanım istatistiklerini desteklemiyor. Lütfen güncelleyin.",
   "kpi": {
-    "totalTokens": "Total tokens",
-    "sessions": "Sessions",
-    "messages": "Messages",
-    "cacheRatio": "Cache ratio"
+    "totalTokens": "Toplam token",
+    "sessions": "Oturumlar",
+    "messages": "Mesajlar",
+    "cacheRatio": "Önbellek oranı"
   },
   "composition": {
-    "title": "Token composition",
-    "input": "Input",
-    "output": "Output",
-    "cacheRead": "Cache read",
-    "cacheCreation": "Cache creation"
+    "title": "Token bileşimi",
+    "input": "Giriş",
+    "output": "Çıkış",
+    "cacheRead": "Önbellek okuma",
+    "cacheCreation": "Önbellek oluşturma"
   },
   "comparison": {
-    "title": "By tool",
-    "projectsTitle": "Top projects",
-    "modelsTitle": "Top models"
+    "title": "Araca göre",
+    "projectsTitle": "En çok proje",
+    "modelsTitle": "En çok model"
   },
   "trendCtl": {
-    "mode": "Mode",
-    "split": "Split",
-    "cumulative": "Cumulative",
-    "perPoint": "≈ {{span}} / point"
+    "mode": "Mod",
+    "split": "Dönemsel",
+    "cumulative": "Kümülatif",
+    "perPoint": "Nokta ≈ {{span}}"
   }
 }

@@ -13,15 +13,6 @@
     "90d": "最近 90 天",
     "all": "全部"
   },
-  "summary": {
-    "sessions": "会话数",
-    "messages": "消息数",
-    "totalTokens": "总 token",
-    "input": "输入",
-    "output": "输出",
-    "cacheRead": "缓存读取",
-    "cacheCreation": "缓存创建"
-  },
   "trend": {
     "title": "Token 用量趋势",
     "dimension": {
@@ -29,15 +20,7 @@
       "agent": "工具",
       "project": "项目",
       "model": "模型"
-    },
-    "tooltipTotal": "总计"
-  },
-  "byModel": {
-    "title": "按模型",
-    "model": "模型",
-    "agent": "Agent",
-    "sessions": "会话数",
-    "tokens": "Token"
+    }
   },
   "sessions": {
     "title": "会话明细",

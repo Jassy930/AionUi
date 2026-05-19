@@ -1,83 +1,66 @@
 {
-  "title": "Usage Stats",
-  "menuLabel": "Usage",
-  "refresh": "Refresh",
+  "title": "Статистика использования",
+  "menuLabel": "Использование",
+  "refresh": "Обновить",
   "granularity": {
-    "day": "Daily",
-    "week": "Weekly"
+    "day": "По дням",
+    "week": "По неделям"
   },
   "timeRange": {
-    "today": "Today",
-    "7d": "Last 7 days",
-    "30d": "Last 30 days",
-    "90d": "Last 90 days",
-    "all": "All time"
-  },
-  "summary": {
-    "sessions": "Sessions",
-    "messages": "Messages",
-    "totalTokens": "Total tokens",
-    "input": "Input",
-    "output": "Output",
-    "cacheRead": "Cache read",
-    "cacheCreation": "Cache creation"
+    "today": "Сегодня",
+    "7d": "Последние 7 дней",
+    "30d": "Последние 30 дней",
+    "90d": "Последние 90 дней",
+    "all": "За всё время"
   },
   "trend": {
-    "title": "Token usage trend",
+    "title": "Динамика использования токенов",
     "dimension": {
-      "label": "Split by",
-      "agent": "Tool",
-      "project": "Project",
-      "model": "Model"
-    },
-    "tooltipTotal": "Total"
-  },
-  "byModel": {
-    "title": "By model",
-    "model": "Model",
-    "agent": "Agent",
-    "sessions": "Sessions",
-    "tokens": "Tokens"
+      "label": "Разбивка",
+      "agent": "Инструмент",
+      "project": "Проект",
+      "model": "Модель"
+    }
   },
   "sessions": {
-    "title": "Sessions",
-    "time": "Time",
-    "agent": "Agent",
-    "model": "Model",
-    "project": "Project",
-    "tokens": "Tokens",
-    "total": "{{count}} sessions total",
-    "loadMore": "Load more"
+    "title": "Сеансы",
+    "time": "Время",
+    "agent": "Инструмент",
+    "model": "Модель",
+    "project": "Проект",
+    "tokens": "Токены",
+    "total": "Всего сеансов: {{count}}",
+    "loadMore": "Загрузить ещё"
   },
   "source": {
-    "missing": "{{agent}} log directory not found",
-    "skipped": "{{count}} {{agent}} log file(s) could not be parsed and were skipped"
+    "missing": "Каталог журналов {{agent}} не найден",
+    "skipped": "Не удалось разобрать {{count}} файлов журнала {{agent}}, они пропущены"
   },
-  "empty": "No usage data found",
-  "error": "Failed to load usage data",
-  "unsupported": "Current backend does not support usage stats. Please update.",
+  "empty": "Данные об использовании не найдены",
+  "error": "Не удалось загрузить данные об использовании",
+  "unsupported": "Текущий бэкенд не поддерживает статистику использования. Обновите.",
   "kpi": {
-    "totalTokens": "Total tokens",
-    "sessions": "Sessions",
-    "messages": "Messages",
-    "cacheRatio": "Cache ratio"
+    "totalTokens": "Всего токенов",
+    "sessions": "Сеансы",
+    "messages": "Сообщения",
+    "cacheRatio": "Доля кэша"
   },
   "composition": {
-    "title": "Token composition",
-    "input": "Input",
-    "output": "Output",
-    "cacheRead": "Cache read",
-    "cacheCreation": "Cache creation"
+    "title": "Состав токенов",
+    "input": "Ввод",
+    "output": "Вывод",
+    "cacheRead": "Чтение кэша",
+    "cacheCreation": "Создание кэша"
   },
   "comparison": {
-    "title": "By tool",
-    "projectsTitle": "Top projects",
-    "modelsTitle": "Top models"
+    "title": "По инструменту",
+    "projectsTitle": "Топ проектов",
+    "modelsTitle": "Топ моделей"
   },
   "trendCtl": {
-    "mode": "Mode",
-    "split": "Split",
-    "cumulative": "Cumulative",
-    "perPoint": "≈ {{span}} / point"
+    "mode": "Режим",
+    "split": "По периодам",
+    "cumulative": "Накопительно",
+    "perPoint": "≈ {{span}} на точку"
   }
 }

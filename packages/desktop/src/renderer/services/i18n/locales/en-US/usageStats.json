@@ -13,15 +13,6 @@
     "90d": "Last 90 days",
     "all": "All time"
   },
-  "summary": {
-    "sessions": "Sessions",
-    "messages": "Messages",
-    "totalTokens": "Total tokens",
-    "input": "Input",
-    "output": "Output",
-    "cacheRead": "Cache read",
-    "cacheCreation": "Cache creation"
-  },
   "trend": {
     "title": "Token usage trend",
     "dimension": {
@@ -29,15 +20,7 @@
       "agent": "Tool",
       "project": "Project",
       "model": "Model"
-    },
-    "tooltipTotal": "Total"
-  },
-  "byModel": {
-    "title": "By model",
-    "model": "Model",
-    "agent": "Agent",
-    "sessions": "Sessions",
-    "tokens": "Tokens"
+    }
   },
   "sessions": {
     "title": "Sessions",
