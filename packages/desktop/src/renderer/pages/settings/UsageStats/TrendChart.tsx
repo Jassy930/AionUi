@@ -9,7 +9,12 @@ import { Card, Tooltip } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { TrendPoint } from '@/common/types/agentUsage';
 
-const SEGMENT_PALETTE = ['#165dff', '#7583b2', '#00b42a', '#ff7d00', '#f53f3f', '#722ed1', '#14c9c9', '#eb0aa4'];
+// Arco Design official categorical sequence. Bright, saturated hues with high
+// contrast on BOTH light and dark backgrounds (avoids the muted blue-grey
+// #7583b2 and dim #165dff that were hard to read). Adjacent colors are
+// hue-distinct (blue → green → orange ...) so stacked segments separate
+// clearly even with only two segments.
+const SEGMENT_PALETTE = ['#3491FA', '#00B42A', '#FF7D00', '#F53F3F', '#722ED1', '#14C9C9', '#F7BA1E', '#D91AD9'];
 
 const TrendChart: React.FC<{ points: TrendPoint[] }> = ({ points }) => {
   const { t } = useTranslation();
