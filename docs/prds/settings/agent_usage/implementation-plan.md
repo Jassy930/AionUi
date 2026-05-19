@@ -1453,9 +1453,9 @@ Expected: 看到 `ModuleStates` 字段声明处 + `build_module_states` 中 `sys
 - [ ] **Step 3: 在 state.rs 注册 analytics state**
 
 Modify `crates/aionui-app/src/router/state.rs`:
-- use 区加: `use aionui_analytics::{AnalyticsRouterState};`
+- use 区加 (按文件现有 import 分组风格; 同时导入 state 与 service 以便构造处用短名, 与其它模块如 assistant 风格一致): `use aionui_analytics::{AnalyticsRouterState, service::AgentUsageService};`
 - `ModuleStates` 结构体加字段: `pub analytics: AnalyticsRouterState,`
-- `build_module_states` 的 `let states = ModuleStates { ... }` 中加: `analytics: AnalyticsRouterState { service: aionui_analytics::service::AgentUsageService::new() },`
+- `build_module_states` 的 `let states = ModuleStates { ... }` 中加: `analytics: AnalyticsRouterState { service: AgentUsageService::new() },`
 
 - [ ] **Step 4: 在 routes.rs 接成受鉴权保护的 router**
 
@@ -2827,6 +2827,8 @@ git push -u origin feat/agent-usage-stats
 - [ ] **Step 4: 创建两个 PR (互相反向链接 spec)**
 
 按 `oss-pr` skill 流程分别创建 PR。AionCLI PR 描述中反向链接 AionUi 的 `docs/prds/settings/agent_usage/design.md`; AionUi PR 描述链接同一 spec 并注明依赖 AionCLI PR。
+
+> **P1 闭环协调 (回应 Task 1.9 code review I-1)**: Task 1.9 的后端 `WEBUI_REMOTE_HEADER` 读取 与 Task 3.0b 的 WebHost header 注入+剥离 **共同**构成远程脱敏闭环。单独合并 AionCLI(含 1.9) 而 AionUi(含 3.0b) 未部署时, WebUI 远程用户会看到完整 project 路径。两个 PR 描述必须显式声明: "本功能的远程路径脱敏依赖 AionCLI Task 1.9 + AionUi Task 3.0b 共同生效, 需协调两仓库合并/发布顺序 (建议 AionCLI 先合并部署, 再发布含 3.0b 的 AionUi; 或在 AionUi 发布前后端始终 loopback-only)"。
 
 ### Task 3.3: 文档同步 (per 项目 CLAUDE.md "同步变更")
 
