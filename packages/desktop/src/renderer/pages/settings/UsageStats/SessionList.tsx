@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Card, Table, Button } from '@arco-design/web-react';
-import type { ColumnProps } from '@arco-design/web-react/es/Table';
+import type { TableColumnProps } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { SessionRow } from '@/common/types/agentUsage';
 
@@ -17,7 +17,7 @@ const SessionList: React.FC<{
   onLoadMore: () => void;
 }> = ({ rows, total, hasMore, onLoadMore }) => {
   const { t } = useTranslation();
-  const columns: ColumnProps<SessionRow>[] = [
+  const columns: TableColumnProps<SessionRow>[] = [
     {
       title: t('usageStats.sessions.time'),
       dataIndex: 'lastActiveAt',

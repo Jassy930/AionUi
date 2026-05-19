@@ -6,13 +6,13 @@
 
 import React from 'react';
 import { Card, Table } from '@arco-design/web-react';
-import type { ColumnProps } from '@arco-design/web-react/es/Table';
+import type { TableColumnProps } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { UsageByModel } from '@/common/types/agentUsage';
 
 const ModelTable: React.FC<{ rows: UsageByModel[] }> = ({ rows }) => {
   const { t } = useTranslation();
-  const columns: ColumnProps<UsageByModel>[] = [
+  const columns: TableColumnProps<UsageByModel>[] = [
     { title: t('usageStats.byModel.agent'), dataIndex: 'agent' },
     { title: t('usageStats.byModel.model'), dataIndex: 'model' },
     {
