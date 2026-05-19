@@ -365,3 +365,15 @@ pages/settings/UsageStats/
 - **阶段 3 — 联调收尾**: 四维度正确性验证; 边界冒烟 (空目录/损坏/超大量); 两仓库各 `just push`/CI; 各开 feature 分支提 PR (AionCLI 从 main 切, AionUi 从 dev 切)
 
 交付物: AionCLI 一个新 crate + 少量组装层改动; AionUi 一个新 settings tab。两边均无 DB/文件写入副作用。
+
+## 实现期缺陷与 review 教训 (2026-05-19, CDP 真实环境取证)
+
+GUI 联调阶段在真实 Electron renderer (CDP 远程调试) 抓到 5 个缺陷, 均源于"计划/spec 凭印象写、subagent 逐字照抄、code-review 未渲染真实页面"。记录于此供后续 review 改进:
+
+1. **Settings 全页白屏 (致命)**: `BUILTIN_TAB_IDS` 被 `SettingsSider.tsx` 与 `SettingsPageWrapper.tsx` **两个独立 builtinMap** 消费, Task 2.5 只更新前者 → `builtinMap['usage']` 为 undefined → `.some(i=>i.id===anchor)` 抛 TypeError → 公共外壳崩 → 所有 settings 子页白屏。**教训**: 加 `BUILTIN_TAB_IDS` 成员时必须 grep 全部消费点; review 接入类改动要追溯共享常量的所有 import。
+2. **深路径 import 运行时失败**: `@arco-design/web-react/es/Table` 在 Arco 2.66.11 解析失败。**教训**: 类型 import 也要验证运行时模块可解析, 优先用包主入口导出 (`TableColumnProps`), 不用深 subpath。
+3. **i18n 插值原样输出**: 项目用 i18next (`{{var}}` 双括号), spec 写成单括号 `{var}` → `check-i18n.js` 只验 key 完整不验插值语法, 漏网。**教训**: i18n 文案占位符必须按项目框架语法; 校验脚本应增加插值语法检查。
+4. **趋势条形亚像素**: 纯线性 `(total/max)*130` 在 token 量级差异巨大 (cache token 单日暴涨上亿) 时把正常桶压成 0.3px。**教训**: 图形高度需最小可见钳制。
+5. **颜色变量未定义**: 用了 Arco 内部色阶名 `--color-primary-6`/`--color-text-3`, 本项目 :root 未定义 → 透明不可见。**教训**: 颜色必须用项目实际定义的语义 token (CDP/实测确认: `--primary`、`--text-secondary`), 不用 UI 库默认色阶名 (违反本项目 CLAUDE.md 颜色规范)。
+
+共性: 纯静态 review + 单测无法捕获"真实数据量级 / 真实 CSS 变量 / 真实模块解析 / 跨文件共享常量"类缺陷。**后续同类功能必须在真实运行环境 (Electron/CDP) 做 UI 验证后才算完成** (per verification-before-completion)。
