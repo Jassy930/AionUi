@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { cumulative, logScale, topN, pct, formatTokens } from '@renderer/pages/settings/UsageStats/chartMath';
+import {
+  cumulative,
+  logScale,
+  topN,
+  pct,
+  formatTokens,
+  cumulativeBySegment,
+} from '@renderer/pages/settings/UsageStats/chartMath';
 
 describe('chartMath', () => {
   it('cumulative = prefix sum', () => {
@@ -26,6 +33,15 @@ describe('chartMath', () => {
   it('pct guards divide-by-zero', () => {
     expect(pct(25, 100)).toBe(25);
     expect(pct(5, 0)).toBe(0);
+  });
+  it('cumulativeBySegment = per-segment prefix sum', () => {
+    const buckets = [{ claude: 100 }, { codex: 100 }, { claude: 50, codex: 30 }];
+    const got = cumulativeBySegment(buckets);
+    expect(got).toEqual([{ claude: 100 }, { claude: 100, codex: 100 }, { claude: 150, codex: 130 }]);
+  });
+  it('cumulativeBySegment handles empty buckets and missing segments', () => {
+    expect(cumulativeBySegment([])).toEqual([]);
+    expect(cumulativeBySegment([{}, { a: 5 }])).toEqual([{}, { a: 5 }]);
   });
   it('formatTokens uses K/M/B with 2 decimals, raw below 1000', () => {
     expect(formatTokens(0)).toBe('0');

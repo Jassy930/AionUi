@@ -9,7 +9,7 @@ import { Card, Radio, Tooltip } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import type { TrendPoint } from '@/common/types/agentUsage';
 import { SEGMENT_PALETTE } from './Sparkline';
-import { cumulative, formatTokens } from './chartMath';
+import { cumulativeBySegment, formatTokens } from './chartMath';
 
 const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({ points, perPointLabel }) => {
   const { t } = useTranslation();
@@ -27,13 +27,12 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
     [allSegments]
   );
 
-  // 每桶（应用 hidden 过滤后）总量序列；累计模式做前缀和
-  const totalsRaw = points.map((p) =>
-    Object.entries(p.bySegment)
-      .filter(([k]) => !hidden.has(k))
-      .reduce((s, [, v]) => s + v, 0)
+  // 每桶过滤 hidden 后的 segments；累计模式逐 segment 前缀和（柱高与分段口径一致）
+  const bucketsFiltered = points.map((p) =>
+    Object.fromEntries(Object.entries(p.bySegment).filter(([k]) => !hidden.has(k)))
   );
-  const totals = mode === 'cumulative' ? cumulative(totalsRaw) : totalsRaw;
+  const bucketsDisplay = mode === 'cumulative' ? cumulativeBySegment(bucketsFiltered) : bucketsFiltered;
+  const totals = bucketsDisplay.map((b) => Object.values(b).reduce((s, v) => s + v, 0));
   const max = Math.max(1, ...totals);
 
   if (points.length === 0) {
@@ -65,12 +64,10 @@ const TrendChart: React.FC<{ points: TrendPoint[]; perPointLabel: string }> = ({
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 160, overflowX: 'auto' }}>
         {points.map((p, idx) => {
-          const segs = Object.entries(p.bySegment)
-            .filter(([k]) => !hidden.has(k))
-            .toSorted(([, x], [, y]) => y - x);
+          const segs = Object.entries(bucketsDisplay[idx]).toSorted(([, x], [, y]) => y - x);
           const totalHere = totals[idx];
           const barHeight = totalHere > 0 ? Math.max((totalHere / max) * 130, 4) : 0;
-          const rawTotal = totalsRaw[idx];
+          const rawTotal = totalHere;
           // hover 详情: 日期 + 各 series 分量 + 总量 (Arco Tooltip, 多行 JSX)
           const tooltipContent = (
             <div style={{ fontSize: 12, lineHeight: 1.7, minWidth: 140 }}>

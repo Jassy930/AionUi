@@ -23,13 +23,18 @@ const ComparisonRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
   const grandTotal = data.summary.byAgent.reduce((s, x) => s + x.totalTokens, 0);
   const fmtTotal = formatTokens(grandTotal);
 
+  // by_project / by_model 后端按 (agent, X) 聚合，同名跨工具会有多条 — id 用复合 key 防 React 冲突，tag 显示工具来源
   const projRows = topN(data.byProject, (p) => p.totalTokens, 8).map((p) => ({
+    id: `${p.agent}/${p.project}`,
     label: p.project,
     value: p.totalTokens,
+    tag: p.agent,
   }));
   const modelRows = topN(data.byModel, (m) => m.totalTokens, 8).map((m) => ({
+    id: `${m.agent}/${m.model}`,
     label: m.model,
     value: m.totalTokens,
+    tag: m.agent,
   }));
 
   return (
