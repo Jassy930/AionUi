@@ -37,7 +37,11 @@ const ComparisonRow: React.FC<{ data: AgentUsageResponse }> = ({ data }) => {
       <Grid.Col span={8}>
         <Card title={t('usageStats.comparison.title')} bordered>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-            <CompositionDonut segments={agentSegs} centerLabel={fmtTotal} centerSub={t('usageStats.composition.unit')} />
+            <CompositionDonut
+              segments={agentSegs}
+              centerLabel={fmtTotal}
+              centerSub={t('usageStats.composition.unit')}
+            />
             <div style={{ fontSize: 12, lineHeight: 1.9 }}>
               {agentSegs.map((s) => (
                 <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
