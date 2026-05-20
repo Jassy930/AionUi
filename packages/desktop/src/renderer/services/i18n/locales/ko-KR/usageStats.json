@@ -50,7 +50,8 @@
     "input": "입력",
     "output": "출력",
     "cacheRead": "캐시 읽기",
-    "cacheCreation": "캐시 생성"
+    "cacheCreation": "캐시 생성",
+    "unit": "토큰"
   },
   "comparison": {
     "title": "도구별",

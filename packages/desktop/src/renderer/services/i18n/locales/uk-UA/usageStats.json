@@ -50,7 +50,8 @@
     "input": "Ввід",
     "output": "Вивід",
     "cacheRead": "Читання кешу",
-    "cacheCreation": "Створення кешу"
+    "cacheCreation": "Створення кешу",
+    "unit": "токени"
   },
   "comparison": {
     "title": "За інструментом",

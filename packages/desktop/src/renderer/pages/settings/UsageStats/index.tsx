@@ -175,7 +175,7 @@ const CompositionDonutCard: React.FC<{ data: AgentUsageResponse }> = ({ data }) 
     >
       <div style={{ fontWeight: 500, marginBottom: 12 }}>{t('usageStats.composition.title')}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-        <CompositionDonut segments={segs} centerLabel={fmtT} centerSub='tokens' />
+        <CompositionDonut segments={segs} centerLabel={fmtT} centerSub={t('usageStats.composition.unit')} />
         <div style={{ fontSize: 12, lineHeight: 1.9 }}>
           {segs.map((s) => (
             <div key={s.name}>

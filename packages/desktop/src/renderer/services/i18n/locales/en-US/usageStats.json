@@ -50,7 +50,8 @@
     "input": "Input",
     "output": "Output",
     "cacheRead": "Cache read",
-    "cacheCreation": "Cache creation"
+    "cacheCreation": "Cache creation",
+    "unit": "tokens"
   },
   "comparison": {
     "title": "By tool",

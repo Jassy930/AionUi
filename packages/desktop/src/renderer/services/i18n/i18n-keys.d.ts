@@ -1909,6 +1909,7 @@ export type I18nKey =
   | 'usageStats.composition.input'
   | 'usageStats.composition.output'
   | 'usageStats.composition.title'
+  | 'usageStats.composition.unit'
   | 'usageStats.empty'
   | 'usageStats.error'
   | 'usageStats.granularity.day'

@@ -50,7 +50,8 @@
     "input": "Ввод",
     "output": "Вывод",
     "cacheRead": "Чтение кэша",
-    "cacheCreation": "Создание кэша"
+    "cacheCreation": "Создание кэша",
+    "unit": "токены"
   },
   "comparison": {
     "title": "По инструменту",

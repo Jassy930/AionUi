@@ -50,7 +50,8 @@
     "input": "输入",
     "output": "输出",
     "cacheRead": "缓存读取",
-    "cacheCreation": "缓存创建"
+    "cacheCreation": "缓存创建",
+    "unit": "token"
   },
   "comparison": {
     "title": "按工具",
